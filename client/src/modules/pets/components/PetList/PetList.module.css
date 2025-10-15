@@ -1,0 +1,14 @@
+.pet-list {
+  list-style: none;
+  margin: 1rem auto;
+  padding: 1rem;
+  width: 90%;
+  max-width: 40rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pet-list h2 {
+  margin: 0;
+}
