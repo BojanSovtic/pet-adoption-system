@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 
 # Backend Uploads
-backend/uploads
+/backend/uploads
