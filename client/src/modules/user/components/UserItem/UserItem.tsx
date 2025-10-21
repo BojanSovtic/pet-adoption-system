@@ -1,42 +1,55 @@
-import  { FC } from "react";
+import { FC } from "react";
 import { Link } from "react-router-dom";
-
-import Avatar from "@/components/UI/Avatar/Avatar";
-import Card from "@/components/UI/Card/Card";
-
-// Assuming css.d.ts is set up
-import classes from "./UserItem.module.css";
-
+import {
+  Card,
+  CardContent,
+  Typography,
+  Avatar,
+  Box,
+  Badge,
+} from "@mui/material";
 
 interface UserItemProps {
   id: string;
-  image: string; 
+  image?: string | null;
   name: string;
-  petCount: number; 
+  petCount: number;
 }
 
-const UserItem: FC<UserItemProps> = (props) => {
-  const petCount = props.petCount; 
-  
+const UserItem: FC<UserItemProps> = ({ id, image, name, petCount }) => {
+  const avatarUrl = image
+    ? `${import.meta.env.VITE_ASSET_URL}${image}`
+    : "/images/user/default-avatar-placeholder.jpg";
+
   return (
-    <li className={classes["user-item"]}>
-      <Card className={classes["user-item__content"]}>
-        <Link to={`/${props.id}/pets`}> 
-          <div className={classes["user-item__image"]}>
-            <Avatar
-              image={`${import.meta.env.VITE_ASSET_URL}/${props.image}`}
-              alt={props.name}
-            />
-          </div>
-          <div className={classes["user-item__info"]}>
-            <h2>{props.name}</h2>
-            <h3>
+    <Box component="li" sx={{ listStyle: "none", mb: 2 }}>
+      <Card
+        variant="outlined"
+        sx={{ display: "flex", alignItems: "center", p: 1 }}
+      >
+        <Link
+          to={`/${id}/pets`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            textDecoration: "none",
+            width: "100%",
+          }}
+        >
+          <Badge badgeContent={petCount} color="primary" sx={{ mr: 2 }}>
+            <Avatar src={avatarUrl} alt={name} sx={{ width: 64, height: 64 }} />
+          </Badge>
+          <CardContent sx={{ flex: 1, py: 0 }}>
+            <Typography variant="h6" color="text.primary">
+              {name}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
               {petCount} {petCount === 1 ? "pet" : "pets"}
-            </h3>
-          </div>
+            </Typography>
+          </CardContent>
         </Link>
       </Card>
-    </li>
+    </Box>
   );
 };
 

@@ -1,31 +1,33 @@
-import  { FC, MouseEvent } from "react";
-
-import Modal from "../Modal/Modal";
-import Button from "@/components/FormElements/Button/Button"; 
-
-import classes from "./ErrorModal.module.css";
-
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+} from "@mui/material";
 interface ErrorModalProps {
-  error: string | null | undefined;
-  onClear: (event: MouseEvent<HTMLButtonElement | HTMLDivElement>) => void;
+  open: boolean;
+  error: string | null;
+  onClose: () => void;
 }
 
-const ErrorModal: FC<ErrorModalProps> = (props) => {
+export const ErrorModal: React.FC<ErrorModalProps> = ({
+  open,
+  error,
+  onClose,
+}) => {
   return (
-    <Modal
-      onCancel={props.onClear as (event: MouseEvent<HTMLDivElement>) => void}
-      
-      header="An Error Occurred!"
-      
-      show={!!props.error}
-      
-      footer={<Button onClick={props.onClear as (event: MouseEvent<HTMLButtonElement>) => void}>Okay</Button>}
-    >
-      <p className={classes.error}>
-        {props.error}
-      </p>
-    </Modal>
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle color="error.main">Error</DialogTitle>
+      <DialogContent>
+        <Typography>{error}</Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="contained" color="primary">
+          OK
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
-
-export default ErrorModal;

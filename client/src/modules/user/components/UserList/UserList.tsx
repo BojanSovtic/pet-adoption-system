@@ -1,35 +1,35 @@
-import{ FC } from "react";
+import { FC } from "react";
+import { Grid, Typography, Box } from "@mui/material";
 
-import classes from "./UsersList.module.css";
-
-import { User } from "../../models/User";
-import UserItem from "../UserItem/UserItem"; 
+import UserItem from "../UserItem/UserItem";
+import { UserView } from "../../models/User";
 
 interface UsersListProps {
-  items: User[];
+  items: UserView[];
 }
 
-const UsersList: FC<UsersListProps> = (props) => {
-  if (props.items.length === 0) {
+const UsersList: FC<UsersListProps> = ({ items }) => {
+  if (items.length === 0) {
     return (
-      <div className="center">
-        <h2>No users found.</h2>
-      </div>
+      <Box textAlign="center" mt={4}>
+        <Typography variant="h6">No users found.</Typography>
+      </Box>
     );
   }
 
   return (
-    <ul className={classes["users-list"]}>
-      {props.items.map((user) => (
-        <UserItem
-          key={user.id}
-          id={user.id}
-          name={user.name}
-          image={user.image}
-          petCount={user.pets.length} 
-        />
+    <Grid container spacing={2} sx={{ p: 2, width: "100%" }}>
+      {items.map((user) => (
+        <Grid size={{ xs: 12, sm: 6, md: 4 }} key={user.id}>
+          <UserItem
+            id={user.id}
+            name={user.name}
+            image={user.avatar ?? ""}
+            petCount={user.petCount ?? 0}
+          />
+        </Grid>
       ))}
-    </ul>
+    </Grid>
   );
 };
 

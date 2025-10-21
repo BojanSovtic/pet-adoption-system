@@ -1,17 +1,20 @@
-import  { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useParams, useHistory } from "react-router-dom";
 
-import classes from './PetForm.module.css'
+import classes from "./PetForm.module.css";
 import { AuthContext, AuthContextType } from "@/contexts/auth-context";
 import useHttp from "@/hooks/http-hook";
 import useForm from "@/hooks/form-hook";
 import LoadingSpinner from "@/components/UI/LoadingSpinner/LoadingSpinner";
 import Card from "@/components/UI/Card/Card";
-import ErrorModal from "@/components/UI/ErrorModal/ErrorModal";
 import Input from "@/components/FormElements/Input/Input";
-import { VALIDATOR_MIN, VALIDATOR_MINLENGTH, VALIDATOR_REQUIRE } from "@/utils/validators";
+import {
+  VALIDATOR_MIN,
+  VALIDATOR_MINLENGTH,
+  VALIDATOR_REQUIRE,
+} from "@/utils/validators";
 import Button from "@/components/FormElements/Button/Button";
-
+import { ErrorModal } from "@/components/UI/ErrorModal/ErrorModal";
 
 const UpdatePet = () => {
   const history = useHistory();
@@ -20,13 +23,15 @@ const UpdatePet = () => {
   const { isLoading, error, sendRequest, clearError } = useHttp();
   const [pet, setPet] = useState<any>();
 
-
-  const [formState, inputHandler, setFormData] = useForm({
-    name: { value: "", isValid: false },
-    species: { value: "", isValid: false },
-    age: { value: null, isValid: false }, 
-    description: { value: "", isValid: false }
-  }, true);
+  const [formState, inputHandler, setFormData] = useForm(
+    {
+      name: { value: "", isValid: false },
+      species: { value: "", isValid: false },
+      age: { value: null, isValid: false },
+      description: { value: "", isValid: false },
+    },
+    true
+  );
 
   useEffect(() => {
     async function fetchPet() {
@@ -36,25 +41,25 @@ const UpdatePet = () => {
         );
 
         setPet(data.pet);
-        
+
         setFormData(
           {
             name: {
               value: data.pet.name,
-              isValid: true
+              isValid: true,
             },
             species: {
               value: data.pet.species,
-              isValid: true
+              isValid: true,
             },
             age: {
               value: data.pet.age,
-              isValid: true
+              isValid: true,
             },
             description: {
               value: data.pet.description,
-              isValid: true
-            }
+              isValid: true,
+            },
           },
           true
         );
@@ -66,12 +71,11 @@ const UpdatePet = () => {
     fetchPet();
   }, [setFormData, sendRequest, petId]);
 
-
   async function petUpdateSubmitHandler(event: React.FormEvent) {
     event.preventDefault();
 
     if (!formState.isValid) {
-        return;
+      return;
     }
 
     const name = formState.inputs.name?.value;
@@ -87,20 +91,18 @@ const UpdatePet = () => {
           name: name,
           species: species,
           age: age,
-          description: description
+          description: description,
         }),
         {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authContext.token}`
+          Authorization: `Bearer ${authContext.token}`,
         }
       );
-      
-      history.push(`/${authContext.userId}/pets`);
 
+      history.push(`/${authContext.userId}/pets`);
     } catch (err) {
       console.error(err);
     }
-
   }
 
   if (isLoading) {
@@ -123,10 +125,9 @@ const UpdatePet = () => {
 
   return (
     <>
-      <ErrorModal error={error} onClear={clearError} />
+      <ErrorModal open={!!error} error={error} onClose={clearError} />
       {!isLoading && pet && (
         <form className={classes["pet-form"]} onSubmit={petUpdateSubmitHandler}>
-          
           <Input
             id="name"
             element="input"
@@ -158,11 +159,11 @@ const UpdatePet = () => {
             label="Age (Years)"
             validators={[VALIDATOR_MIN(0)]}
             errorText="Age must be 0 or greater!"
-            initValue={pet.age.toString()} 
+            initValue={pet.age.toString()}
             initValid={true}
             onInput={inputHandler}
           />
-          
+
           <Input
             id="description"
             element="textarea"
@@ -173,7 +174,7 @@ const UpdatePet = () => {
             initValid={true}
             onInput={inputHandler}
           />
-          
+
           <Button type="submit" disabled={!formState.isValid}>
             Update Pet
           </Button>

@@ -1,22 +1,22 @@
 import { FC, useContext, useState, MouseEvent } from "react";
 
-import classes from "./PetItem.module.css"; 
-import { Pet } from "../../models/Pets";
+import classes from "./PetItem.module.css";
 import useHttp from "@/hooks/http-hook";
 import { AuthContext, AuthContextType } from "@/contexts/auth-context";
-import ErrorModal from "@/components/UI/ErrorModal/ErrorModal";
 import Modal from "@/components/UI/Modal/Modal";
 import Button from "@/components/FormElements/Button/Button";
 import Card from "@/components/UI/Card/Card";
 import LoadingSpinner from "@/components/UI/LoadingSpinner/LoadingSpinner";
+import { PetView } from "../../models/Pets";
+import { ErrorModal } from "@/components/UI/ErrorModal/ErrorModal";
 
- interface PetItemProps extends Pet {
+interface PetItemProps extends PetView {
   onDelete: (deletedPetId: string) => void;
 }
 
 const PetItem: FC<PetItemProps> = (props) => {
   const { isLoading, error, sendRequest, clearError } = useHttp();
-  
+
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const authContext = useContext<AuthContextType>(AuthContext);
 
@@ -25,7 +25,7 @@ const PetItem: FC<PetItemProps> = (props) => {
   }
 
   async function deleteHandler(event: MouseEvent) {
-    event.preventDefault(); 
+    event.preventDefault();
     setShowDeleteModal(false);
 
     try {
@@ -38,22 +38,26 @@ const PetItem: FC<PetItemProps> = (props) => {
         }
       );
 
-      props.onDelete(props.id);   ``
+      props.onDelete(props.id);
+      ``;
     } catch (err) {
       console.error(err);
     }
   }
-  
-  const imageSource = props.photos[0] 
-    ? `${import.meta.env.VITE_ASSET_URL}/${props.photos[0]}`
-    : 'https://placehold.co/600x400/CCCCCC/333333?text=No+Photo';
 
-  const statusClass = props.status === 'adopted' ? classes['status-adopted'] : classes['status-available'];
+  const imageSource = props.photos[0]
+    ? `${import.meta.env.VITE_ASSET_URL}/${props.photos[0]}`
+    : "https://placehold.co/600x400/CCCCCC/333333?text=No+Photo";
+
+  const statusClass =
+    props.status === "adopted"
+      ? classes["status-adopted"]
+      : classes["status-available"];
 
   return (
     <>
-      <ErrorModal error={error} onClear={clearError} />
-      
+      <ErrorModal open={!!error} error={error} onClose={clearError} />
+
       <Modal
         show={showDeleteModal}
         onCancel={toggleShowDeleteModalHandler}
@@ -71,7 +75,8 @@ const PetItem: FC<PetItemProps> = (props) => {
         }
       >
         <p style={{ margin: "1rem" }}>
-          Are you sure you want to delete the listing for **{props.name}**? This action cannot be undone!
+          Are you sure you want to delete the listing for **{props.name}**? This
+          action cannot be undone!
         </p>
       </Modal>
 
@@ -79,29 +84,28 @@ const PetItem: FC<PetItemProps> = (props) => {
         <Card className={classes["pet-item__content"]}>
           {isLoading && <LoadingSpinner asOverlay />}
           <div className={classes["pet-item__image"]}>
-            <img
-              src={imageSource}
-              alt={props.name} 
-            />
+            <img src={imageSource} alt={props.name} />
           </div>
           <div className={classes["pet-item__info"]}>
             <h2 className={classes["pet-item__name"]}>{props.name}</h2>
-            
+
             <div className={classes["pet-item__details"]}>
               <p>
-                <strong>Species:</strong> {props.species || 'N/A'}
+                <strong>Species:</strong> {props.species || "N/A"}
               </p>
               <p>
-                <strong>Breed:</strong> {props.breed || 'Unknown'}
+                <strong>Breed:</strong> {props.breed || "Unknown"}
               </p>
               <p>
-                <strong>Age:</strong> {props.age !== undefined ? `${props.age} years` : 'N/A'}
+                <strong>Age:</strong>{" "}
+                {props.age !== undefined ? `${props.age} years` : "N/A"}
               </p>
               <p className={statusClass}>
-                <strong>Status:</strong> {props.status.charAt(0).toUpperCase() + props.status.slice(1)}
+                <strong>Status:</strong>{" "}
+                {props.status.charAt(0).toUpperCase() + props.status.slice(1)}
               </p>
             </div>
-            
+
             <p className={classes["pet-item__description"]}>
               {props.description || "No detailed description provided."}
             </p>
@@ -109,16 +113,17 @@ const PetItem: FC<PetItemProps> = (props) => {
           <div className={classes["pet-item__actions"]}>
             {authContext.userId === props.owner && (
               <>
-                <Button to={`/pets/${props.id}`}>Edit</Button> 
+                <Button to={`/pets/${props.id}`}>Edit</Button>
                 <Button onClick={toggleShowDeleteModalHandler} danger>
                   Delete
                 </Button>
               </>
             )}
-            
-            {props.status === 'available' && authContext.userId !== props.owner && (
+
+            {props.status === "available" &&
+              authContext.userId !== props.owner && (
                 <Button to={`/adopt/${props.id}`}>Adopt Me!</Button>
-            )}
+              )}
           </div>
         </Card>
       </li>

@@ -54,7 +54,13 @@ export default function useHttp(): HttpHook {
           return undefined;
         }
 
-        setError(err.message || "Request failed.");
+        if (Array.isArray(err.errors)) {
+          const allMsgs = err.errors.map((e: any) => e.msg).join("\n");
+          setError(allMsgs);
+        } else {
+          setError(err.message || "Request failed.");
+        }
+
         throw err;
       }
     },
