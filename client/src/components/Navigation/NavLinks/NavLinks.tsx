@@ -1,44 +1,49 @@
-import { useContext, FC } from "react";
+import { FC } from "react";
 import { NavLink } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 
-import { AuthContext } from "@/contexts/auth-context";
 import classes from "./NavLinks.module.css";
 import Button from "@/components/FormElements/Button/Button";
+import { RootState } from "@/store";
+import { logout } from "@/modules/user/slices/authSlice";
 
 interface NavLinksProps {}
 
 const NavLinks: FC<NavLinksProps> = () => {
-  const authContext = useContext(AuthContext);
-  
+  const dispatch = useDispatch();
+
+  const { userId, token } = useSelector((state: RootState) => state.auth);
+  const isLoggedIn = !!token;
+
   return (
     <ul className={classes["nav-links"]}>
       <li>
-        <NavLink to={"/"} end> 
+        <NavLink to={"/"} end>
           All Pets
         </NavLink>
       </li>
-      
-      {authContext.isLoggedIn && (
+
+      {isLoggedIn && (
         <li>
-          <NavLink to={`/${authContext.userId}/pets`}>My Pets</NavLink>
+          <NavLink to={`/${userId}/pets`}>My Pets</NavLink>
         </li>
       )}
-      
-      {authContext.isLoggedIn && (
+
+      {isLoggedIn && (
         <li>
           <NavLink to={"/pets/new"}>Add Pet</NavLink>
         </li>
       )}
-      
-      {!authContext.isLoggedIn && (
+
+      {!isLoggedIn && (
         <li>
           <NavLink to={"/auth"}>Login</NavLink>
         </li>
       )}
-      
-      {authContext.isLoggedIn && (
+
+      {isLoggedIn && (
         <li>
-          <Button onClick={authContext.logout}>Logout</Button>
+          <Button onClick={() => dispatch(logout())}>Logout</Button>
         </li>
       )}
     </ul>

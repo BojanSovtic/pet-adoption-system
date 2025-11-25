@@ -1,22 +1,28 @@
-import { FC, useContext, useEffect, useState } from "react";
+import { FC, useState } from "react";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { SubmitHandler, useForm } from "react-hook-form";
 import * as yup from "yup";
-
-import { AuthContext, AuthContextType } from "@/contexts/auth-context";
-import useHttp from "@/hooks/http-hook";
 import {
-  Alert,
   Avatar,
   Box,
   Button,
   Card,
   CardContent,
-  CircularProgress,
-  Snackbar,
   TextField,
   Typography,
 } from "@mui/material";
+import { useDispatch } from "react-redux";
+
+import { authAPI } from "@/modules/user/services/auth-service";
+import { login } from "../../slices/authSlice";
+
+type AuthFormInputs = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  image?: FileList;
+};
 
 const schema = yup.object({
   name: yup.string().when("$isLoginMode", {
@@ -62,27 +68,10 @@ const schema = yup.object({
     }),
 });
 
-type AuthFormInputs = {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  image?: FileList;
-};
-
 const Auth: FC = () => {
-  const authContext = useContext<AuthContextType>(AuthContext);
-  const { isLoading, error, sendRequest, clearError } = useHttp();
-  const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const dispatch = useDispatch();
 
-  useEffect(() => {
-    if (error) {
-      setToastMessage(error);
-      setToastOpen(true);
-    }
-  }, [error]);
+  const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
 
   const defaultAvatar = "/images/user/default-avatar-placeholder.jpg";
 
@@ -112,61 +101,36 @@ const Auth: FC = () => {
 
   const switchAuthModeHandler = () => {
     setIsLoginMode((prev) => !prev);
-    clearError();
     reset();
   };
 
   const onSubmit: SubmitHandler<AuthFormInputs> = async (data) => {
-    clearError();
-
     try {
+      let response;
+
       if (isLoginMode) {
-        console.log("------- CALLING SEND REQUEST AUTH!");
-        const responseData = await sendRequest(
-          `${import.meta.env.VITE_BACKEND_URL}/users/login`,
-          "POST",
-          JSON.stringify({
-            email: data.email,
-            password: data.password,
-          }),
-          { "Content-Type": "application/json" }
-        );
-
-        const userId = responseData.userId ?? responseData._id;
-        const token = responseData.token;
-
-        if (!userId || !token) {
-          throw new Error("Invalid server response");
-        }
-
-        authContext.login(userId, token);
+        response = await authAPI.login({
+          email: data.email,
+          password: data.password,
+        });
       } else {
-        const formData = new FormData();
-        formData.append("name", data.name || "");
-        formData.append("email", data.email);
-        formData.append("password", data.password);
-
-        if (data.image && data.image.length > 0) {
-          formData.append("image", data.image[0]);
-        }
-
-        console.log("------- CALLING SEND REQUEST AUTH 2!");
-        const responseData = await sendRequest(
-          `${import.meta.env.VITE_BACKEND_URL}/users/signup`,
-          "POST",
-          formData
-        );
-
-        const userId = responseData.userId ?? responseData._id;
-        const token = responseData.token;
-
-        if (!userId || !token) {
-          throw new Error("Invalid server response");
-        }
-
-        authContext.login(userId, token);
+        response = await authAPI.signup({
+          name: data.name!,
+          email: data.email,
+          password: data.password,
+          image: data.image?.[0],
+        });
       }
-    } catch (err) {
+
+      const userId = response.userId ?? response._id;
+      const token = response.token;
+
+      if (!userId || !token) {
+        throw new Error("Invalid server response");
+      }
+
+      dispatch(login({ userId, token }));
+    } catch (err: any) {
       console.error("Auth error:", err);
     }
   };
@@ -201,29 +165,6 @@ const Auth: FC = () => {
             ? "Login to find your perfect pet companion"
             : "Join us to adopt or list pets for adoption"}
         </Typography>
-
-        <Snackbar
-          open={toastOpen}
-          autoHideDuration={5000}
-          onClose={() => {
-            setToastOpen(false);
-            clearError();
-          }}
-          anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        >
-          <Alert
-            onClose={() => {
-              setToastOpen(false);
-              clearError();
-            }}
-            severity="error"
-            sx={{ width: "100%" }}
-          >
-            {toastMessage.split("\n").map((msg, idx) => (
-              <div key={idx}>{msg}</div>
-            ))}
-          </Alert>
-        </Snackbar>
 
         <Box
           component="form"
@@ -312,16 +253,9 @@ const Auth: FC = () => {
             color="primary"
             fullWidth
             size="large"
-            disabled={isLoading}
             sx={{ mt: 2, py: 1.5 }}
           >
-            {isLoading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : isLoginMode ? (
-              "Login"
-            ) : (
-              "Create Account"
-            )}
+            {isLoginMode ? "Login" : "Create Account"}
           </Button>
         </Box>
 

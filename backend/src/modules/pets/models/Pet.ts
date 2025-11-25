@@ -15,9 +15,9 @@ export interface IPet extends Document {
   description?: string;
   personalityTraits?: string[];
 
-  // Photos
-  photos: string[];
-  primaryPhoto?: string;
+  // Images
+  images: string[];
+  primaryImage?: string;
 
   // Health & Medical
   isVaccinated: boolean;
@@ -85,7 +85,6 @@ const PetSchema: Schema = new Schema(
     size: {
       type: String,
       enum: ["small", "medium", "large", "extra-large"],
-      required: true,
     },
     color: {
       type: String,
@@ -104,8 +103,8 @@ const PetSchema: Schema = new Schema(
       },
     ],
 
-    // Photos
-    photos: {
+    // Images
+    images: {
       type: [String],
       default: [],
       validate: {
@@ -115,7 +114,7 @@ const PetSchema: Schema = new Schema(
         message: "Cannot upload more than 10 photos",
       },
     },
-    primaryPhoto: {
+    primaryImage: {
       type: String,
     },
 
@@ -172,8 +171,8 @@ const PetSchema: Schema = new Schema(
 
     // Location
     location: {
-      city: { type: String, required: true, trim: true },
-      state: { type: String, required: true, trim: true },
+      city: { type: String, required: false, trim: true },
+      state: { type: String, required: false, trim: true },
       country: { type: String, default: "USA", trim: true },
     },
 

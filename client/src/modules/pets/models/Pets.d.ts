@@ -1,29 +1,29 @@
-export interface PetEntity {
-  _id: string;
+export interface PetDTO {
+  id: string;
   name: string;
   species?: string;
   breed?: string;
   age?: string;
   description?: string;
-  photos?: string[];
+  images?: string[];
   status?: "available" | "adopted";
-  owner?: string | UserEntity | null; // owner may be id or populated UserEntity
-  adopter?: string | UserEntity | null; // idem
+  owner?: string | UserEntity | null;
+  adopter?: string | UserEntity | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface PetView {
-  _id: string;
+  id: string;
   name: string;
   species?: string;
   breed?: string;
   age?: string;
   description?: string;
-  photos?: string[];
+  images?: string[];
   status?: "available" | "adopted";
-  owner?: string | UserEntity | null; // owner may be id or populated UserEntity
-  adopter?: string | UserEntity | null; // idem
+  owner?: string | UserEntity | null;
+  adopter?: string | UserEntity | null;
   createdAt?: string;
   updatedAt?: string;
 }

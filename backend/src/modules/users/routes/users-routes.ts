@@ -14,7 +14,7 @@ import {
 } from "@/modules/users/controllers/users-controller";
 import { validateRequest } from "@/shared/middleware/validate-request";
 import auth from "@/shared/middleware/auth";
-import { avatarUpload } from "../../../shared/middleware/avatar-upload";
+import { avatarUpload } from "../../../shared/middleware/file-upload";
 
 const router = express.Router();
 
@@ -25,7 +25,7 @@ router.get("/:userId", getUserById);
 // Auth routes
 router.post(
   "/signup",
-  avatarUpload.single("image"),
+  avatarUpload,
   [
     body("name").trim().notEmpty().withMessage("Name is required."),
     body("email")

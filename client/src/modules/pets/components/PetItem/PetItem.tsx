@@ -1,133 +1,184 @@
-import { FC, useContext, useState, MouseEvent } from "react";
+import { FC, useState, MouseEvent } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import {
+  Card,
+  CardMedia,
+  CardContent,
+  CardActions,
+  Typography,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
+  Box,
+  Chip,
+} from "@mui/material";
+import { petAPI } from "@/modules/pets/services/pets-service";
+import { useSelector } from "react-redux";
+import { RootState, store } from "@/store";
 
-import classes from "./PetItem.module.css";
-import useHttp from "@/hooks/http-hook";
-import { AuthContext, AuthContextType } from "@/contexts/auth-context";
-import Modal from "@/components/UI/Modal/Modal";
-import Button from "@/components/FormElements/Button/Button";
-import Card from "@/components/UI/Card/Card";
-import LoadingSpinner from "@/components/UI/LoadingSpinner/LoadingSpinner";
 import { PetView } from "../../models/Pets";
-import { ErrorModal } from "@/components/UI/ErrorModal/ErrorModal";
-
 interface PetItemProps extends PetView {
   onDelete: (deletedPetId: string) => void;
 }
 
 const PetItem: FC<PetItemProps> = (props) => {
-  const { isLoading, error, sendRequest, clearError } = useHttp();
-
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
-  const authContext = useContext<AuthContextType>(AuthContext);
+  const userId = store.getState().auth.userId;
 
-  function toggleShowDeleteModalHandler() {
+  const isLoading = useSelector(
+    (state: RootState) => state.loading.counter > 0
+  );
+
+  const toggleShowDeleteModalHandler = () => {
     setShowDeleteModal((prevState) => !prevState);
-  }
+  };
 
-  async function deleteHandler(event: MouseEvent) {
+  const deleteHandler = async (event: MouseEvent) => {
     event.preventDefault();
     setShowDeleteModal(false);
 
     try {
-      await sendRequest(
-        `${import.meta.env.VITE_BACKEND_URL}/pets/${props.id}`,
-        "DELETE",
-        null,
-        {
-          Authorization: `Bearer ${authContext.token}`,
-        }
-      );
+      await petAPI.deletePet(props.id);
 
       props.onDelete(props.id);
-      ``;
     } catch (err) {
       console.error(err);
     }
-  }
+  };
 
-  const imageSource = props.photos[0]
-    ? `${import.meta.env.VITE_ASSET_URL}/${props.photos[0]}`
-    : "https://placehold.co/600x400/CCCCCC/333333?text=No+Photo";
+  const defaultPetImage = "/images/pets/pets-placeholder.png";
+  const imageSource =
+    props.images && props.images.length
+      ? `${import.meta.env.VITE_ASSET_URL}/${props.images[0]}`
+      : defaultPetImage;
 
-  const statusClass =
-    props.status === "adopted"
-      ? classes["status-adopted"]
-      : classes["status-available"];
+  const statusLabel = props.status
+    ? props.status.charAt(0).toUpperCase() + props.status.slice(1)
+    : ""; // TODO - Add default status
 
   return (
-    <>
-      <ErrorModal open={!!error} error={error} onClose={clearError} />
+    <Box component="li" sx={{ listStyle: "none", mb: 2 }}>
+      <Card sx={{ display: "flex", position: "relative" }}>
+        {isLoading && (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(255,255,255,0.6)",
+              zIndex: 10,
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        )}
 
-      <Modal
-        show={showDeleteModal}
-        onCancel={toggleShowDeleteModalHandler}
-        header="Confirm Deletion"
-        footerClass="pet-item__modal-actions"
-        footer={
-          <>
-            <Button onClick={toggleShowDeleteModalHandler} inverse>
-              Cancel
-            </Button>
-            <Button onClick={deleteHandler} danger>
-              Delete
-            </Button>
-          </>
-        }
-      >
-        <p style={{ margin: "1rem" }}>
-          Are you sure you want to delete the listing for **{props.name}**? This
-          action cannot be undone!
-        </p>
-      </Modal>
+        <CardMedia
+          component="img"
+          image={imageSource}
+          alt={props.name}
+          sx={{ width: 260, objectFit: "cover" }}
+        />
 
-      <li className={classes["pet-item"]}>
-        <Card className={classes["pet-item__content"]}>
-          {isLoading && <LoadingSpinner asOverlay />}
-          <div className={classes["pet-item__image"]}>
-            <img src={imageSource} alt={props.name} />
-          </div>
-          <div className={classes["pet-item__info"]}>
-            <h2 className={classes["pet-item__name"]}>{props.name}</h2>
+        <Box sx={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <CardContent sx={{ flex: "1 0 auto" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Typography component="h2" variant="h6">
+                {props.name}
+              </Typography>
 
-            <div className={classes["pet-item__details"]}>
-              <p>
+              <Chip
+                label={statusLabel}
+                color={props.status === "adopted" ? "default" : "success"}
+                size="small"
+              />
+            </Box>
+
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2">
                 <strong>Species:</strong> {props.species || "N/A"}
-              </p>
-              <p>
+              </Typography>
+              <Typography variant="body2">
                 <strong>Breed:</strong> {props.breed || "Unknown"}
-              </p>
-              <p>
+              </Typography>
+              <Typography variant="body2">
                 <strong>Age:</strong>{" "}
                 {props.age !== undefined ? `${props.age} years` : "N/A"}
-              </p>
-              <p className={statusClass}>
-                <strong>Status:</strong>{" "}
-                {props.status.charAt(0).toUpperCase() + props.status.slice(1)}
-              </p>
-            </div>
+              </Typography>
+            </Box>
 
-            <p className={classes["pet-item__description"]}>
-              {props.description || "No detailed description provided."}
-            </p>
-          </div>
-          <div className={classes["pet-item__actions"]}>
-            {authContext.userId === props.owner && (
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                {props.description || "No detailed description provided."}
+              </Typography>
+            </Box>
+          </CardContent>
+
+          <CardActions sx={{ px: 2, pb: 2 }}>
+            {userId === props.owner && (
               <>
-                <Button to={`/pets/${props.id}`}>Edit</Button>
-                <Button onClick={toggleShowDeleteModalHandler} danger>
+                <Button
+                  component={RouterLink}
+                  to={`/pets/${props.id}`}
+                  variant="contained"
+                  size="small"
+                >
+                  Edit
+                </Button>
+
+                <Button
+                  onClick={toggleShowDeleteModalHandler}
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                >
                   Delete
                 </Button>
               </>
             )}
 
-            {props.status === "available" &&
-              authContext.userId !== props.owner && (
-                <Button to={`/adopt/${props.id}`}>Adopt Me!</Button>
-              )}
-          </div>
-        </Card>
-      </li>
-    </>
+            {props.status === "available" && userId !== props.owner && (
+              <Button
+                component={RouterLink}
+                to={`/adopt/${props.id}`}
+                variant="contained"
+                size="small"
+              >
+                Adopt Me!
+              </Button>
+            )}
+          </CardActions>
+        </Box>
+      </Card>
+
+      <Dialog open={showDeleteModal} onClose={toggleShowDeleteModalHandler}>
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the listing for{" "}
+            <strong>{props.name}</strong>? This action cannot be undone!
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={toggleShowDeleteModalHandler} size="small">
+            Cancel
+          </Button>
+          <Button
+            onClick={deleteHandler}
+            size="small"
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 
