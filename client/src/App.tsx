@@ -1,59 +1,50 @@
-import React, { Suspense, FC } from "react";
-import { Route, Routes, Navigate } from "react-router-dom";
+import { FC, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 
+import AppRoutes from "./routes/AppRoutes";
 import MainNavigation from "@/components/Navigation/MainNavigation/MainNavigation";
-import Users from "./modules/user/pages/Users";
-import useAuth from "./hooks/auth-hook";
-import { AuthContext, AuthContextType } from "./contexts/auth-context";
-import LoadingSpinner from "./components/UI/LoadingSpinner/LoadingSpinner";
-
-const UserPets = React.lazy(() => import("./modules/pets/pages/UserPets")); 
-const NewPet = React.lazy(() => import("./modules/pets/pages/NewPet")); 
-const UpdatePet = React.lazy(() => import("./modules/pets/pages/UpdatePet"));
-const Auth = React.lazy(() => import("./modules/user/pages/Auth/Auth")); 
+import GlobalSnackbar from "./components/UI/GlobalSnackbar/GlobalSnackbar";
+import GlobalLoading from "./components/UI/GlobalLoading/GlobalLoading";
+import { restore } from "./modules/user/slices/authSlice";
+import { RootState } from "./store";
 
 const App: FC = () => {
-  const { userId, token, login, logout } = useAuth();
+  const dispatch = useDispatch();
+  const token = useSelector((state: RootState) => state.auth.token);
 
-  const contextValue: AuthContextType = {
-    isLoggedIn: !!token,
-    token: token,
-    userId: userId,
-    login: login,
-    logout: logout,
-  };
+  useEffect(() => {
+    const storedUserString = localStorage.getItem("user");
+    if (!storedUserString) return;
+
+    try {
+      const storedUser = JSON.parse(storedUserString);
+      const expirationDate = new Date(storedUser.expirationDate);
+
+      if (storedUser.tokeny && expirationDate > new Date()) {
+        dispatch(
+          restore({
+            userId: storedUser.userId,
+            token: storedUser.token,
+            expiratonDate: storedUser.expiratonDate,
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Failed to parse user data from storage:", error);
+      localStorage.removeItem("user");
+    }
+  }, [dispatch]);
 
   return (
-    <AuthContext.Provider value={contextValue}>
+    <>
       <MainNavigation />
       <main>
-        <Suspense
-          fallback={
-            <div className="center">
-              <LoadingSpinner asOverlay />
-            </div>
-          }
-        >
-          <Routes>
-            <Route path="/" element={<Users />} />
-            <Route path="/:userId/pets" element={<UserPets />} />
-            
-            {token ? (
-              <>
-                <Route path="/pets/new" element={<NewPet />} />
-                <Route path="/pets/:petId" element={<UpdatePet />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </>
-            ) : (
-              <>
-                <Route path="/auth" element={<Auth />} />
-                <Route path="*" element={<Navigate to="/auth" replace />} />
-              </>
-            )}
-          </Routes>
-        </Suspense>
+        <AppRoutes isLoggedIn={!!token} />
       </main>
-    </AuthContext.Provider>
+
+      <GlobalSnackbar />
+      <GlobalLoading />
+    </>
   );
 };
 

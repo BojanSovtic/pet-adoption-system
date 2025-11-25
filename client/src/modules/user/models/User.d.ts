@@ -1,4 +1,4 @@
-import { PetEntity } from "@/modules/pets/models/Pets";
+import { PetDTO } from "@/modules/pets/models/Pets";
 
 export type UserRole = "user" | "shelter" | "admin";
 export interface Address {
@@ -16,8 +16,8 @@ export interface UserDTO {
   role: UserRole;
   isEmailVerified: boolean;
   isActive: boolean;
-  pets: PetEntity[]; // TODO
-  favoritePets: PetEntity[];
+  pets: PetDTO[];
+  favoritePets: PetDTO[];
   adoptionApplications: any[]; // TODO
   petCount: number;
   createdAt?: string;
