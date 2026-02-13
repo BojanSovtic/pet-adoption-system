@@ -44,3 +44,11 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 test-output
+
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+
+# Env files
+.env
+.env.*
+!.env.example
