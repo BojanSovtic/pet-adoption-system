@@ -14,6 +14,45 @@
     },
     {
       "path": "./web"
+    },
+    {
+      "path": "./libs"
+    },
+    {
+      "path": "./libs/feature-auth"
+    },
+    {
+      "path": "./libs/ui"
+    },
+    {
+      "path": "./libs/ui-theme"
+    },
+    {
+      "path": "./libs/data-access"
+    },
+    {
+      "path": "./libs/models"
+    },
+    {
+      "path": "./libs/utils"
+    },
+    {
+      "path": "./libs/feature-auth"
+    },
+    {
+      "path": "./libs/feature-pets"
+    },
+    {
+      "path": "./libs/feature-adoption"
+    },
+    {
+      "path": "./libs/data-access"
+    },
+    {
+      "path": "./libs/models"
+    },
+    {
+      "path": "./libs/utils"
     }
   ]
 }
