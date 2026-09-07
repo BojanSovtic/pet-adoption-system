@@ -1,5 +1,5 @@
 {
-  "name": "@org/api",
+  "name": "@pet-adoption/api",
   "version": "0.0.1",
   "private": true,
   "nx": {
@@ -97,15 +97,15 @@
           "build"
         ],
         "options": {
-          "buildTarget": "@org/api:build",
+          "buildTarget": "@pet-adoption/api:build",
           "runBuildTargetDependencies": false
         },
         "configurations": {
           "development": {
-            "buildTarget": "@org/api:build:development"
+            "buildTarget": "@pet-adoption/api:build:development"
           },
           "production": {
-            "buildTarget": "@org/api:build:production"
+            "buildTarget": "@pet-adoption/api:build:production"
           }
         }
       },
@@ -136,7 +136,6 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "@org/api-products": "*",
-    "@org/models": "*"
+    "@pet-adoption/models": "*"
   }
 }
