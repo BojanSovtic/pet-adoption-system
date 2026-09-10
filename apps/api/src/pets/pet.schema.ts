@@ -8,4 +8,7 @@ export const createPetSchema = z.object({
   imageUrls: z.array(z.url()).optional(),
 });
 
+export const updatePetSchema = createPetSchema.partial();
+
 export type CreatePetRequest = z.infer<typeof createPetSchema>;
+export type UpdatePetRequest = z.infer<typeof updatePetSchema>;

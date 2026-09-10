@@ -1,6 +1,7 @@
 import express, { type Express } from 'express';
 
 import { petRouter } from './pets/pet.routes';
+import { errorHandler } from './middleware/error-handler';
 
 export const app: Express = express();
 
@@ -11,3 +12,5 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/pets', petRouter);
+
+app.use(errorHandler);

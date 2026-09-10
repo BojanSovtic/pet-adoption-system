@@ -1,9 +1,28 @@
 import { Router } from 'express';
 
 import { validateBody } from '../middleware/validate';
-import { createPetSchema } from './pet.schema';
-import { createPetController } from './pet.controller';
+import { asyncHandler } from '../middleware/async-handler';
+import { createPetSchema, updatePetSchema } from './pet.schema';
+import {
+  createPetController,
+  getPetByIdController,
+  getPetsController,
+  updatePetController,
+} from './pet.controller';
 
 export const petRouter: Router = Router();
 
-petRouter.post('/', validateBody(createPetSchema), createPetController);
+petRouter.get('/', asyncHandler(getPetsController));
+petRouter.get('/:id', asyncHandler(getPetByIdController));
+
+petRouter.post(
+  '/',
+  validateBody(createPetSchema),
+  asyncHandler(createPetController),
+);
+
+petRouter.put(
+  '/:id',
+  validateBody(updatePetSchema),
+  asyncHandler(updatePetController),
+);
