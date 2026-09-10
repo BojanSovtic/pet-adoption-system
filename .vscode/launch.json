@@ -4,9 +4,9 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug @org/api with Nx",
+      "name": "Debug @pet-adoption/api with Nx",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["nx", "serve", "@org/api"],
+      "runtimeArgs": ["nx", "serve", "@pet-adoption/api"],
       "env": {
         "NODE_OPTIONS": "--inspect=9229"
       },

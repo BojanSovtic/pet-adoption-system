@@ -7,9 +7,11 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
+    "mongoose": "^9.9.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-router-dom": "6.30.3"
+    "react-router-dom": "6.30.3",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@babel/core": "^7.14.5",
@@ -25,7 +27,7 @@
     "@nx/playwright": "23.2.0",
     "@nx/react": "23.2.0",
     "@nx/vite": "23.2.0",
-    "@nx/vitest": "23.2.0",
+    "@nx/vitest": "^23.2.0",
     "@nx/web": "23.2.0",
     "@nx/workspace": "23.2.0",
     "@playwright/test": "^1.36.0",
@@ -57,9 +59,10 @@
     "jsonc-eslint-parser": "^2.1.0",
     "nx": "23.2.0",
     "prettier": "^3.8.1",
-    "supertest": "^7.1.4",
+    "supertest": "^7.2.2",
     "ts-node": "10.9.1",
     "tslib": "^2.3.0",
+    "tsx": "^4.23.13",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.40.0",
     "vite": "^8.0.0",
@@ -67,8 +70,6 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/api/products",
-    "packages/shared/*",
-    "packages/shop/*"
+    "packages/shared/*"
   ]
 }

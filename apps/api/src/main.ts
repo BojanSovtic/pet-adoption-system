@@ -1,9 +1,31 @@
-import 'dotenv/config';
 import { app } from './app';
+import { connectDatabase, disconnectDatabase } from './config/database';
+import { env } from './config/env';
 
-const host = process.env.HOST ?? 'localhost';
-const port = process.env.PORT ? Number(process.env.PORT) : 3333;
+const bootstrap = async () => {
+  await connectDatabase(env.mongodbUri);
 
-app.listen(port, host, () => {
-  console.log(`[ ready ] http://${host}:${port}`);
+  const server = app.listen(env.port, env.host, () => {
+    console.log(`[ ready ] http://${env.host}:${env.port}`);
+  });
+
+  const shutdown = async (signal: string) => {
+    console.log(`[ shutdown ] Received ${signal}`);
+
+    server.close(async () => {
+      console.log('[ shutdown ] HTTP server closed');
+
+      await disconnectDatabase();
+
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+};
+
+bootstrap().catch((error) => {
+  console.error('[ startup ] Failed to start application', error);
+  process.exit(1);
 });
