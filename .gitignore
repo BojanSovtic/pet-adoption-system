@@ -48,3 +48,6 @@ pnpm-debug.log*
 *.sublime-workspace
 vitest.config.*.timestamp*
 vite.config.*.timestamp*
+
+# Web
+apps/web/.env
