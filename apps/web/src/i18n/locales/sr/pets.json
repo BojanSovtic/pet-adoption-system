@@ -1,0 +1,7 @@
+{
+  "title": "Ljubimci za udomljavanje",
+  "loading": "Učitavanje ljubimaca...",
+  "empty": "Trenutno nema dostupnih ljubimaca.",
+  "error": "Nije moguće učitati ljubimce.",
+  "age": "{{count}} godina"
+}

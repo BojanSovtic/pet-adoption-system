@@ -1,7 +1,17 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
-if (!API_URL) {
-  throw new Error('VITE_API_URL is not configured');
+export type ApiErrorResponse = {
+  code: string;
+};
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+  ) {
+    super(code);
+    this.name = 'ApiError';
+  }
 }
 
 export const apiClient = async <T>(
@@ -17,7 +27,11 @@ export const apiClient = async <T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    const error = (await response
+      .json()
+      .catch(() => null)) as ApiErrorResponse | null;
+
+    throw new ApiError(response.status, error?.code ?? 'INTERNAL_SERVER_ERROR');
   }
 
   return response.json() as Promise<T>;

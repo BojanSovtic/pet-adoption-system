@@ -8,6 +8,7 @@ dotenv.config({
 const port = Number(process.env.PORT ?? 3333);
 const mongodbUri = process.env.MONGODB_URI;
 const mongodbTestUri = process.env.MONGODB_TEST_URI;
+const corsOrigin = process.env.CORS_ORIGIN;
 
 if (!Number.isInteger(port) || port <= 0) {
   throw new Error('PORT must be a positive integer');
@@ -21,9 +22,14 @@ if (!mongodbTestUri) {
   throw new Error('MONGODB_TEST_URI is required');
 }
 
+if (!corsOrigin) {
+  throw new Error('CORS_ORIGIN is required');
+}
+
 export const env = {
   host: process.env.HOST ?? 'localhost',
   port,
   mongodbUri,
   mongodbTestUri,
+  corsOrigin,
 };

@@ -3,12 +3,13 @@ import express, { type Express } from 'express';
 
 import { petRouter } from './pets/pet.routes';
 import { errorHandler } from './middleware/error-handler';
+import { env } from './config/env';
 
 export const app: Express = express();
 
 app.use(
   cors({
-    origin: 'http://localhost:4200',
+    origin: env.corsOrigin,
   }),
 );
 

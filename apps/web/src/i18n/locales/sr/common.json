@@ -1,0 +1,12 @@
+{
+  "actions": {
+    "save": "Sačuvaj",
+    "cancel": "Otkaži",
+    "delete": "Obriši"
+  },
+  "errors": {
+    "INTERNAL_SERVER_ERROR": "Došlo je do greške.",
+    "INVALID_PET_ID": "ID ljubimca nije ispravan.",
+    "PET_NOT_FOUND": "Ljubimac nije pronađen."
+  }
+}

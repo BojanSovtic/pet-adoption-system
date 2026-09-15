@@ -9,9 +9,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
+    "i18next": "^26.4.2",
     "mongoose": "^9.9.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-i18next": "^17.0.14",
     "react-router-dom": "6.30.3",
     "zod": "^4.5.4"
   },

@@ -1,0 +1,12 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "errors": {
+    "INTERNAL_SERVER_ERROR": "Something went wrong.",
+    "INVALID_PET_ID": "The pet ID is invalid.",
+    "PET_NOT_FOUND": "The pet could not be found."
+  }
+}
