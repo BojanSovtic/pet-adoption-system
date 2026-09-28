@@ -1,7 +1,22 @@
 {
-  "title": "Available pets",
+  "title": "Pets",
   "loading": "Loading pets...",
+  "error": "Something went wrong while loading the pets.",
   "empty": "No pets are currently available.",
-  "error": "Failed to load pets.",
-  "age": "{{count}} year"
+  "viewDetails": "View details",
+  "age": "{{count}} year",
+  "age_plural": "{{count}} years",
+  "species": {
+    "dog": "Dog",
+    "cat": "Cat",
+    "other": "Other"
+  },
+  "status": {
+    "available": "Available",
+    "pending": "Pending",
+    "adopted": "Adopted"
+  },
+  "noImage": "No image available",
+  "backToPets": "Back to pets",
+  "notFound": "Pet not found"
 }

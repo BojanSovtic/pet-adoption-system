@@ -1,7 +1,21 @@
 {
-  "title": "Ljubimci za udomljavanje",
+  "title": "Ljubimci",
   "loading": "Učitavanje ljubimaca...",
+  "error": "Došlo je do greške pri učitavanju ljubimaca.",
   "empty": "Trenutno nema dostupnih ljubimaca.",
-  "error": "Nije moguće učitati ljubimce.",
-  "age": "{{count}} godina"
+  "viewDetails": "Pogledaj detalje",
+  "age": "{{count}} godina",
+  "species": {
+    "dog": "Pas",
+    "cat": "Mačka",
+    "other": "Drugo"
+  },
+  "status": {
+    "available": "Dostupan",
+    "pending": "Na čekanju",
+    "adopted": "Udomljen"
+  },
+  "noImage": "Slika nije dostupna",
+  "backToPets": "Nazad na ljubimce",
+  "notFound": "Ljubimac nije pronađen"
 }

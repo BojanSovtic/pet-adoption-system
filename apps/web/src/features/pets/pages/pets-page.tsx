@@ -5,7 +5,7 @@ import { ApiError } from '../../../lib/api-client';
 import { getPets } from '../api/get-pets';
 import { PetCard } from '../components/pet-card';
 
-export const PetsPage = () => {
+const PetsPage = () => {
   const { t } = useTranslation('pets');
 
   const {
@@ -35,12 +35,18 @@ export const PetsPage = () => {
   }
 
   return (
-    <main>
-      <h1>{t('title')}</h1>
+    <section className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+      </div>
 
-      {pets.map((pet) => (
-        <PetCard key={pet._id} pet={pet} />
-      ))}
-    </main>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {pets.map((pet) => (
+          <PetCard key={pet._id} pet={pet} />
+        ))}
+      </div>
+    </section>
   );
 };
+
+export { PetsPage };
