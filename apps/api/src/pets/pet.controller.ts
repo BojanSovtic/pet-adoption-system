@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import type { Request, Response } from 'express';
 
-import type { CreatePetRequest, UpdatePetRequest } from './pet.schema';
+import type { CreatePetRequest } from './pet.schema';
 import { createPet, getPetById, getPets, updatePet } from './pet.service';
 import { BadRequestError, NotFoundError } from '../errors/app-error';
 
