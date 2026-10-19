@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-19. Roadmap step 4 (users and authentication) completed, uncommitted on branch `develop` (step 3 committed in `1791155`)._
+_Last updated: 2026-10-19. Roadmap step 4 (users and authentication) and login rate limiting completed, uncommitted on branch `develop` (step 3 committed in `1791155`)._
 
 ## Status
 
@@ -22,6 +22,9 @@ Verified by passing tests or by reading the code.
   - `select: false` on the hash.
   - An explicit `toPublicUser` allow-list.
   - The shared `User` type has no credential fields.
+- **Rate limiting** (`middleware/rate-limit.ts`, `express-rate-limit` 8.6, in-memory stores). Blocked requests get 429 `RATE_LIMITED` with `Retry-After` and `RateLimit` headers. Limiters run before validation. Covered by 3 tests; counters are reset between tests.
+  - **Per IP:** 20 attempts per 15 minutes across `/login` and `/register`.
+  - **Per IP + email:** 5 *failed* logins per 15 minutes (`skipSuccessfulRequests`). It's not keyed by email alone, so attackers can't lock out a victim.
 - **CSRF:** `SameSite=Lax`, plus `requireTrustedOrigin`: POST, PUT, PATCH and DELETE with an `Origin` other than `CORS_ORIGIN` → 403 `UNTRUSTED_ORIGIN`. CORS sends `credentials: true`. Both are tested.
 - **Web:**
   - **API client:** `apiClient` sends `credentials: 'include'`.
@@ -67,7 +70,7 @@ Command: `NX_DAEMON=false pnpm nx run-many -t lint typecheck test build --skipNx
 
 | Project | lint | typecheck | test | build |
 |---|---|---|---|---|
-| api | ✅ | ✅ | ✅ 36/36 | ✅ |
+| api | ✅ | ✅ | ✅ 39/39 | ✅ |
 | web | ✅ | ✅ | ✅ 38/38 | ✅ |
 | models | ✅ | ✅ | none | n/a |
 
@@ -79,7 +82,11 @@ The web build now warns that the main chunk exceeds 500 kB; it was 488 kB before
 
 ## Security considerations still open
 
-- **No rate limiting or lockout** on `/login` and `/register`, so brute force and credential stuffing are possible. Recommended next: `express-rate-limit` (a new dependency) or a per-account/IP counter.
+- **Rate limiting limits:**
+  - The counters are in memory: they reset on restart and aren't shared between API instances. Scaling out needs a shared store.
+  - Distributed credential stuffing from many IPs is only slowed, not stopped. Stronger options are CAPTCHA after failures, breached-password checks, and MFA.
+  - Users behind one shared IP (an office NAT) share the 20-per-15-minute budget.
+  - Correct `trust proxy` is required in production, or every user appears to come from the proxy's IP.
 - **Registration reveals whether an email exists** (409). Avoiding that needs email verification flows.
 - No email verification, password reset or "log out other sessions". No `argon2.needsRehash` upgrade path yet.
 - **Fixed session lifetime:** an absolute 7 days from login, with no idle timeout.
@@ -116,8 +123,7 @@ The web build now warns that the main chunk exceeds 500 kB; it was 488 kB before
 ## Next task: pet ownership and authorization (roadmap step 5)
 
 Prerequisites:
-- The owner reviews and commits step 4.
-- Decide whether login rate limiting comes first (recommended, small).
+- The owner reviews and commits step 4 and the rate limiting.
 
 Scope:
 - `requireAuth` middleware: reads `req.session.userId` and returns 401 `UNAUTHENTICATED`.

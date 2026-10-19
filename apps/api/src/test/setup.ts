@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll } from 'vitest';
 import mongoose from 'mongoose';
 
 import { env } from '../config/env';
+import { resetRateLimits } from '../middleware/rate-limit';
 
 beforeAll(async () => {
   console.log('[ test ] Connecting to MongoDB...');
@@ -19,6 +20,9 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // Every test request comes from the same IP, so counters must not carry over.
+  resetRateLimits();
+
   // Delete documents but keep collections and their indexes.
   const collections = await mongoose.connection.db?.collections();
 

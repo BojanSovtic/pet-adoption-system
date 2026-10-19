@@ -20,7 +20,8 @@
     "UNAUTHENTICATED": "Prijavi se da bi nastavio.",
     "INVALID_CREDENTIALS": "Pogrešan email ili lozinka.",
     "EMAIL_ALREADY_REGISTERED": "Nalog sa ovim email-om već postoji.",
-    "UNTRUSTED_ORIGIN": "Zahtev je blokiran iz bezbednosnih razloga."
+    "UNTRUSTED_ORIGIN": "Zahtev je blokiran iz bezbednosnih razloga.",
+    "RATE_LIMITED": "Previše pokušaja. Sačekaj nekoliko minuta i pokušaj ponovo."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

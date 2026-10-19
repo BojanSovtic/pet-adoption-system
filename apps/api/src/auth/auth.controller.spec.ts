@@ -252,3 +252,53 @@ describe('CSRF and CORS', () => {
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   });
 });
+
+// Each test runs several deliberately slow Argon2id verifications.
+describe('rate limiting', { timeout: 20_000 }, () => {
+  const loginAs = (email: string, password: string) =>
+    request(app).post('/api/auth/login').send({ email, password });
+
+  it('blocks an account after repeated failed logins from one IP', async () => {
+    await request(app).post('/api/auth/register').send(validUser);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const response = await loginAs(validUser.email, 'wrong password');
+      expect(response.status).toBe(401);
+    }
+
+    // Even the correct password is rejected until the window passes.
+    const blocked = await loginAs(validUser.email, validUser.password);
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toEqual({ code: 'RATE_LIMITED' });
+    expect(blocked.headers['retry-after']).toBeDefined();
+
+    // The limit is per account: another account from the same IP still works.
+    const otherAccount = await loginAs('luna@example.com', 'wrong password');
+
+    expect(otherAccount.status).toBe(401);
+  });
+
+  it('does not count successful logins', async () => {
+    await request(app).post('/api/auth/register').send(validUser);
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const response = await loginAs(validUser.email, validUser.password);
+      expect(response.status).toBe(200);
+    }
+  });
+
+  it('caps all sign-in and registration attempts from one IP', async () => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({ email: 'invalid', name: '', password: '' });
+      expect(response.status).toBe(400);
+    }
+
+    const blocked = await loginAs(validUser.email, validUser.password);
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toEqual({ code: 'RATE_LIMITED' });
+  });
+});

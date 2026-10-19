@@ -46,6 +46,13 @@ export class ConflictError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(code: string) {
+    super(code, 429);
+    this.name = 'TooManyRequestsError';
+  }
+}
+
 export class ValidationError extends AppError {
   constructor(details: ValidationIssue[]) {
     super('VALIDATION_FAILED', 400, details);
