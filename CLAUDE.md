@@ -2,7 +2,7 @@
 
 Learning/portfolio project: users browse and post pets for adoption and (later) submit adoption applications. The owner is experienced with Vue + TypeScript and is learning React, Express and MongoDB here.
 
-**Before continuing development, read [docs/progress.md](docs/progress.md)** for current status, known bugs, the roadmap and the next task. Update it when a task is completed.
+**Before continuing development, read [docs/progress.md](docs/progress.md)** for current status, known bugs, the roadmap and the next task. Update it when a task is completed. [docs/architecture.md](docs/architecture.md) has Mermaid diagrams of the current architecture; update them when the structure changes.
 
 ## Architecture
 
