@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Pet } from '../api/get-pets';
+import type { Pet } from '@pet-adoption/models';
 import { filterPets } from './filter-pets';
 
 const pets: Pet[] = [

@@ -4,9 +4,21 @@
     "cancel": "Cancel",
     "delete": "Delete"
   },
+  "unexpectedError": "Something went wrong. Please try again.",
   "errors": {
     "INTERNAL_SERVER_ERROR": "Something went wrong.",
+    "NETWORK_ERROR": "The server could not be reached. Check your connection and try again.",
+    "VALIDATION_FAILED": "Some fields are invalid. Please check the form.",
+    "INVALID_JSON": "The request could not be read.",
     "INVALID_PET_ID": "The pet ID is invalid.",
     "PET_NOT_FOUND": "The pet could not be found."
+  },
+  "validation": {
+    "invalid": "This value is invalid.",
+    "invalid_type": "This value has the wrong type.",
+    "too_small": "This value is too short or too small.",
+    "too_big": "This value is too long or too large.",
+    "invalid_format": "This value has an invalid format.",
+    "invalid_value": "This value is not allowed."
   }
 }

@@ -101,8 +101,43 @@ describe('POST /api/pets', () => {
     });
 
     expect(response.status).toBe(400);
-    expect(response.body.message).toBe('Validation failed');
-    expect(response.body.errors).toBeInstanceOf(Array);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [
+        { field: 'name', code: 'too_small' },
+        { field: 'species', code: 'invalid_value' },
+        { field: 'age', code: 'too_small' },
+        { field: 'description', code: 'too_small' },
+      ],
+    });
+  });
+
+  it('reports the path of an invalid array item', async () => {
+    const response = await request(app)
+      .post('/api/pets')
+      .send({
+        name: 'Milo',
+        species: 'dog',
+        age: 3,
+        description: 'A friendly dog.',
+        imageUrls: ['https://example.com/milo.jpg', 'not-a-url'],
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'imageUrls.1', code: 'invalid_format' }],
+    });
+  });
+
+  it('rejects a malformed JSON body', async () => {
+    const response = await request(app)
+      .post('/api/pets')
+      .set('Content-Type', 'application/json')
+      .send('{"name": ');
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ code: 'INVALID_JSON' });
   });
 });
 
@@ -197,7 +232,12 @@ describe('PUT /api/pets/:id', () => {
     });
 
     expect(response.status).toBe(400);
-    expect(response.body.message).toBe('Validation failed');
-    expect(response.body.errors).toBeInstanceOf(Array);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [
+        { field: 'name', code: 'too_small' },
+        { field: 'age', code: 'too_small' },
+      ],
+    });
   });
 });

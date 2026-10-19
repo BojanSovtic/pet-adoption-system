@@ -4,8 +4,8 @@
   "error": "Something went wrong while loading the pets.",
   "empty": "No pets are currently available.",
   "viewDetails": "View details",
-  "age": "{{count}} year",
-  "age_plural": "{{count}} years",
+  "age_one": "{{count}} year",
+  "age_other": "{{count}} years",
   "species": {
     "dog": "Dog",
     "cat": "Cat",
@@ -63,7 +63,6 @@
     "saveChanges": "Save changes",
     "createSuccess": "Pet created successfully.",
     "updateSuccess": "Pet updated successfully.",
-    "updateError": "The pet could not be updated. Please try again.",
-    "unexpectedError": "Something went wrong. Please try again."
+    "updateError": "The pet could not be updated. Please try again."
   }
 }

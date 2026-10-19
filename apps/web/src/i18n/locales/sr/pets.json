@@ -4,7 +4,9 @@
   "error": "Došlo je do greške pri učitavanju ljubimaca.",
   "empty": "Trenutno nema dostupnih ljubimaca.",
   "viewDetails": "Pogledaj detalje",
-  "age": "{{count}} godina",
+  "age_one": "{{count}} godina",
+  "age_few": "{{count}} godine",
+  "age_other": "{{count}} godina",
   "species": {
     "dog": "Pas",
     "cat": "Mačka",
@@ -62,7 +64,6 @@
     "saveChanges": "Sačuvaj izmene",
     "createSuccess": "Ljubimac je uspešno dodat.",
     "updateSuccess": "Ljubimac je uspešno izmenjen.",
-    "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo.",
-    "unexpectedError": "Došlo je do greške. Pokušaj ponovo."
+    "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo."
   }
 }

@@ -1,31 +1,29 @@
 import { Schema, model } from 'mongoose';
+import {
+  PET_DESCRIPTION_MAX_LENGTH,
+  PET_NAME_MAX_LENGTH,
+  PET_SPECIES,
+  PET_STATUSES,
+  type Pet,
+} from '@pet-adoption/models';
 
-export type PetSpecies = 'dog' | 'cat' | 'other';
-
-export type PetStatus = 'available' | 'pending' | 'adopted';
-
-export interface Pet {
-  name: string;
-  species: PetSpecies;
-  age: number;
-  description: string;
-  status: PetStatus;
-  imageUrls: string[];
+/** A pet as stored in MongoDB: the API `Pet` fields, with real dates. */
+export type PetRecord = Omit<Pet, '_id' | 'createdAt' | 'updatedAt'> & {
   createdAt: Date;
   updatedAt: Date;
-}
+};
 
-const petSchema = new Schema<Pet>(
+const petSchema = new Schema<PetRecord>(
   {
     name: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 100,
+      maxlength: PET_NAME_MAX_LENGTH,
     },
     species: {
       type: String,
-      enum: ['dog', 'cat', 'other'],
+      enum: [...PET_SPECIES],
       required: true,
     },
     age: {
@@ -37,11 +35,11 @@ const petSchema = new Schema<Pet>(
       type: String,
       required: true,
       trim: true,
-      maxlength: 2000,
+      maxlength: PET_DESCRIPTION_MAX_LENGTH,
     },
     status: {
       type: String,
-      enum: ['available', 'pending', 'adopted'],
+      enum: [...PET_STATUSES],
       default: 'available',
       required: true,
     },
@@ -55,4 +53,4 @@ const petSchema = new Schema<Pet>(
   },
 );
 
-export const PetModel = model<Pet>('Pet', petSchema);
+export const PetModel = model<PetRecord>('Pet', petSchema);

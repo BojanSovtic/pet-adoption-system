@@ -1,4 +1,4 @@
-import type { Pet } from '../api/get-pets';
+import type { Pet } from '@pet-adoption/models';
 
 export type SpeciesFilter = 'all' | Pet['species'];
 export type StatusFilter = 'all' | Pet['status'];

@@ -1,10 +1,10 @@
+import type { Pet, UpdatePetInput } from '@pet-adoption/models';
+
 import { apiClient } from '../../../lib/api-client';
-import type { Pet } from './get-pets';
-import type { CreatePetInput } from './create-pet';
 
 export const updatePet = async (
   id: string,
-  input: CreatePetInput,
+  input: UpdatePetInput,
 ): Promise<Pet> => {
   return apiClient<Pet>(`/pets/${id}`, {
     method: 'PUT',

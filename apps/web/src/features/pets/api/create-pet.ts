@@ -1,13 +1,6 @@
-import { apiClient } from '../../../lib/api-client';
-import type { Pet } from './get-pets';
+import type { CreatePetInput, Pet } from '@pet-adoption/models';
 
-export type CreatePetInput = {
-  name: string;
-  species: Pet['species'];
-  age: number;
-  description: string;
-  imageUrls?: string[];
-};
+import { apiClient } from '../../../lib/api-client';
 
 export const createPet = async (input: CreatePetInput): Promise<Pet> => {
   return apiClient<Pet>('/pets', {

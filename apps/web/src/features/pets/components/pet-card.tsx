@@ -10,7 +10,7 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 
-import type { Pet } from '../api/get-pets';
+import type { Pet } from '@pet-adoption/models';
 
 type PetCardProps = {
   pet: Pet;

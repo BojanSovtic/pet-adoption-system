@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/out-tsc",
+    "outDir": "out-tsc/app",
+    "tsBuildInfoFile": "out-tsc/app/tsconfig.app.tsbuildinfo",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": [
       "node",
@@ -34,5 +35,10 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.json"
+  ],
+  "references": [
+    {
+      "path": "../../packages/shared/models/tsconfig.lib.json"
+    }
   ]
 }

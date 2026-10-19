@@ -8,6 +8,9 @@
     },
     {
       "path": "./packages/shared/models"
+    },
+    {
+      "path": "./apps/web"
     }
   ]
 }

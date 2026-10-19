@@ -4,9 +4,18 @@ import { z } from 'zod';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import {
+  PET_DESCRIPTION_MAX_LENGTH,
+  PET_NAME_MAX_LENGTH,
+  PET_SPECIES,
+  type CreatePetInput,
+} from '@pet-adoption/models';
 
-import { ApiError } from '../../../lib/api-client';
-import { createPet, type CreatePetInput } from '../api/create-pet';
+import {
+  getErrorMessage,
+  getFieldErrors,
+} from '../../../lib/get-error-message';
+import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
 import { updatePet } from '../api/update-pet';
 
@@ -15,8 +24,8 @@ const petFormSchema = z.object({
     .string()
     .trim()
     .min(1, 'form.validation.nameRequired')
-    .max(100, 'form.validation.nameTooLong'),
-  species: z.enum(['dog', 'cat', 'other']),
+    .max(PET_NAME_MAX_LENGTH, 'form.validation.nameTooLong'),
+  species: z.enum(PET_SPECIES),
   age: z
     .string()
     .trim()
@@ -30,7 +39,7 @@ const petFormSchema = z.object({
     .string()
     .trim()
     .min(1, 'form.validation.descriptionRequired')
-    .max(2000, 'form.validation.descriptionTooLong'),
+    .max(PET_DESCRIPTION_MAX_LENGTH, 'form.validation.descriptionTooLong'),
   imageUrls: z
     .string()
     .transform((value) =>
@@ -77,7 +86,6 @@ const PetFormPage = () => {
     isError: isPetError,
   } = useQuery({
     queryKey: ['pets', id],
-    meta: { skipGlobalErrorToast: true },
     queryFn: () => {
       if (!id) {
         throw new Error('Pet ID is required');
@@ -121,10 +129,6 @@ const PetFormPage = () => {
 
       navigate(`/pets/${pet._id}`);
     },
-
-    onError: () => {
-      toast.error(isEditing ? t('form.updateError') : t('form.submitError'));
-    },
   });
 
   const updateField = (field: FieldName, value: string) => {
@@ -163,14 +167,18 @@ const PetFormPage = () => {
     });
   };
 
-  const getFieldError = (field: FieldName) => fieldErrors[field];
+  // Server-side validation errors are derived from the mutation, so they are
+  // cleared automatically by `mutation.reset()`.
+  const serverFieldErrors = getFieldErrors(mutation.error);
+
+  const getFieldError = (field: FieldName) =>
+    fieldErrors[field] ?? serverFieldErrors[field];
 
   const errorMessage = mutation.error
-    ? mutation.error instanceof ApiError
-      ? t(`errors.${mutation.error.code}`, {
-          defaultValue: t('form.submitError'),
-        })
-      : t('form.submitError')
+    ? getErrorMessage(
+        mutation.error,
+        isEditing ? t('form.updateError') : t('form.submitError'),
+      )
     : null;
 
   if (isEditing && isPetPending) {
@@ -203,7 +211,7 @@ const PetFormPage = () => {
             name="name"
             value={values.name}
             onChange={(event) => updateField('name', event.target.value)}
-            maxLength={100}
+            maxLength={PET_NAME_MAX_LENGTH}
             required
             aria-invalid={Boolean(getFieldError('name'))}
             aria-describedby={getFieldError('name') ? 'name-error' : undefined}
@@ -229,9 +237,11 @@ const PetFormPage = () => {
               onChange={(event) => updateField('species', event.target.value)}
               className={inputClassName}
             >
-              <option value="dog">{t('species.dog')}</option>
-              <option value="cat">{t('species.cat')}</option>
-              <option value="other">{t('species.other')}</option>
+              {PET_SPECIES.map((species) => (
+                <option key={species} value={species}>
+                  {t(`species.${species}`)}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -270,7 +280,7 @@ const PetFormPage = () => {
             name="description"
             value={values.description}
             onChange={(event) => updateField('description', event.target.value)}
-            maxLength={2000}
+            maxLength={PET_DESCRIPTION_MAX_LENGTH}
             rows={5}
             required
             aria-invalid={Boolean(getFieldError('description'))}
@@ -311,6 +321,12 @@ const PetFormPage = () => {
             </p>
           )}
         </div>
+
+        {errorMessage && (
+          <p role="alert" className="text-sm text-destructive">
+            {errorMessage}
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-3">
           <button

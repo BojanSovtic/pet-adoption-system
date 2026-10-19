@@ -1,0 +1,8 @@
+{
+  "name": "@pet-adoption/web",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@pet-adoption/models": "workspace:*"
+  }
+}

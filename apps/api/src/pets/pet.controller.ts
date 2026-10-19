@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import type { Request, Response } from 'express';
+import type { CreatePetInput } from '@pet-adoption/models';
 
-import type { CreatePetRequest } from './pet.schema';
 import { createPet, getPetById, getPets, updatePet } from './pet.service';
 import { BadRequestError, NotFoundError } from '../errors/app-error';
 
@@ -32,7 +32,7 @@ export const getPetByIdController = async (
 };
 
 export const createPetController = async (
-  req: Request<unknown, unknown, CreatePetRequest>,
+  req: Request<unknown, unknown, CreatePetInput>,
   res: Response,
 ): Promise<void> => {
   const pet = await createPet(req.body);

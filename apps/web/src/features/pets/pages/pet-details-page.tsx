@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 import { ApiError } from '../../../lib/api-client';
+import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPet } from '../api/get-pet';
 
 const PetDetailsPage = () => {
@@ -47,7 +48,7 @@ const PetDetailsPage = () => {
       );
     }
 
-    return <p>{t('error')}</p>;
+    return <p>{getErrorMessage(error, t('error'))}</p>;
   }
 
   return (

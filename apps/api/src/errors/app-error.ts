@@ -1,7 +1,10 @@
+import type { ValidationIssue } from '@pet-adoption/models';
+
 export class AppError extends Error {
   constructor(
     public readonly code: string,
     public readonly statusCode: number,
+    public readonly details?: ValidationIssue[],
   ) {
     super(code);
     this.name = 'AppError';
@@ -19,5 +22,12 @@ export class BadRequestError extends AppError {
   constructor(code: string) {
     super(code, 400);
     this.name = 'BadRequestError';
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(details: ValidationIssue[]) {
+    super('VALIDATION_FAILED', 400, details);
+    this.name = 'ValidationError';
   }
 }

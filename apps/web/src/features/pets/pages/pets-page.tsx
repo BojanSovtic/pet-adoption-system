@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { PET_SPECIES, PET_STATUSES } from '@pet-adoption/models';
 
-import { ApiError } from '../../../lib/api-client';
+import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPets } from '../api/get-pets';
 import { PetCard } from '../components/pet-card';
 import { filterPets } from '../utils/filter-pets';
@@ -35,11 +36,7 @@ const PetsPage = () => {
   }
 
   if (isError) {
-    if (error instanceof ApiError) {
-      return <p>{error.code}</p>;
-    }
-
-    return <p>{t('error')}</p>;
+    return <p>{getErrorMessage(error, t('error'))}</p>;
   }
 
   return (
@@ -72,9 +69,11 @@ const PetsPage = () => {
           className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="all">{t('speciesFilter.all')}</option>
-          <option value="dog">{t('species.dog')}</option>
-          <option value="cat">{t('species.cat')}</option>
-          <option value="other">{t('species.other')}</option>
+          {PET_SPECIES.map((value) => (
+            <option key={value} value={value}>
+              {t(`species.${value}`)}
+            </option>
+          ))}
         </select>
 
         <select
@@ -84,9 +83,11 @@ const PetsPage = () => {
           className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="all">{t('statusFilter.all')}</option>
-          <option value="available">{t('status.available')}</option>
-          <option value="pending">{t('status.pending')}</option>
-          <option value="adopted">{t('status.adopted')}</option>
+          {PET_STATUSES.map((value) => (
+            <option key={value} value={value}>
+              {t(`status.${value}`)}
+            </option>
+          ))}
         </select>
       </div>
 

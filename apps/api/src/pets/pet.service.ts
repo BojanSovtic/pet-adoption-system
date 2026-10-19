@@ -1,24 +1,16 @@
-import { PetModel, type Pet } from './pet.model';
+import type { CreatePetInput, UpdatePetInput } from '@pet-adoption/models';
 
-export type CreatePetInput = {
-  name: string;
-  species: Pet['species'];
-  age: number;
-  description: string;
-  imageUrls?: string[];
-};
+import { PetModel, type PetRecord } from './pet.model';
 
-export type UpdatePetInput = Partial<CreatePetInput>;
-
-export const getPets = async (): Promise<Pet[]> => {
+export const getPets = async (): Promise<PetRecord[]> => {
   return PetModel.find().sort({ createdAt: -1 }).lean();
 };
 
-export const getPetById = async (id: string): Promise<Pet | null> => {
+export const getPetById = async (id: string): Promise<PetRecord | null> => {
   return PetModel.findById(id).lean();
 };
 
-export const createPet = async (input: CreatePetInput): Promise<Pet> => {
+export const createPet = async (input: CreatePetInput): Promise<PetRecord> => {
   const pet = await PetModel.create(input);
 
   return pet.toObject();
@@ -27,9 +19,9 @@ export const createPet = async (input: CreatePetInput): Promise<Pet> => {
 export const updatePet = async (
   id: string,
   input: UpdatePetInput,
-): Promise<Pet | null> => {
+): Promise<PetRecord | null> => {
   return PetModel.findByIdAndUpdate(id, input, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   }).lean();
 };

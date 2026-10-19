@@ -4,9 +4,21 @@
     "cancel": "Otkaži",
     "delete": "Obriši"
   },
+  "unexpectedError": "Došlo je do greške. Pokušaj ponovo.",
   "errors": {
     "INTERNAL_SERVER_ERROR": "Došlo je do greške.",
+    "NETWORK_ERROR": "Server nije dostupan. Proveri vezu i pokušaj ponovo.",
+    "VALIDATION_FAILED": "Neka polja nisu ispravna. Proveri formu.",
+    "INVALID_JSON": "Zahtev nije moguće pročitati.",
     "INVALID_PET_ID": "ID ljubimca nije ispravan.",
     "PET_NOT_FOUND": "Ljubimac nije pronađen."
+  },
+  "validation": {
+    "invalid": "Vrednost nije ispravna.",
+    "invalid_type": "Vrednost je pogrešnog tipa.",
+    "too_small": "Vrednost je prekratka ili premala.",
+    "too_big": "Vrednost je predugačka ili prevelika.",
+    "invalid_format": "Vrednost nije u ispravnom formatu.",
+    "invalid_value": "Vrednost nije dozvoljena."
   }
 }
