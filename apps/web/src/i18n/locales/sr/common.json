@@ -16,7 +16,11 @@
     "VALIDATION_FAILED": "Neka polja nisu ispravna. Proveri formu.",
     "INVALID_JSON": "Zahtev nije moguće pročitati.",
     "INVALID_PET_ID": "ID ljubimca nije ispravan.",
-    "PET_NOT_FOUND": "Ljubimac nije pronađen."
+    "PET_NOT_FOUND": "Ljubimac nije pronađen.",
+    "UNAUTHENTICATED": "Prijavi se da bi nastavio.",
+    "INVALID_CREDENTIALS": "Pogrešan email ili lozinka.",
+    "EMAIL_ALREADY_REGISTERED": "Nalog sa ovim email-om već postoji.",
+    "UNTRUSTED_ORIGIN": "Zahtev je blokiran iz bezbednosnih razloga."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

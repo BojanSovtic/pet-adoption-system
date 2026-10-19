@@ -25,6 +25,27 @@ export class BadRequestError extends AppError {
   }
 }
 
+export class UnauthorizedError extends AppError {
+  constructor(code: string) {
+    super(code, 401);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(code: string) {
+    super(code, 403);
+    this.name = 'ForbiddenError';
+  }
+}
+
+export class ConflictError extends AppError {
+  constructor(code: string) {
+    super(code, 409);
+    this.name = 'ConflictError';
+  }
+}
+
 export class ValidationError extends AppError {
   constructor(details: ValidationIssue[]) {
     super('VALIDATION_FAILED', 400, details);

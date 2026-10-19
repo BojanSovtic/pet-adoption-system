@@ -15,7 +15,13 @@ Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies a
   - `src/lib/get-error-message.ts`: `getErrorMessage` (code → `common:errors.*`) and `getFieldErrors` (validation `details` → `common:validation.*`).
   - Features: inline error/not-found states and mapping field errors to inputs.
 - `packages/shared/models` (`@pet-adoption/models`): types and constants shared by API and web (`Pet`, `CreatePetInput`, `PET_SPECIES`, length limits, `ApiErrorResponse`). Plain TypeScript, no runtime dependencies; zod schemas stay in each app (`satisfies z.ZodType<...>` keeps API schemas in sync). Linked via pnpm workspaces (`workspace:*` in each app's `package.json`).
-- MongoDB: `docker-compose.yml` (mongo:8, port 27017). API tests use a real test DB (`MONGODB_TEST_URI`) that is dropped after each test (`apps/api/src/test/setup.ts`).
+- Authentication (API): server-side sessions (`express-session` + `connect-mongo`, `sessions` collection, reusing Mongoose's client), HttpOnly `sid` cookie (`SameSite=Lax`, `Secure` in production), Argon2id passwords (`argon2`). Layers kept separate so other sign-in methods (OAuth/OIDC) can be added later:
+  - `users/` = identity (`UserModel`, `toPublicUser`; `passwordHash` is `select: false` and optional).
+  - `auth/auth.service.ts` = the password method; `auth/session.ts` = `startUserSession(req, userId)` (regenerates the id) / `endUserSession` — independent of the sign-in method.
+  - CSRF: `SameSite=Lax` + `middleware/require-trusted-origin.ts` (unsafe methods with a foreign `Origin` → 403 `UNTRUSTED_ORIGIN`). CORS uses `credentials: true`; the web `apiClient` sends `credentials: 'include'`.
+  - Authentication only; authorization (ownership) is not implemented yet.
+- Authentication (web): current user = TanStack query `['auth', 'me']` (`useCurrentUser`; `getCurrentUser` maps 401 to `null`). Login/register/logout set that cache entry; `query-client.ts` sets it to `null` on any `UNAUTHENTICATED` error.
+- MongoDB: `docker-compose.yml` (mongo:8, port 27017). API tests use a real test DB (`MONGODB_TEST_URI`): dropped and re-indexed once per file, documents cleared after each test, spec files run sequentially (`apps/api/src/test/setup.ts`, `fileParallelism: false`).
 
 `README.md` is the unmodified Nx template and does not describe this project.
 

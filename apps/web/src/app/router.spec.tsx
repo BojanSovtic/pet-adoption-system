@@ -10,6 +10,13 @@ vi.mock('../features/pets/api/get-pets', () => ({
   getPets: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../features/auth/api/get-current-user', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../features/auth/api/get-current-user')
+  >()),
+  getCurrentUser: vi.fn().mockResolvedValue(null),
+}));
+
 const renderAt = (path: string) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
 

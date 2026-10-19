@@ -10,6 +10,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./src/test/setup.ts'],
+    // All spec files share one test database, so they must not run in parallel.
+    fileParallelism: false,
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {

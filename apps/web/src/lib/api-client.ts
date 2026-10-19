@@ -38,6 +38,9 @@ export const apiClient = async <T>(
 
   try {
     response = await fetch(`${API_URL}${path}`, {
+      // Send the HttpOnly session cookie to the API (a different port, so a
+      // different origin). JavaScript never reads the cookie itself.
+      credentials: 'include',
       ...options,
       headers: {
         'Content-Type': 'application/json',

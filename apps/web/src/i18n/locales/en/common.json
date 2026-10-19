@@ -16,7 +16,11 @@
     "VALIDATION_FAILED": "Some fields are invalid. Please check the form.",
     "INVALID_JSON": "The request could not be read.",
     "INVALID_PET_ID": "The pet ID is invalid.",
-    "PET_NOT_FOUND": "The pet could not be found."
+    "PET_NOT_FOUND": "The pet could not be found.",
+    "UNAUTHENTICATED": "Please sign in to continue.",
+    "INVALID_CREDENTIALS": "Incorrect email or password.",
+    "EMAIL_ALREADY_REGISTERED": "An account with this email already exists.",
+    "UNTRUSTED_ORIGIN": "This request was blocked for security reasons."
   },
   "validation": {
     "invalid": "This value is invalid.",
