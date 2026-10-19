@@ -17,5 +17,52 @@
   },
   "noImage": "Slika nije dostupna",
   "backToPets": "Nazad na ljubimce",
-  "notFound": "Ljubimac nije pronađen"
+  "notFound": "Ljubimac nije pronađen",
+  "searchPlaceholder": "Pretraži ljubimce po imenu...",
+  "filterBySpecies": "Filtriraj po vrsti",
+  "speciesFilter": {
+    "all": "Sve vrste"
+  },
+  "noMatchingPets": "Nema ljubimaca koji odgovaraju pretrazi.",
+  "filterByStatus": "Filtriraj po statusu",
+  "statusFilter": {
+    "all": "Svi statusi"
+  },
+  "form": {
+    "title": "Dodaj ljubimca",
+    "subtitle": "Unesi podatke o ljubimcu kojeg želiš da ponudiš za udomljavanje.",
+    "fields": {
+      "name": "Ime",
+      "species": "Vrsta",
+      "age": "Starost (godine)",
+      "description": "Opis",
+      "imageUrls": "URL adrese slika (opciono)"
+    },
+    "placeholders": {
+      "name": "npr. Bubi",
+      "age": "npr. 3",
+      "description": "Opiši ljubimca potencijalnim udomiteljima...",
+      "imageUrls": "https://primer.rs/ljubimac.jpg"
+    },
+    "imageUrlsHint": "Unesi po jednu ispravnu URL adresu slike u svaki red.",
+    "submit": "Dodaj ljubimca",
+    "submitting": "Dodavanje...",
+    "cancel": "Otkaži",
+    "submitError": "Ljubimac nije dodat. Pokušaj ponovo.",
+    "validation": {
+      "nameRequired": "Ime je obavezno.",
+      "nameTooLong": "Ime može imati najviše 100 karaktera.",
+      "ageRequired": "Starost je obavezna.",
+      "ageInvalid": "Starost mora biti nenegativan ceo broj.",
+      "descriptionRequired": "Opis je obavezan.",
+      "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
+      "imageUrlsInvalid": "Svaka URL adresa slike mora biti ispravna."
+    },
+    "editTitle": "Izmeni ljubimca",
+    "saveChanges": "Sačuvaj izmene",
+    "createSuccess": "Ljubimac je uspešno dodat.",
+    "updateSuccess": "Ljubimac je uspešno izmenjen.",
+    "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo.",
+    "unexpectedError": "Došlo je do greške. Pokušaj ponovo."
+  }
 }

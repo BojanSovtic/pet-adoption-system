@@ -75,7 +75,13 @@ const PetDetailsPage = () => {
               </p>
             </div>
 
-            <Badge variant="secondary">{t(`status.${pet.status}`)}</Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary">{t(`status.${pet.status}`)}</Badge>
+
+              <Button asChild variant="outline">
+                <Link to={`/pets/${pet._id}/edit`}>{t('form.editTitle')}</Link>
+              </Button>
+            </div>
           </div>
         </CardHeader>
 

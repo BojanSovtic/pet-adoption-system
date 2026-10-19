@@ -18,5 +18,52 @@
   },
   "noImage": "No image available",
   "backToPets": "Back to pets",
-  "notFound": "Pet not found"
+  "notFound": "Pet not found",
+  "searchPlaceholder": "Search pets by name...",
+  "filterBySpecies": "Filter by species",
+  "speciesFilter": {
+    "all": "All species"
+  },
+  "noMatchingPets": "No pets match your search.",
+  "filterByStatus": "Filter by status",
+  "statusFilter": {
+    "all": "All statuses"
+  },
+  "form": {
+    "title": "Add a pet",
+    "subtitle": "Enter the details of the pet you want to list for adoption.",
+    "fields": {
+      "name": "Name",
+      "species": "Species",
+      "age": "Age (years)",
+      "description": "Description",
+      "imageUrls": "Image URLs (optional)"
+    },
+    "placeholders": {
+      "name": "e.g. Buddy",
+      "age": "e.g. 3",
+      "description": "Tell potential adopters about this pet...",
+      "imageUrls": "https://example.com/pet.jpg"
+    },
+    "imageUrlsHint": "Enter one valid image URL per line.",
+    "submit": "Create pet",
+    "submitting": "Creating...",
+    "cancel": "Cancel",
+    "submitError": "The pet could not be created. Please try again.",
+    "validation": {
+      "nameRequired": "Name is required.",
+      "nameTooLong": "Name must be at most 100 characters.",
+      "ageRequired": "Age is required.",
+      "ageInvalid": "Age must be a non-negative whole number.",
+      "descriptionRequired": "Description is required.",
+      "descriptionTooLong": "Description must be at most 2000 characters.",
+      "imageUrlsInvalid": "Every image URL must be a valid URL."
+    },
+    "editTitle": "Edit pet",
+    "saveChanges": "Save changes",
+    "createSuccess": "Pet created successfully.",
+    "updateSuccess": "Pet updated successfully.",
+    "updateError": "The pet could not be updated. Please try again.",
+    "unexpectedError": "Something went wrong. Please try again."
+  }
 }
