@@ -65,5 +65,13 @@
     "createSuccess": "Ljubimac je uspešno dodat.",
     "updateSuccess": "Ljubimac je uspešno izmenjen.",
     "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo."
+  },
+  "delete": {
+    "button": "Obriši",
+    "confirmQuestion": "Obrisati ljubimca {{name}}? Ovo se ne može poništiti.",
+    "confirm": "Da, obriši",
+    "cancel": "Otkaži",
+    "deleting": "Brisanje...",
+    "success": "Ljubimac {{name}} je obrisan."
   }
 }

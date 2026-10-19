@@ -50,6 +50,14 @@ describe('apiClient', () => {
     );
   });
 
+  it('returns undefined for 204 No Content', async () => {
+    mockFetch(new Response(null, { status: 204 }));
+
+    await expect(
+      apiClient('/pets/1', { method: 'DELETE' }),
+    ).resolves.toBeUndefined();
+  });
+
   it('converts an API error response into an ApiError', async () => {
     mockFetch(jsonResponse({ code: 'PET_NOT_FOUND' }, 404));
 

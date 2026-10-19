@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ApiError } from '../../../lib/api-client';
 import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPet } from '../api/get-pet';
+import { DeletePetButton } from '../components/delete-pet-button';
 
 const PetDetailsPage = () => {
   const { id } = useParams();
@@ -76,12 +77,14 @@ const PetDetailsPage = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Badge variant="secondary">{t(`status.${pet.status}`)}</Badge>
 
               <Button asChild variant="outline">
                 <Link to={`/pets/${pet._id}/edit`}>{t('form.editTitle')}</Link>
               </Button>
+
+              <DeletePetButton pet={pet} />
             </div>
           </div>
         </CardHeader>

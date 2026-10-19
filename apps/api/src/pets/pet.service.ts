@@ -25,3 +25,9 @@ export const updatePet = async (
     runValidators: true,
   }).lean();
 };
+
+export const deletePet = async (id: string): Promise<boolean> => {
+  const pet = await PetModel.findByIdAndDelete(id).lean();
+
+  return pet !== null;
+};

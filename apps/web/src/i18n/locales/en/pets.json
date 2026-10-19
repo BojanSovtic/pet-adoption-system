@@ -64,5 +64,13 @@
     "createSuccess": "Pet created successfully.",
     "updateSuccess": "Pet updated successfully.",
     "updateError": "The pet could not be updated. Please try again."
+  },
+  "delete": {
+    "button": "Delete",
+    "confirmQuestion": "Delete {{name}}? This cannot be undone.",
+    "confirm": "Yes, delete",
+    "cancel": "Cancel",
+    "deleting": "Deleting...",
+    "success": "{{name}} was deleted."
   }
 }

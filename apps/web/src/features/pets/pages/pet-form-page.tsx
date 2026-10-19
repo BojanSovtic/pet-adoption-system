@@ -159,12 +159,8 @@ const PetFormPage = () => {
       return;
     }
 
-    const { imageUrls, ...petData } = result.data;
-
-    mutation.mutate({
-      ...petData,
-      ...(imageUrls.length > 0 ? { imageUrls } : {}),
-    });
+    // Always send the full pet (PUT replaces it), including an empty imageUrls.
+    mutation.mutate(result.data);
   };
 
   // Server-side validation errors are derived from the mutation, so they are

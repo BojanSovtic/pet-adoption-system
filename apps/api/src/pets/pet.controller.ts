@@ -2,8 +2,22 @@ import mongoose from 'mongoose';
 import type { Request, Response } from 'express';
 import type { CreatePetInput } from '@pet-adoption/models';
 
-import { createPet, getPetById, getPets, updatePet } from './pet.service';
+import {
+  createPet,
+  deletePet,
+  getPetById,
+  getPets,
+  updatePet,
+} from './pet.service';
 import { BadRequestError, NotFoundError } from '../errors/app-error';
+
+const getPetId = (req: Request): string => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new BadRequestError('INVALID_PET_ID');
+  }
+
+  return req.params.id;
+};
 
 export const getPetsController = async (
   req: Request,
@@ -18,11 +32,7 @@ export const getPetByIdController = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  if (!mongoose.isValidObjectId(req.params.id)) {
-    throw new BadRequestError('INVALID_PET_ID');
-  }
-
-  const pet = await getPetById(req.params.id);
+  const pet = await getPetById(getPetId(req));
 
   if (!pet) {
     throw new NotFoundError('PET_NOT_FOUND');
@@ -44,15 +54,24 @@ export const updatePetController = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  if (!mongoose.isValidObjectId(req.params.id)) {
-    throw new BadRequestError('INVALID_PET_ID');
-  }
-
-  const pet = await updatePet(req.params.id, req.body);
+  const pet = await updatePet(getPetId(req), req.body);
 
   if (!pet) {
     throw new NotFoundError('PET_NOT_FOUND');
   }
 
   res.json(pet);
+};
+
+export const deletePetController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const deleted = await deletePet(getPetId(req));
+
+  if (!deleted) {
+    throw new NotFoundError('PET_NOT_FOUND');
+  }
+
+  res.status(204).end();
 };

@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-19. Roadmap steps 1–2 and centralized error handling completed (all uncommitted, on branch `develop`)._
+_Last updated: 2026-10-19. Roadmap step 3 (finish pet management) completed, uncommitted on branch `develop` (previous work committed in `9bd7683`)._
 
 ## Status
 
@@ -8,90 +8,68 @@ _Last updated: 2026-10-19. Roadmap steps 1–2 and centralized error handling co
 
 Verified by passing tests or by reading the code.
 
-- **API endpoints:** `GET /api/health`, `GET /api/pets`, `GET /api/pets/:id`, `POST /api/pets`, `PUT /api/pets/:id`. Covered by 14 supertest integration tests against a real test DB.
-- **API errors:** every error response is `{ code, details? }`:
-  - Invalid id → 400 `INVALID_PET_ID`; missing pet → 404 `PET_NOT_FOUND`.
-  - Invalid body → 400 `VALIDATION_FAILED` with `details: [{ field, code }]` (zod issue codes; array items as `imageUrls.1`).
-  - Malformed JSON → 400 `INVALID_JSON` (was a 500 before).
-  - Anything else → 500 `INTERNAL_SERVER_ERROR`, the only case that gets logged.
-  - Zod strips unknown fields, so `status` cannot be set by clients.
-- **Shared library** `@pet-adoption/models`: `Pet`, `CreatePetInput`, `UpdatePetInput`, `PET_SPECIES`, `PET_STATUSES`, length limits, `ApiErrorResponse`, `ValidationIssue`. Used by the API (Mongoose model, zod schemas checked with `satisfies`, service, controller) and the web (API functions, form, filters, select options). Bundled inline into the API build.
-- **Web error handling:** see "Error handling" in `CLAUDE.md` for who does what. Covered by unit tests: `api-client.spec.ts`, `get-error-message.spec.ts`, `query-client.spec.ts`.
-- **Web pages:** pet list with client-side search and filters (`filterPets`), details page, create/edit form with client-side zod validation plus server field errors shown under the inputs.
-- **i18n:** pluralization, the global error key, error codes and validation-code translations in `en` and `sr`.
+- **API endpoints:** `GET /api/health`, plus `GET`, `POST`, `PUT` and `DELETE` on `/api/pets[/:id]`. Covered by 20 supertest integration tests against a real test DB.
+- **Update semantics (`PUT`):**
+  - Full replacement of client-editable fields (`name`, `species`, `age`, `description`, `imageUrls`).
+  - The body is validated with the full schema, so a partial body → 400 `VALIDATION_FAILED`.
+  - Omitted `imageUrls` defaults to `[]`, which clears images.
+  - `status` and timestamps are server-managed; unknown fields are stripped.
+- **Deletion:** `DELETE /api/pets/:id` → 204 with no body; invalid id → 400 `INVALID_PET_ID`; missing pet → 404 `PET_NOT_FOUND`.
+- **API errors:** always `{ code, details? }`; `INVALID_JSON` for malformed bodies; only unexpected 500s are logged.
+- **Shared library** `@pet-adoption/models`: pet types and constants, plus the error contract. `UpdatePetInput` is now the same as `CreatePetInput`.
+- **Web:**
+  - **Pages:** pet list with client-side search and filters, details page, create/edit form. The form always sends the full pet, so clearing image URLs now works.
+  - **Delete:** an inline two-step confirmation on the details page (`DeletePetButton`). On success it removes the pet from the cached list, navigates to `/pets` with `replace`, removes the detail query and shows a toast. Errors use the global mutation toast.
+  - **Routing:** `/` redirects to `/pets`; unknown routes render `NotFoundPage` inside the layout. The header uses `<Link>`.
+- **Web error handling:** see `CLAUDE.md`. `apiClient` now returns `undefined` for 204 responses.
+- **i18n:** all new texts (delete flow, not-found page) are in `en` and `sr`.
 
 ### Incomplete or not verified
 
-- No browser verification of any UI change from steps 1–2: inline form errors, toasts, select options, network-error message.
-- No component tests for pages or the form.
-- The API server was not started after the workspace change. The bundle contains the shared code inline, but `nx serve` itself was not run.
-- Not started: delete, status changes, users/auth, ownership, adoption applications, pagination/server-side filtering, image upload, e2e tests, deployment.
+- No browser verification of the UI changes (delete flow, redirect, 404 page, image clearing). The owner runs the servers.
+- No component tests for the list, details or form pages. The delete button and routes have component tests.
 
-## Changes in this session
+## Changes in this session (step 3)
 
-**Step 1 (checks and fresh clone):**
-- Added `clsx` and `tailwind-merge` to the repo and removed `cn`.
-- `nx sync`.
-- Fixed i18n plurals and keys.
-- Fixed `index.html`.
-- `returnDocument: 'after'` instead of `new: true`.
-- API build/typecheck conflict fixed with `skipTypeCheck` on the build and tsc output moved to `apps/api/out-tsc/`.
-- `.gitignore` additions.
+- **API:**
+  - `PUT` uses the full schema, and `imageUrls` gets `.default([])`.
+  - New `deletePet` service and `deletePetController` (204), plus the `DELETE /:id` route.
+  - The id check is extracted into a local `getPetId` helper in `pet.controller.ts`, used by get, update and delete.
+- **Web:**
+  - `apiClient` handles 204.
+  - New `api/delete-pet.ts` and `components/delete-pet-button.tsx`.
+  - The form sends `result.data` unchanged.
+  - `router.tsx` exports `routes`, adds the index redirect and the `*` route.
+  - New `app/not-found-page.tsx`.
+  - `app-shell.tsx` uses `<Link>`.
+- **Decisions:**
+  - **PUT, not PATCH.** The only client (the edit form) always sends the complete pet, and full replacement fixes image clearing without special cases. PATCH can be added later if a real partial-update use case appears, e.g. owner status changes in step 6.
+  - **Inline confirmation instead of a modal.** It needs no new dependency, uses one `useState`, and is easy to test.
+  - **Validation runs before the id check.** A bad body sent to a bad id returns `VALIDATION_FAILED`, not `INVALID_PET_ID`.
 
-**Centralized error handling (web):**
-- `apiClient` normalizes all failures into `ApiError`, including network errors and non-JSON error bodies.
-- `QueryClient`:
-  - No retry on 4xx.
-  - Toasts only for mutation errors and background refetch failures (removes duplicate toast + inline errors).
-  - Typed `meta`.
-- `getErrorMessage` and `getFieldErrors` helpers.
-- The list page no longer shows raw error codes.
+## Check results (2026-10-19, after step 3)
 
-**Step 2 (shared types and API errors):**
-- **Workspace linking:** `pnpm-workspace.yaml` was missing `packages:`, so the shared lib could not be imported at all. Added it, `workspace:*` deps, and `apps/web/package.json`.
-- **Shared library:** removed the placeholder `Product` model.
-- **API errors:**
-  - `ValidationError` and an `AppError.details` field.
-  - `validateBody` forwards errors to the error handler.
-  - The handler serializes `ApiErrorResponse` and handles malformed JSON.
-- **Web typecheck config:** once `apps/web/tsconfig.app.json` had a project reference, Nx switched web typecheck to `tsc --build`, which exposed a broken `tsconfig.spec.json`. Added DOM lib, JSON support and separate `out-tsc/` folders.
-
-**Decisions:**
-- Zod schemas are not shared. The form schema differs (string inputs), so only types and constants live in the shared lib.
-- The API sends codes, not display text.
-
-## Check results (2026-10-19)
-
-Command: `NX_DAEMON=false pnpm nx run-many -t lint typecheck test build --skipNxCache`, run without `--skipSync`.
+Command: `NX_DAEMON=false pnpm nx run-many -t lint typecheck test build --skipNxCache`. Lint and test were rerun after a final formatting-only Prettier pass.
 
 | Project | lint | typecheck | test | build |
 |---|---|---|---|---|
-| api | ✅ | ✅ | ✅ 14/14 | ✅ |
-| web | ✅ no warnings | ✅ | ✅ 24/24 | ✅ |
+| api | ✅ | ✅ | ✅ 20/20 | ✅ |
+| web | ✅ no warnings | ✅ | ✅ 30/30 | ✅ |
 | models | ✅ | ✅ | none | n/a |
 
-Also checked:
-- `prettier --check` on changed files passes.
-- No Mongoose deprecation warning.
-- `nx sync:check` is clean.
+Also checked: `nx sync:check` is clean, and `prettier --check` passes on the changed files.
 
-`pnpm install` prints peer-dependency warnings, which were not investigated.
+Web tests print React Router's v6 "future flag" warning (`v7_startTransition`). It's informational and also appears in the app; not addressed.
 
 ## Outstanding issues
 
-Bugs (confirmed):
-
-1. Editing cannot clear all image URLs: the form omits an empty `imageUrls`, and `PUT` is a partial update.
-
-Inconsistencies and risks:
-
-- `PUT` behaves like `PATCH` (`createPetSchema.partial()`).
-- Routing and navigation:
-  - `app-shell.tsx` uses `<a href>` instead of `<Link>`, which causes a full page reload.
-  - There is no `/` route and no 404 route.
-- `apiClient` always calls `response.json()`. A `204 No Content` response (e.g. a future DELETE) needs handling.
-- Imports mix `@/…` and relative paths.
-- `sass` is installed but appears unused.
+- **Pages:**
+  - The form page shows "Pet not found" for any load error, including network errors.
+  - The header title "Pet Adoption" is not translated.
+- **Imports and dependencies:**
+  - Imports mix `@/…` and relative paths.
+  - `sass` is installed but appears unused.
+  - `pnpm install` prints peer-dependency warnings (not investigated).
 - `env.ts` requires `MONGODB_TEST_URI` even outside tests and resolves `.env` relative to the working directory.
 - Possible test flakiness (not observed):
   - Both API spec files share one test DB and drop it after each test while running in parallel.
@@ -101,27 +79,30 @@ Inconsistencies and risks:
 
 1. ~~Fix basic checks and fresh-clone installation.~~ Done.
 2. ~~Shared pet types; standardized API error responses.~~ Done (plus centralized web error handling).
-3. Complete pet management: decide PUT vs PATCH, add deletion, root route and 404 page.
+3. ~~Complete pet management: PUT vs PATCH, deletion, root route and 404 page.~~ Done.
 4. Users and authentication.
 5. Pet ownership and authorization.
 6. Adoption applications and their lifecycle (available → pending → adopted).
 7. Server-side filtering, searching and pagination when appropriate. Auth headers and 401 handling go into `apiClient` / `QueryClient` when step 4 needs them.
 8. Later: image uploads, Playwright e2e tests, Docker and deployment.
 
-## Next task: complete pet management (roadmap step 3)
+## Next task: users and authentication (roadmap step 4)
 
 Prerequisites:
-- The owner reviews and commits the current changes.
+- The owner reviews and commits step 3.
 - MongoDB running.
 
+**Decisions needed from the owner before starting:**
+- Session cookies (`express-session` + a Mongo store) vs JWT. Cookies are simpler and safer for a same-site web app; JWT suits third-party or mobile clients.
+- Password hashing library (`argon2` or `bcrypt`). Either adds a dependency; explain the choice before adding it.
+
 Scope:
-- Decide PUT (full replace) vs PATCH (partial). This also fixes the image-clearing bug.
-- `DELETE /api/pets/:id`, with tests, and support for a 204 response in `apiClient`.
-- Delete action in the UI, with confirmation.
-- `/` route (redirect to `/pets`) and a 404 page.
-- `<Link>` in `app-shell.tsx`.
+- A `User` model with a unique email and a hashed password; register, login, logout and "current user" endpoints, with validation and tests.
+- Rate limiting or other abuse protection on login: decide whether it's in scope.
+- Web: login and register pages, current-user query, and 401 handling in `apiClient` / `QueryClient`.
+- Protecting create, edit and delete is step 5 (ownership), but the endpoints should be ready for it.
 
 Done when:
-- API tests cover the update semantics and deletion (including 404 and invalid id).
+- API tests cover registration (including duplicate email), login (wrong password), logout, and current user with and without a session.
 - `pnpm nx run-many -t lint typecheck test build` passes.
 - This file is updated.

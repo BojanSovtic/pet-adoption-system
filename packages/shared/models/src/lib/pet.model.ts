@@ -28,4 +28,9 @@ export type CreatePetInput = {
   imageUrls?: string[];
 };
 
-export type UpdatePetInput = Partial<CreatePetInput>;
+/**
+ * `PUT` replaces every client-editable field, so it takes the same input as
+ * create. Omitted `imageUrls` means "no images". `status` and timestamps are
+ * server-managed and never part of the input.
+ */
+export type UpdatePetInput = CreatePetInput;

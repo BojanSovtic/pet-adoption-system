@@ -141,63 +141,97 @@ describe('POST /api/pets', () => {
   });
 });
 
+const validPet = {
+  name: 'Milo',
+  species: 'dog',
+  age: 3,
+  description: 'A friendly dog.',
+  imageUrls: ['https://example.com/milo.jpg'],
+};
+
+const createTestPet = async (): Promise<string> => {
+  const response = await request(app).post('/api/pets').send(validPet);
+
+  return response.body._id;
+};
+
 describe('PUT /api/pets/:id', () => {
-  it('updates a pet with valid data', async () => {
-    const createResponse = await request(app).post('/api/pets').send({
-      name: 'Milo',
-      species: 'dog',
-      age: 3,
-      description: 'A friendly dog.',
-    });
+  it('replaces all editable fields', async () => {
+    const petId = await createTestPet();
 
-    const petId = createResponse.body._id;
-
-    const response = await request(app).put(`/api/pets/${petId}`).send({
-      name: 'Milo Jr.',
-      age: 4,
-      description: 'An even friendlier dog.',
-    });
+    const response = await request(app)
+      .put(`/api/pets/${petId}`)
+      .send({
+        name: 'Milo Jr.',
+        species: 'other',
+        age: 4,
+        description: 'An even friendlier dog.',
+        imageUrls: ['https://example.com/milo-jr.jpg'],
+      });
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       _id: petId,
       name: 'Milo Jr.',
-      species: 'dog',
+      species: 'other',
       age: 4,
       description: 'An even friendlier dog.',
       status: 'available',
-      imageUrls: [],
+      imageUrls: ['https://example.com/milo-jr.jpg'],
     });
   });
 
-  it('does not allow status to be updated', async () => {
-    const createResponse = await request(app).post('/api/pets').send({
-      name: 'Milo',
-      species: 'dog',
-      age: 3,
-      description: 'A friendly dog.',
-    });
+  it('clears image URLs when an empty list is sent', async () => {
+    const petId = await createTestPet();
 
-    const petId = createResponse.body._id;
-
-    const response = await request(app).put(`/api/pets/${petId}`).send({
-      name: 'Milo Updated',
-      status: 'adopted',
-    });
+    const response = await request(app)
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, imageUrls: [] });
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      name: 'Milo Updated',
-      status: 'available',
-    });
+    expect(response.body.imageUrls).toEqual([]);
+  });
+
+  it('clears image URLs when they are omitted', async () => {
+    const petId = await createTestPet();
+    // JSON serialization drops `undefined`, so the field is not sent at all.
+    const response = await request(app)
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, imageUrls: undefined });
+
+    expect(response.status).toBe(200);
+    expect(response.body.imageUrls).toEqual([]);
+  });
+
+  it('rejects a partial body', async () => {
+    const petId = await createTestPet();
+
+    const response = await request(app)
+      .put(`/api/pets/${petId}`)
+      .send({ name: 'Milo Jr.' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_FAILED');
+    expect(
+      response.body.details.map((issue: { field: string }) => issue.field),
+    ).toEqual(['species', 'age', 'description']);
+  });
+
+  it('does not allow status to be updated', async () => {
+    const petId = await createTestPet();
+
+    const response = await request(app)
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, status: 'adopted' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('available');
   });
 
   it('returns 404 when the pet does not exist', async () => {
     const response = await request(app)
       .put('/api/pets/507f1f77bcf86cd799439011')
-      .send({
-        name: 'Updated name',
-      });
+      .send(validPet);
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({
@@ -206,9 +240,7 @@ describe('PUT /api/pets/:id', () => {
   });
 
   it('rejects an invalid pet id', async () => {
-    const response = await request(app).put('/api/pets/banana').send({
-      name: 'Updated name',
-    });
+    const response = await request(app).put('/api/pets/banana').send(validPet);
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({
@@ -217,19 +249,11 @@ describe('PUT /api/pets/:id', () => {
   });
 
   it('rejects invalid update data', async () => {
-    const createResponse = await request(app).post('/api/pets').send({
-      name: 'Milo',
-      species: 'dog',
-      age: 3,
-      description: 'A friendly dog.',
-    });
+    const petId = await createTestPet();
 
-    const petId = createResponse.body._id;
-
-    const response = await request(app).put(`/api/pets/${petId}`).send({
-      name: '',
-      age: -1,
-    });
+    const response = await request(app)
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, name: '', age: -1 });
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({
@@ -238,6 +262,41 @@ describe('PUT /api/pets/:id', () => {
         { field: 'name', code: 'too_small' },
         { field: 'age', code: 'too_small' },
       ],
+    });
+  });
+});
+
+describe('DELETE /api/pets/:id', () => {
+  it('deletes a pet and responds with 204', async () => {
+    const petId = await createTestPet();
+
+    const response = await request(app).delete(`/api/pets/${petId}`);
+
+    expect(response.status).toBe(204);
+    expect(response.text).toBe('');
+
+    const getResponse = await request(app).get(`/api/pets/${petId}`);
+
+    expect(getResponse.status).toBe(404);
+  });
+
+  it('returns 404 when the pet does not exist', async () => {
+    const response = await request(app).delete(
+      '/api/pets/507f1f77bcf86cd799439011',
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      code: 'PET_NOT_FOUND',
+    });
+  });
+
+  it('rejects an invalid pet id', async () => {
+    const response = await request(app).delete('/api/pets/banana');
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'INVALID_PET_ID',
     });
   });
 });

@@ -5,6 +5,7 @@ import { asyncHandler } from '../middleware/async-handler';
 import { createPetSchema, updatePetSchema } from './pet.schema';
 import {
   createPetController,
+  deletePetController,
   getPetByIdController,
   getPetsController,
   updatePetController,
@@ -26,3 +27,5 @@ petRouter.put(
   validateBody(updatePetSchema),
   asyncHandler(updatePetController),
 );
+
+petRouter.delete('/:id', asyncHandler(deletePetController));
