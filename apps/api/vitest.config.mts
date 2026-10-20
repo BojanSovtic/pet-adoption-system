@@ -9,6 +9,7 @@ export default defineConfig({
     watch: false,
     globals: true,
     environment: 'node',
+    globalSetup: ['./src/test/global-setup.ts'],
     setupFiles: ['./src/test/setup.ts'],
     // All spec files share one test database, so they must not run in parallel.
     fileParallelism: false,

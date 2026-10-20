@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express, { type Express } from 'express';
 
+import { applicationRouter } from './applications/application.routes';
 import { authRouter } from './auth/auth.routes';
 import { sessionMiddleware } from './auth/session';
 import { petRouter } from './pets/pet.routes';
@@ -36,5 +37,6 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/pets', petRouter);
+app.use('/api', applicationRouter);
 
 app.use(errorHandler);

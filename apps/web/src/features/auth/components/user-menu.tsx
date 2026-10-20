@@ -5,9 +5,9 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 
-import { currentUserQueryKey } from '../api/get-current-user';
 import { logout } from '../api/logout';
 import { useCurrentUser } from '../hooks/use-current-user';
+import { setCurrentUser } from '../utils/set-current-user';
 
 const UserMenu = () => {
   const { t } = useTranslation('auth');
@@ -18,7 +18,7 @@ const UserMenu = () => {
   const logoutMutation = useMutation({
     mutationFn: () => logout(),
     onSuccess: () => {
-      queryClient.setQueryData(currentUserQueryKey, null);
+      setCurrentUser(queryClient, null);
       toast.success(t('logout.success'));
     },
   });
@@ -43,6 +43,9 @@ const UserMenu = () => {
 
   return (
     <div className="flex items-center gap-3">
+      <Button asChild variant="ghost">
+        <Link to="/applications">{t('applicationsLink')}</Link>
+      </Button>
       <span className="text-sm text-muted-foreground">{currentUser.name}</span>
       <Button
         variant="outline"

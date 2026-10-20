@@ -8,5 +8,7 @@ allowBuilds:
   # Ships prebuilt binaries; the install script only compiles when none match.
   argon2: false
   esbuild: true
+  # Tests download the MongoDB binary on first use instead of at install time.
+  mongodb-memory-server: false
   nx: true
   unrs-resolver: true

@@ -22,7 +22,8 @@ Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies a
   - Rate limiting (`middleware/rate-limit.ts`): per-IP limit on `/login` + `/register`, per-IP+email limit on failed logins → 429 `RATE_LIMITED`. Tests reset counters in `test/setup.ts`; tests that hash many passwords need a longer timeout.
   - Authorization: `auth/require-auth.ts` (`requireAuth` → 401, before validation; `getAuthenticatedUserId(req)` in handlers). Ownership lives in services as owner-scoped queries (`{ _id, owner }`); non-owner → 403 `NOT_PET_OWNER`. Owner ids always come from the session, never the body. API tests sign in with `createSignedInAgent()` (`test/auth-test-helpers.ts`).
 - Authentication (web): current user = TanStack query `['auth', 'me']` (`useCurrentUser`; `getCurrentUser` maps 401 to `null`). Login/register/logout set that cache entry; `query-client.ts` sets it to `null` on any `UNAUTHENTICATED` error. Pages that need sign-in redirect to `/login` with `state.from`; ownership UI uses `isPetOwner` (display only, the API decides).
-- MongoDB: `docker-compose.yml` (mongo:8, port 27017). API tests use a real test DB (`MONGODB_TEST_URI`): dropped and re-indexed once per file, documents cleared after each test, spec files run sequentially (`apps/api/src/test/setup.ts`, `fileParallelism: false`).
+- Adoption applications (`apps/api/src/applications/`): state machines for applications and pets live in the shared lib (`adoption-application.model.ts`). Status changes only via explicit actions (`/applications/:id/accept|reject|withdraw`), never by setting a status. Every application or pet-status write runs in `withTransaction` (`config/database.ts`) and starts with `lockPet` (the first write serializes concurrent transactions on that pet); pet status changes go through `transitionPetStatus`. Unique partial indexes back the rules. Web: per-user caches are cleared via `setCurrentUser` on every identity change.
+- MongoDB must be a **replica set** (transactions); the API refuses to start otherwise. Dev: `docker-compose.yml` (single-node `rs0`, host port 27018, `?directConnection=true`). API tests start an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`; first run downloads the MongoDB binary) — no local MongoDB needed. Test DB is dropped/re-indexed once per file, documents cleared after each test, spec files run sequentially (`fileParallelism: false`).
 
 `README.md` is the unmodified Nx template and does not describe this project.
 
@@ -32,7 +33,7 @@ Run tasks through Nx with pnpm:
 
 ```sh
 pnpm nx run-many -t lint typecheck test   # full check
-pnpm nx test @pet-adoption/api            # requires MongoDB running
+pnpm nx test @pet-adoption/api            # uses an in-memory replica set
 pnpm nx serve @pet-adoption/api           # http://localhost:3333/api
 pnpm nx dev @pet-adoption/web             # http://localhost:4200
 ```
@@ -58,6 +59,27 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 - Run relevant lint/typecheck/tests after changes and fix regressions you introduce.
 - Never make unrelated refactors, and never overwrite or discard existing changes without asking first.
 - Treat authentication, authorization, input validation and database access as security-sensitive. Never trust client-supplied user IDs or ownership claims; enforce permissions on the server and test unauthorized access.
+
+## Testing and verification workflow
+
+- Prefer targeted tests for the code changed in the current task.
+- Identify the relevant test files and run those first. Do not run the entire test suite by default.
+- Run only the necessary checks for the affected apps and libraries, using the existing Nx project configuration and package scripts.
+- Avoid running the same tests or checks repeatedly unless a failure requires it or the code changes again.
+- If targeted tests are slow, inspect the available test commands and configuration before choosing a narrower, reliable option. Do not skip important tests just to save time.
+- Report exactly which tests and checks were run, which passed or failed, and which were not run.
+- Run the full test suite when explicitly requested, before a significant release, or when a change has broad impact and targeted tests are insufficient.
+- Never claim a test passed if it was not run.
+- When finished, summarize verification results concisely.
+
+## Architecture documentation
+
+- Keep `docs/architecture.md` concise and focused on major system flows and relationships.
+- Update only the diagram or section affected by a meaningful architectural change.
+- Prefer small, targeted edits over regenerating the entire document.
+- Do not update diagrams for routine bug fixes, styling changes, or internal refactors that do not change the architecture.
+- Verify diagrams against the actual code and distinguish implemented features from planned ones.
+- Avoid rereading the entire repository solely to make a minor documentation update when the relevant code is already known.
 
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->

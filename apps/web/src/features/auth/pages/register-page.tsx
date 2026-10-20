@@ -11,7 +11,7 @@ import {
   getErrorMessage,
   getFieldErrors,
 } from '../../../lib/get-error-message';
-import { currentUserQueryKey } from '../api/get-current-user';
+import { setCurrentUser } from '../utils/set-current-user';
 import { register } from '../api/register';
 import { FormField } from '../components/form-field';
 import { useCurrentUser } from '../hooks/use-current-user';
@@ -37,7 +37,7 @@ const RegisterPage = () => {
     mutationFn: (input: RegisterValues) => register(input),
     onSuccess: (user) => {
       // The API signs the user in as part of registration.
-      queryClient.setQueryData(currentUserQueryKey, user);
+      setCurrentUser(queryClient, user);
       toast.success(t('register.success', { name: user.name }));
       navigate('/pets', { replace: true });
     },

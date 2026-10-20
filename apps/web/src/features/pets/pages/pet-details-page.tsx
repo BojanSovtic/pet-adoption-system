@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ApiError } from '../../../lib/api-client';
 import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPet } from '../api/get-pet';
+import { PetApplicationSection } from '../../applications/components/pet-application-section';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { DeletePetButton } from '../components/delete-pet-button';
 import { isPetOwner } from '../utils/is-pet-owner';
@@ -98,8 +99,10 @@ const PetDetailsPage = () => {
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="space-y-6">
           <p className="leading-7">{pet.description}</p>
+
+          <PetApplicationSection pet={pet} />
         </CardContent>
       </Card>
     </section>

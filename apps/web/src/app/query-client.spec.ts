@@ -21,8 +21,9 @@ describe('shouldRetry', () => {
 });
 
 describe('session expiry handling', () => {
-  it('marks the user as signed out when a request is unauthenticated', async () => {
+  it('signs the user out and drops their cached applications when a request is unauthenticated', async () => {
     queryClient.setQueryData(currentUserQueryKey, { _id: '1', name: 'Milo' });
+    queryClient.setQueryData(['applications', 'mine'], [{ _id: 'a1' }]);
 
     await queryClient
       .fetchQuery({
@@ -32,6 +33,7 @@ describe('session expiry handling', () => {
       .catch(() => undefined);
 
     expect(queryClient.getQueryData(currentUserQueryKey)).toBeNull();
+    expect(queryClient.getQueryData(['applications', 'mine'])).toBeUndefined();
   });
 
   it('keeps the user for other errors', async () => {

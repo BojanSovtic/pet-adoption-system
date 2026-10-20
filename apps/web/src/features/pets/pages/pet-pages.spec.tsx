@@ -12,6 +12,14 @@ import { PetFormPage } from './pet-form-page';
 
 vi.mock('../api/get-pet', () => ({ getPet: vi.fn() }));
 
+// The details page includes the adoption section, which loads applications.
+vi.mock('../../applications/api/applications', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../applications/api/applications')
+  >()),
+  getMyApplications: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock('../../auth/api/get-current-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/api/get-current-user')>()),
   getCurrentUser: vi.fn(),

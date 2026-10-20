@@ -1,0 +1,45 @@
+{
+  "title": "Zahtevi za udomljavanje",
+  "loading": "Učitavanje zahteva...",
+  "error": "Zahteve nije moguće učitati.",
+  "mine": {
+    "title": "Moji zahtevi",
+    "empty": "Još nemaš nijedan zahtev za udomljavanje."
+  },
+  "received": {
+    "title": "Zahtevi za moje ljubimce",
+    "empty": "Još nema zahteva za tvoje ljubimce."
+  },
+  "status": {
+    "pending": "Na čekanju",
+    "accepted": "Prihvaćen",
+    "rejected": "Odbijen",
+    "withdrawn": "Povučen"
+  },
+  "actions": {
+    "accept": "Prihvati",
+    "reject": "Odbij",
+    "withdraw": "Povuci"
+  },
+  "actionSuccess": {
+    "accept": "Zahtev je prihvaćen. Ljubimac je sada udomljen.",
+    "reject": "Zahtev je odbijen.",
+    "withdraw": "Zahtev je povučen."
+  },
+  "applicant": "Podnosilac",
+  "submittedOn": "Poslato {{date}}",
+  "interested": "Želiš da udomiš ljubimca {{name}}?",
+  "signInToApply": "Prijavi se da pošalješ zahtev",
+  "yourApplication": "Tvoj zahtev:",
+  "reviewApplications": "Pregledaj zahteve",
+  "form": {
+    "title": "Zahtev za udomljavanje: {{name}}",
+    "message": "Zašto želiš da udomiš ljubimca {{name}}?",
+    "submit": "Pošalji zahtev",
+    "submitting": "Slanje...",
+    "success": "Tvoj zahtev je poslat.",
+    "error": "Zahtev nije moguće poslati. Pokušaj ponovo.",
+    "messageRequired": "Napiši kratku poruku.",
+    "messageTooLong": "Poruka može imati najviše 2000 karaktera."
+  }
+}

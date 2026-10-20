@@ -7,7 +7,6 @@ dotenv.config({
 
 const port = Number(process.env.PORT ?? 3333);
 const mongodbUri = process.env.MONGODB_URI;
-const mongodbTestUri = process.env.MONGODB_TEST_URI;
 const corsOrigin = process.env.CORS_ORIGIN;
 const sessionSecret = process.env.SESSION_SECRET;
 
@@ -17,10 +16,6 @@ if (!Number.isInteger(port) || port <= 0) {
 
 if (!mongodbUri) {
   throw new Error('MONGODB_URI is required');
-}
-
-if (!mongodbTestUri) {
-  throw new Error('MONGODB_TEST_URI is required');
 }
 
 if (!corsOrigin) {
@@ -35,7 +30,6 @@ export const env = {
   host: process.env.HOST ?? 'localhost',
   port,
   mongodbUri,
-  mongodbTestUri,
   corsOrigin,
   sessionSecret,
   isProduction: process.env.NODE_ENV === 'production',

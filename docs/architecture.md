@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-20, after the pet ownership step). For status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-20, after the adoption applications step). For status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: solid lines and boxes = implemented. Dashed lines or anything labelled _planned_ = not implemented yet.
 
@@ -16,19 +16,22 @@ flowchart LR
   end
 
   browser(["Browser"])
-  mongo[("MongoDB 8<br/>docker-compose<br/>collections: pets, users, sessions")]
+  mongo[("MongoDB 8, single-node replica set<br/>docker-compose (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications")]
 
   browser -- "loads SPA" --> web
   browser -- "fetch /api/*<br/>JSON + sid cookie<br/>(credentials: include, CORS)" --> api
   web -. "imports types<br/>(workspace:*)" .-> models
   api -. "imports types + constants<br/>(bundled inline)" .-> models
-  api -- "Mongoose 9<br/>(pets, users)" --> mongo
+  api -- "Mongoose 9<br/>(pets, users, applications;<br/>transactions)" --> mongo
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
 ```
 
 - **Two separate apps.** The frontend calls the API directly at `VITE_API_URL`; there is no Vite proxy. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
 - **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
+- **A replica set is required.** Adoption decisions use transactions, which a standalone MongoDB rejects, so `connectDatabase` refuses to start without one.
+  - **Development:** `docker-compose.yml` runs a single-node replica set.
+  - **Tests:** an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`).
 
 ## 2. Request lifecycle
 
@@ -87,14 +90,14 @@ flowchart TB
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
-  router -- "POST/PUT/DELETE /api/pets" --> auth["requireAuth<br/>session user must exist<br/>→ 401 UNAUTHENTICATED"]
+  router -- "POST/PUT/DELETE /api/pets<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>session user must exist<br/>→ 401 UNAUTHENTICATED"]
   router -- "GET /api/pets (public)" --> controller
 
   rate --> validate["validateBody(zod)<br/>(POST/PUT with a body only)<br/>→ 400 VALIDATION_FAILED"]
   auth --> validate
   validate --> controller["asyncHandler(controller)<br/>checks ids, throws AppError<br/>no owned pet matched → 403 / 404"]
-  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>auth.service / user.service"]
-  service --> model["Mongoose model<br/>PetModel / UserModel"]
+  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>application.service (transactions)<br/>auth.service / user.service"]
+  service --> model["Mongoose model<br/>PetModel / UserModel / ApplicationModel"]
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
@@ -106,7 +109,7 @@ flowchart TB
 - **Not every route has every step.**
   - Validation runs only on routes with a body (`POST /pets`, `PUT /pets/:id`, `POST /auth/register`, `POST /auth/login`).
   - Rate limiting runs only on `register` and `login`.
-  - `requireAuth` runs only on pet create, update and delete, *before* validation, so anonymous requests get 401 whatever the body.
+  - `requireAuth` runs on pet create, update and delete and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 
 ## 3. Authentication flow
@@ -217,21 +220,93 @@ erDiagram
     date expires "TTL index removes expired sessions"
     string session "serialized cookie data + userId"
   }
+  ADOPTION_APPLICATION {
+    ObjectId _id PK
+    ObjectId pet FK "ref Pet"
+    ObjectId applicant FK "ref User, set from the session"
+    string message "1-2000 chars"
+    string status "pending | accepted | rejected | withdrawn"
+    date createdAt
+    date updatedAt
+  }
   USER ||--o{ PET : "owns (owner)"
+  USER ||--o{ ADOPTION_APPLICATION : "submits (applicant)"
+  PET ||--o{ ADOPTION_APPLICATION : "receives"
   SESSION }o--|| USER : "userId (plain string, not a Mongoose ref)"
 ```
 
-- **`USER` and `PET` are Mongoose models** (`users/user.model.ts`, `pets/pet.model.ts`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
-- **`owner` comes only from the session.** The API returns it as a user id string; no owner details (name, email) are exposed.
-- **Pets created before ownership** have no `owner`. They remain visible but no one can edit or delete them until they are backfilled or removed (see progress.md).
-- **`status` can't change through the API yet.** It is server-managed and stripped from request bodies, so every pet stays `available` for now.
+- **Mongoose models:** `USER`, `PET` and `ADOPTION_APPLICATION` (`users/`, `pets/`, `applications/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
+- **`owner` and `applicant` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
+- **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
+- **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.
+- **Unique partial indexes on applications:**
+  - `{ pet, applicant }` for statuses `pending`, `accepted` and `rejected`: one application per user and pet; a withdrawn one can be replaced.
+  - `{ pet }` where `status: 'accepted'`: at most one accepted application per pet.
 
-### Planned (not implemented)
+## 5. Adoption workflow
+
+The state machines live in the shared library (`adoption-application.model.ts`), so the API enforces them and the web uses them to decide which buttons to show. Statuses change only through explicit actions; nothing sets a status directly.
+
+### Application states
 
 ```mermaid
-erDiagram
-  USER ||--o{ ADOPTION_APPLICATION : "submits (planned: step 6)"
-  PET ||--o{ ADOPTION_APPLICATION : "receives (planned: step 6)"
+stateDiagram-v2
+  [*] --> pending : submit (signed-in user, not the owner)
+  pending --> accepted : accept (pet owner)
+  pending --> rejected : reject (pet owner)
+  pending --> rejected : autoReject (system, another application accepted)
+  pending --> withdrawn : withdraw (applicant)
+  accepted --> [*]
+  rejected --> [*]
+  withdrawn --> [*]
 ```
 
-The field names and statuses for applications are not decided yet; see the roadmap in [progress.md](progress.md).
+### Pet states
+
+```mermaid
+stateDiagram-v2
+  [*] --> available : pet created
+  available --> pending : first pending application
+  pending --> available : last pending application rejected or withdrawn
+  pending --> adopted : an application is accepted
+  adopted --> [*]
+```
+
+- **How the two machines interact:** the pet status always follows from its applications. `application.service.ts` applies the pet transition in the same transaction as the application change, and `transitionPetStatus` rejects any change the pet machine doesn't allow.
+- **When a transition fails:**
+  - Wrong actor → 403 (`NOT_PET_OWNER` / `NOT_APPLICANT`).
+  - Someone who is neither applicant nor owner → 404 `APPLICATION_NOT_FOUND`, because applications are private.
+  - A final state → 409 `INVALID_STATUS_TRANSITION`.
+  - An adopted pet → 409 `PET_NOT_AVAILABLE`.
+- **Deleting a pet** is blocked by pending or accepted applications (409 `PET_HAS_ACTIVE_APPLICATIONS`). Otherwise its rejected and withdrawn applications are deleted with it, in one transaction.
+
+### Accepting an application (one transaction)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant O as Pet owner
+  participant C as application.controller
+  participant S as application.service
+  participant DB as MongoDB (transaction)
+
+  O->>C: POST /api/applications/:id/accept
+  C->>S: transitionApplication(id, userId, 'accept')
+  S->>S: role check (outside the transaction): owner? → else 403 / 404
+  S->>DB: start transaction
+  S->>DB: lockPet: write pet.updatedAt (a concurrent transaction on this pet now conflicts)
+  S->>DB: pet must be pending, else 409 PET_NOT_AVAILABLE
+  S->>DB: application must still be pending, else 409 INVALID_STATUS_TRANSITION
+  S->>DB: application → accepted (conditional update)
+  S->>DB: other pending applications for the pet → rejected
+  S->>DB: pet pending → adopted
+  alt any step fails
+    DB-->>S: abort: no change is kept
+  else
+    DB-->>S: commit: all changes visible together
+  end
+  S-->>O: 200 owner view, or the error
+```
+
+- **Concurrency:** the first write locks the pet, so two simultaneous acceptances (or a withdraw racing a reject) can't both act on stale data. MongoDB raises a write conflict, `connection.transaction()` retries the losing transaction, and the retry sees the committed result (409). The unique "one accepted per pet" index is the final guarantee.
+- **The same pattern** (lock the pet, check, write, adjust the pet status) is used for submit, reject and withdraw, so the pet status stays consistent even when the last two pending applications end at the same moment.

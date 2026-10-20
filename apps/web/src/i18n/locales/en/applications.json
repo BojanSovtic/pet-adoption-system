@@ -1,0 +1,45 @@
+{
+  "title": "Applications",
+  "loading": "Loading applications...",
+  "error": "Applications could not be loaded.",
+  "mine": {
+    "title": "My applications",
+    "empty": "You haven't applied to adopt any pets yet."
+  },
+  "received": {
+    "title": "Applications for my pets",
+    "empty": "No one has applied for your pets yet."
+  },
+  "status": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "withdrawn": "Withdrawn"
+  },
+  "actions": {
+    "accept": "Accept",
+    "reject": "Reject",
+    "withdraw": "Withdraw"
+  },
+  "actionSuccess": {
+    "accept": "Application accepted. The pet is now adopted.",
+    "reject": "Application rejected.",
+    "withdraw": "Application withdrawn."
+  },
+  "applicant": "Applicant",
+  "submittedOn": "Submitted {{date}}",
+  "interested": "Interested in adopting {{name}}?",
+  "signInToApply": "Sign in to apply",
+  "yourApplication": "Your application:",
+  "reviewApplications": "Review applications",
+  "form": {
+    "title": "Apply to adopt {{name}}",
+    "message": "Why would you like to adopt {{name}}?",
+    "submit": "Send application",
+    "submitting": "Sending...",
+    "success": "Your application was sent.",
+    "error": "The application could not be sent. Please try again.",
+    "messageRequired": "Please write a short message.",
+    "messageTooLong": "The message must be at most 2000 characters."
+  }
+}

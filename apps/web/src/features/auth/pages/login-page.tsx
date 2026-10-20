@@ -10,7 +10,7 @@ import {
   getErrorMessage,
   getFieldErrors,
 } from '../../../lib/get-error-message';
-import { currentUserQueryKey } from '../api/get-current-user';
+import { setCurrentUser } from '../utils/set-current-user';
 import { login } from '../api/login';
 import { FormField } from '../components/form-field';
 import { useCurrentUser } from '../hooks/use-current-user';
@@ -47,7 +47,7 @@ const LoginPage = () => {
     meta: { skipGlobalErrorToast: true },
     mutationFn: (input: LoginValues) => login(input),
     onSuccess: (user) => {
-      queryClient.setQueryData(currentUserQueryKey, user);
+      setCurrentUser(queryClient, user);
       toast.success(t('login.success', { name: user.name }));
       navigate(returnPath, { replace: true });
     },

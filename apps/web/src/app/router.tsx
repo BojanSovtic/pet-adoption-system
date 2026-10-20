@@ -7,6 +7,7 @@ import {
 
 import { AppShell } from './app-shell';
 import { NotFoundPage } from './not-found-page';
+import { ApplicationsPage } from '../features/applications/pages/applications-page';
 import { LoginPage } from '../features/auth/pages/login-page';
 import { RegisterPage } from '../features/auth/pages/register-page';
 import { PetsPage } from '../features/pets/pages/pets-page';
@@ -43,6 +44,7 @@ export const routes: RouteObject[] = [
         path: '/pets/:id/edit',
         element: <PetFormPage />,
       },
+      { path: '/applications', element: <ApplicationsPage /> },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
       {

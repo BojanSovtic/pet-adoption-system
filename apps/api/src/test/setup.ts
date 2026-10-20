@@ -1,13 +1,11 @@
-import { afterAll, afterEach, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, inject } from 'vitest';
 import mongoose from 'mongoose';
 
-import { env } from '../config/env';
 import { resetRateLimits } from '../middleware/rate-limit';
 
 beforeAll(async () => {
-  console.log('[ test ] Connecting to MongoDB...');
-  await mongoose.connect(env.mongodbTestUri);
-  console.log('[ test ] MongoDB connected');
+  // The in-memory replica set started by global-setup.ts (supports transactions).
+  await mongoose.connect(inject('mongoUri'));
 
   // Start from an empty database, then rebuild the schema indexes (e.g. the
   // unique email index) so tests behave like production. `init()` waits for

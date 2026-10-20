@@ -22,7 +22,15 @@
     "EMAIL_ALREADY_REGISTERED": "Nalog sa ovim email-om već postoji.",
     "UNTRUSTED_ORIGIN": "Zahtev je blokiran iz bezbednosnih razloga.",
     "RATE_LIMITED": "Previše pokušaja. Sačekaj nekoliko minuta i pokušaj ponovo.",
-    "NOT_PET_OWNER": "To može samo osoba koja je dodala ovog ljubimca."
+    "NOT_PET_OWNER": "To može samo osoba koja je dodala ovog ljubimca.",
+    "CANNOT_APPLY_TO_OWN_PET": "Ne možeš poslati zahtev za svog ljubimca.",
+    "PET_NOT_AVAILABLE": "Ovaj ljubimac više nije dostupan za udomljavanje.",
+    "ALREADY_APPLIED": "Zahtev za ovog ljubimca je već poslat.",
+    "INVALID_STATUS_TRANSITION": "O ovom zahtevu je već odlučeno ili je povučen.",
+    "PET_HAS_ACTIVE_APPLICATIONS": "Ovaj ljubimac ima otvorene ili prihvaćene zahteve i ne može se obrisati.",
+    "APPLICATION_NOT_FOUND": "Zahtev nije pronađen.",
+    "INVALID_APPLICATION_ID": "ID zahteva nije ispravan.",
+    "NOT_APPLICANT": "To može samo podnosilac zahteva."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

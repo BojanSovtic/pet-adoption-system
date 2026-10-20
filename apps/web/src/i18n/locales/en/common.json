@@ -22,7 +22,15 @@
     "EMAIL_ALREADY_REGISTERED": "An account with this email already exists.",
     "UNTRUSTED_ORIGIN": "This request was blocked for security reasons.",
     "RATE_LIMITED": "Too many attempts. Please wait a few minutes and try again.",
-    "NOT_PET_OWNER": "Only the person who posted this pet can do that."
+    "NOT_PET_OWNER": "Only the person who posted this pet can do that.",
+    "CANNOT_APPLY_TO_OWN_PET": "You cannot apply to adopt your own pet.",
+    "PET_NOT_AVAILABLE": "This pet is no longer available for adoption.",
+    "ALREADY_APPLIED": "You have already applied for this pet.",
+    "INVALID_STATUS_TRANSITION": "This application has already been decided or withdrawn.",
+    "PET_HAS_ACTIVE_APPLICATIONS": "This pet has open or accepted adoption applications and cannot be deleted.",
+    "APPLICATION_NOT_FOUND": "The application could not be found.",
+    "INVALID_APPLICATION_ID": "The application ID is invalid.",
+    "NOT_APPLICANT": "Only the applicant can do that."
   },
   "validation": {
     "invalid": "This value is invalid.",
