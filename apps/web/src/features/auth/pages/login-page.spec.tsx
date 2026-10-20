@@ -25,7 +25,7 @@ const user: User = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
-const renderLoginPage = () => {
+const renderLoginPage = (from?: string) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -33,8 +33,9 @@ const renderLoginPage = () => {
     [
       { path: '/login', element: <LoginPage /> },
       { path: '/pets', element: <p>Pet list</p> },
+      { path: '/pets/new', element: <p>New pet form</p> },
     ],
-    { initialEntries: ['/login'] },
+    { initialEntries: [{ pathname: '/login', state: from ? { from } : null }] },
   );
 
   render(
@@ -100,5 +101,27 @@ describe('LoginPage', () => {
       password: 'correct horse battery',
     });
     expect(queryClient.getQueryData(currentUserQueryKey)).toEqual(user);
+  });
+
+  it('returns to the page that required sign-in', async () => {
+    vi.mocked(login).mockResolvedValue(user);
+    const { router } = renderLoginPage('/pets/new');
+
+    fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/pets/new');
+    });
+  });
+
+  it('ignores a return path that leaves the app', async () => {
+    vi.mocked(login).mockResolvedValue(user);
+    const { router } = renderLoginPage('//evil.example');
+
+    fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/pets');
+    });
   });
 });

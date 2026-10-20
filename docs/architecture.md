@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-19, commit `b06a917`). For status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-20, after the pet ownership step). For status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: solid lines and boxes = implemented. Dashed lines or anything labelled _planned_ = not implemented yet.
 
@@ -71,6 +71,9 @@ sequenceDiagram
   - `apiClient` turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
   - The query client (`app/query-client.ts`) applies the cross-cutting rules: no retries on 4xx, a toast for mutation errors and background-refetch errors, and the user reset to `null` on `UNAUTHENTICATED`.
   - Pages show inline and field errors; the form above opts out of the toast with `meta.skipGlobalErrorToast`.
+- **The UI hides what the API would refuse; the API stays authoritative.**
+  - `isPetOwner(pet, currentUser)` decides whether Edit and Delete are shown.
+  - The form redirects signed-out users to `/login` with `state.from`, and login sends them back. This also happens when a save returns 401, because the global handler clears the current user.
 
 ### 2b. API middleware pipeline
 
@@ -84,21 +87,27 @@ flowchart TB
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
-  router -- "/api/pets/*" --> validate
+  router -- "POST/PUT/DELETE /api/pets" --> auth["requireAuth<br/>session user must exist<br/>→ 401 UNAUTHENTICATED"]
+  router -- "GET /api/pets (public)" --> controller
 
   rate --> validate["validateBody(zod)<br/>(POST/PUT with a body only)<br/>→ 400 VALIDATION_FAILED"]
-  validate --> controller["asyncHandler(controller)<br/>checks ids, throws AppError"]
-  controller --> service["service<br/>pet.service / auth.service / user.service"]
+  auth --> validate
+  validate --> controller["asyncHandler(controller)<br/>checks ids, throws AppError<br/>no owned pet matched → 403 / 404"]
+  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>auth.service / user.service"]
   service --> model["Mongoose model<br/>PetModel / UserModel"]
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
-  cors & origin & json & rate & validate & controller -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
+  cors & origin & json & rate & auth & validate & controller -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
 ```
 
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
 - **Errors leave through one place.** Every error, including rate-limit, validation and origin errors, reaches `errorHandler`. Response bodies are always `{ code, details? }`; the web translates `code`.
-- **Not every route has every step.** Validation runs only on routes with a body (`POST /pets`, `PUT /pets/:id`, `POST /auth/register`, `POST /auth/login`). Rate limiting runs only on `register` and `login`.
+- **Not every route has every step.**
+  - Validation runs only on routes with a body (`POST /pets`, `PUT /pets/:id`, `POST /auth/register`, `POST /auth/login`).
+  - Rate limiting runs only on `register` and `login`.
+  - `requireAuth` runs only on pet create, update and delete, *before* validation, so anonymous requests get 401 whatever the body.
+- **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 
 ## 3. Authentication flow
 
@@ -171,7 +180,10 @@ sequenceDiagram
 
 - **Session fixation:** `startUserSession` always regenerates the session id. Tests confirm the pre-login cookie stops working.
 - **CSRF:** `SameSite=Lax` plus `requireTrustedOrigin`, with no CSRF tokens. Requests without an `Origin` header (non-browser clients) are allowed.
-- **Authentication only.** No route requires a session except `/me`. Pet create, edit and delete are currently open to everyone (planned: step 5, ownership).
+- **Authentication vs authorization.**
+  - `requireAuth` (`auth/require-auth.ts`) only answers "who is signed in?". It also rejects sessions whose user was deleted.
+  - Ownership ("may this user change this pet?") lives in the pet service queries.
+  - Browsing pets stays public. There are no admin roles.
 - **Separate from the sign-in method:** `startUserSession` and `endUserSession` take only a user id. A future OAuth/OIDC callback would find or create a user and call the same function.
 
 ## 4. Data model
@@ -190,6 +202,7 @@ erDiagram
   }
   PET {
     ObjectId _id PK
+    ObjectId owner FK "ref User, required, indexed, set from the session"
     string name "max 100"
     string species "dog | cat | other"
     number age "integer >= 0"
@@ -204,18 +217,19 @@ erDiagram
     date expires "TTL index removes expired sessions"
     string session "serialized cookie data + userId"
   }
+  USER ||--o{ PET : "owns (owner)"
   SESSION }o--|| USER : "userId (plain string, not a Mongoose ref)"
 ```
 
 - **`USER` and `PET` are Mongoose models** (`users/user.model.ts`, `pets/pet.model.ts`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
-- **Pets and users are not linked yet.** No pet stores who posted it.
+- **`owner` comes only from the session.** The API returns it as a user id string; no owner details (name, email) are exposed.
+- **Pets created before ownership** have no `owner`. They remain visible but no one can edit or delete them until they are backfilled or removed (see progress.md).
 - **`status` can't change through the API yet.** It is server-managed and stripped from request bodies, so every pet stays `available` for now.
 
 ### Planned (not implemented)
 
 ```mermaid
 erDiagram
-  USER ||--o{ PET : "owns (planned: ownerId, step 5)"
   USER ||--o{ ADOPTION_APPLICATION : "submits (planned: step 6)"
   PET ||--o{ ADOPTION_APPLICATION : "receives (planned: step 6)"
 ```

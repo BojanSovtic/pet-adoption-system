@@ -9,11 +9,14 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ApiError } from '../../../lib/api-client';
 import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPet } from '../api/get-pet';
+import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { DeletePetButton } from '../components/delete-pet-button';
+import { isPetOwner } from '../utils/is-pet-owner';
 
 const PetDetailsPage = () => {
   const { id } = useParams();
   const { t } = useTranslation('pets');
+  const { data: currentUser } = useCurrentUser();
 
   const {
     data: pet,
@@ -80,11 +83,17 @@ const PetDetailsPage = () => {
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="secondary">{t(`status.${pet.status}`)}</Badge>
 
-              <Button asChild variant="outline">
-                <Link to={`/pets/${pet._id}/edit`}>{t('form.editTitle')}</Link>
-              </Button>
+              {isPetOwner(pet, currentUser) && (
+                <>
+                  <Button asChild variant="outline">
+                    <Link to={`/pets/${pet._id}/edit`}>
+                      {t('form.editTitle')}
+                    </Link>
+                  </Button>
 
-              <DeletePetButton pet={pet} />
+                  <DeletePetButton pet={pet} />
+                </>
+              )}
             </div>
           </div>
         </CardHeader>

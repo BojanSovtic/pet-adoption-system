@@ -21,7 +21,8 @@
     "INVALID_CREDENTIALS": "Incorrect email or password.",
     "EMAIL_ALREADY_REGISTERED": "An account with this email already exists.",
     "UNTRUSTED_ORIGIN": "This request was blocked for security reasons.",
-    "RATE_LIMITED": "Too many attempts. Please wait a few minutes and try again."
+    "RATE_LIMITED": "Too many attempts. Please wait a few minutes and try again.",
+    "NOT_PET_OWNER": "Only the person who posted this pet can do that."
   },
   "validation": {
     "invalid": "This value is invalid.",

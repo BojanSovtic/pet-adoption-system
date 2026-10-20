@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose';
+import { Schema, model, type Types } from 'mongoose';
 import {
   PET_DESCRIPTION_MAX_LENGTH,
   PET_NAME_MAX_LENGTH,
@@ -7,14 +7,25 @@ import {
   type Pet,
 } from '@pet-adoption/models';
 
-/** A pet as stored in MongoDB: the API `Pet` fields, with real dates. */
-export type PetRecord = Omit<Pet, '_id' | 'createdAt' | 'updatedAt'> & {
+/** A pet as stored in MongoDB: the API `Pet` fields, with real ids and dates. */
+export type PetRecord = Omit<
+  Pet,
+  '_id' | 'owner' | 'createdAt' | 'updatedAt'
+> & {
+  owner: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 };
 
 const petSchema = new Schema<PetRecord>(
   {
+    owner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      // Ownership checks filter by owner.
+      index: true,
+    },
     name: {
       type: String,
       required: true,

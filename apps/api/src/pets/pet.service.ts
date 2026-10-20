@@ -10,24 +10,44 @@ export const getPetById = async (id: string): Promise<PetRecord | null> => {
   return PetModel.findById(id).lean();
 };
 
-export const createPet = async (input: CreatePetInput): Promise<PetRecord> => {
-  const pet = await PetModel.create(input);
+export const petExists = async (id: string): Promise<boolean> => {
+  return (await PetModel.exists({ _id: id })) !== null;
+};
+
+export const createPet = async (
+  input: CreatePetInput,
+  ownerId: string,
+): Promise<PetRecord> => {
+  // `owner` comes last so nothing in the input can override it.
+  const pet = await PetModel.create({ ...input, owner: ownerId });
 
   return pet.toObject();
 };
 
-export const updatePet = async (
+/**
+ * Updates the pet only if `ownerId` owns it; the ownership check is part of
+ * the query, so it cannot race. Returns `null` if no owned pet matched.
+ */
+export const updateOwnedPet = async (
   id: string,
+  ownerId: string,
   input: UpdatePetInput,
 ): Promise<PetRecord | null> => {
-  return PetModel.findByIdAndUpdate(id, input, {
+  return PetModel.findOneAndUpdate({ _id: id, owner: ownerId }, input, {
     returnDocument: 'after',
     runValidators: true,
   }).lean();
 };
 
-export const deletePet = async (id: string): Promise<boolean> => {
-  const pet = await PetModel.findByIdAndDelete(id).lean();
+/** Deletes the pet only if `ownerId` owns it. Returns `false` otherwise. */
+export const deleteOwnedPet = async (
+  id: string,
+  ownerId: string,
+): Promise<boolean> => {
+  const pet = await PetModel.findOneAndDelete({
+    _id: id,
+    owner: ownerId,
+  }).lean();
 
   return pet !== null;
 };

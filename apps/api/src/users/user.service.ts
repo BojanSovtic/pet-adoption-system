@@ -34,6 +34,10 @@ export const findUserById = async (id: string): Promise<StoredUser | null> => {
   return UserModel.findById(id).lean();
 };
 
+export const userExists = async (id: string): Promise<boolean> => {
+  return (await UserModel.exists({ _id: id })) !== null;
+};
+
 /** The only query that loads the password hash; use it for sign-in only. */
 export const findUserByEmailWithPasswordHash = async (
   email: string,

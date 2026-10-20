@@ -14,6 +14,7 @@ vi.mock('../api/delete-pet', () => ({
 
 const pet: Pet = {
   _id: 'pet-1',
+  owner: 'user-1',
   name: 'Milo',
   species: 'dog',
   age: 3,

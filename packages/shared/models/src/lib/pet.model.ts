@@ -10,6 +10,8 @@ export const PET_DESCRIPTION_MAX_LENGTH = 2000;
 /** A pet as returned by the API (JSON: ids and dates are strings). */
 export type Pet = {
   _id: string;
+  /** Id of the user who posted the pet; always set by the server. */
+  owner: string;
   name: string;
   species: PetSpecies;
   age: number;

@@ -1,7 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
@@ -11,13 +17,17 @@ import {
   type CreatePetInput,
 } from '@pet-adoption/models';
 
+import { Button } from '@/components/ui/button';
+
 import {
   getErrorMessage,
   getFieldErrors,
 } from '../../../lib/get-error-message';
+import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
 import { updatePet } from '../api/update-pet';
+import { isPetOwner } from '../utils/is-pet-owner';
 
 const petFormSchema = z.object({
   name: z
@@ -71,9 +81,11 @@ const inputClassName =
 const PetFormPage = () => {
   const { t } = useTranslation('pets');
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { id } = useParams();
   const isEditing = Boolean(id);
+  const { data: currentUser, isPending: isUserPending } = useCurrentUser();
 
   const [values, setValues] = useState<FormValues>(initialValues);
   const [fieldErrors, setFieldErrors] = useState<
@@ -177,12 +189,29 @@ const PetFormPage = () => {
       )
     : null;
 
-  if (isEditing && isPetPending) {
+  if (isUserPending || (isEditing && isPetPending)) {
     return <p>{t('loading')}</p>;
+  }
+
+  // Signed out (or the session expired during a save): sign in, then return.
+  if (!currentUser) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   if (isEditing && (isPetError || !existingPet)) {
     return <p>{t('notFound')}</p>;
+  }
+
+  if (existingPet && !isPetOwner(existingPet, currentUser)) {
+    return (
+      <section className="space-y-4">
+        <p>{t('form.notOwner')}</p>
+
+        <Button asChild variant="outline">
+          <Link to={`/pets/${existingPet._id}`}>{t('form.cancel')}</Link>
+        </Button>
+      </section>
+    );
   }
 
   return (

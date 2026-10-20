@@ -21,7 +21,8 @@
     "INVALID_CREDENTIALS": "Pogrešan email ili lozinka.",
     "EMAIL_ALREADY_REGISTERED": "Nalog sa ovim email-om već postoji.",
     "UNTRUSTED_ORIGIN": "Zahtev je blokiran iz bezbednosnih razloga.",
-    "RATE_LIMITED": "Previše pokušaja. Sačekaj nekoliko minuta i pokušaj ponovo."
+    "RATE_LIMITED": "Previše pokušaja. Sačekaj nekoliko minuta i pokušaj ponovo.",
+    "NOT_PET_OWNER": "To može samo osoba koja je dodala ovog ljubimca."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

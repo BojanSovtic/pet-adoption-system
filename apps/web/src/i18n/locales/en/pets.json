@@ -63,7 +63,8 @@
     "saveChanges": "Save changes",
     "createSuccess": "Pet created successfully.",
     "updateSuccess": "Pet updated successfully.",
-    "updateError": "The pet could not be updated. Please try again."
+    "updateError": "The pet could not be updated. Please try again.",
+    "notOwner": "You can only edit pets you posted."
   },
   "delete": {
     "button": "Delete",

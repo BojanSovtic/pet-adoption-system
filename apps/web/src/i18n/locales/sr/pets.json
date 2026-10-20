@@ -64,7 +64,8 @@
     "saveChanges": "Sačuvaj izmene",
     "createSuccess": "Ljubimac je uspešno dodat.",
     "updateSuccess": "Ljubimac je uspešno izmenjen.",
-    "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo."
+    "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo.",
+    "notOwner": "Možeš da menjaš samo svoje ljubimce."
   },
   "delete": {
     "button": "Obriši",

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,22 @@ import { getFormErrors, loginFormSchema } from '../utils/auth-schemas';
 
 type LoginValues = { email: string; password: string };
 
+/** The in-app page that sent the user here (e.g. the pet form), if any. */
+const getReturnPath = (state: unknown): string => {
+  const from =
+    typeof state === 'object' && state !== null && 'from' in state
+      ? state.from
+      : undefined;
+
+  // Only same-app paths: "/pets/new" yes, "//evil.example" no.
+  return typeof from === 'string' && /^\/(?!\/)/.test(from) ? from : '/pets';
+};
+
 const LoginPage = () => {
   const { t } = useTranslation('auth');
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnPath = getReturnPath(location.state);
   const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser();
 
@@ -36,12 +49,12 @@ const LoginPage = () => {
     onSuccess: (user) => {
       queryClient.setQueryData(currentUserQueryKey, user);
       toast.success(t('login.success', { name: user.name }));
-      navigate('/pets', { replace: true });
+      navigate(returnPath, { replace: true });
     },
   });
 
   if (currentUser) {
-    return <Navigate to="/pets" replace />;
+    return <Navigate to={returnPath} replace />;
   }
 
   const updateField = (field: keyof LoginValues, value: string) => {

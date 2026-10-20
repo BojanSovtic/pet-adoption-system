@@ -6,6 +6,7 @@ import { filterPets } from './filter-pets';
 const pets: Pet[] = [
   {
     _id: '1',
+    owner: 'user-1',
     name: 'Buddy',
     species: 'dog',
     age: 3,
@@ -17,6 +18,7 @@ const pets: Pet[] = [
   },
   {
     _id: '2',
+    owner: 'user-1',
     name: 'Luna',
     species: 'cat',
     age: 2,
@@ -28,6 +30,7 @@ const pets: Pet[] = [
   },
   {
     _id: '3',
+    owner: 'user-1',
     name: 'Max',
     species: 'dog',
     age: 5,
