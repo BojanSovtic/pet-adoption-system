@@ -69,7 +69,9 @@ sequenceDiagram
   end
 ```
 
-- **React Router only picks the page component.** There are no route loaders or actions; data is fetched inside components with TanStack Query (`['pets']`, `['pets', id]`, `['auth', 'me']`).
+- **React Router only picks the page component.** There are no route loaders or actions; data is fetched inside components with TanStack Query.
+  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `['applications', …]` and `['auth', 'me']`. Invalidating `['pets']` refreshes every list and detail.
+  - **The pet list keeps its state in the URL** (`?search=&species=&status=&sort=&page=`) through `useSearchParams`, so Back and shared links restore it. Search is debounced by 300 ms, and any change other than the page resets to page 1.
 - **Errors are handled in three places:**
   - `apiClient` turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
   - The query client (`app/query-client.ts`) applies the cross-cutting rules: no retries on 4xx, a toast for mutation errors and background-refetch errors, and the user reset to `null` on `UNAUTHENTICATED`.
@@ -111,6 +113,10 @@ flowchart TB
   - Rate limiting runs only on `register` and `login`.
   - `requireAuth` runs on pet create, update and delete and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
+- **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
+  - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).
+  - **How the query runs:** filters apply before `skip`/`limit`, and `countDocuments` uses the same filter.
+  - **Response:** `{ items, page, pageSize, totalItems, totalPages }`.
 
 ## 3. Authentication flow
 
@@ -239,6 +245,7 @@ erDiagram
 - **`owner` and `applicant` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
 - **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
 - **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.
+- **Pet list index:** `{ createdAt: -1, _id: -1 }` serves the default "newest" order (and "oldest", read backwards) without an in-memory sort. Name search (a case-insensitive "contains" match) and species/status filters are not indexed: a contains-regex can't use an index efficiently, and the filters have only three values each.
 - **Unique partial indexes on applications:**
   - `{ pet, applicant }` for statuses `pending`, `accepted` and `rejected`: one application per user and pet; a withdrawn one can be replaced.
   - `{ pet }` where `status: 'accepted'`: at most one accepted application per pet.

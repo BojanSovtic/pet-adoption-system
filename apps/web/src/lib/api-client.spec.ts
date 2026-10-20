@@ -44,9 +44,41 @@ describe('apiClient', () => {
     await expect(apiClient('/pets')).resolves.toEqual([{ name: 'Milo' }]);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(/\/pets$/),
-      expect.objectContaining({
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('sends Content-Type only with a body, avoiding CORS preflights on GET', async () => {
+    // A response body can only be read once, so each call gets a new one.
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({}, 200)),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiClient('/pets');
+    await apiClient('/pets', { method: 'POST', body: '{}' });
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({});
+    expect(fetchMock.mock.calls[1]?.[1]?.headers).toEqual({
+      'Content-Type': 'application/json',
+    });
+  });
+
+  it('adds search params, leaving out empty values', async () => {
+    const fetchMock = mockFetch(jsonResponse({}, 200));
+
+    await apiClient('/pets', {
+      searchParams: {
+        search: 'milo bo',
+        species: undefined,
+        page: 2,
+        status: '',
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/pets\?search=milo\+bo&page=2$/),
+      expect.anything(),
     );
   });
 

@@ -30,21 +30,46 @@ const parseErrorResponse = async (
   return null;
 };
 
+export type ApiClientOptions = RequestInit & {
+  /** Added as a query string; `undefined` and empty values are left out. */
+  searchParams?: Record<string, string | number | undefined>;
+};
+
+const toQueryString = (
+  searchParams: ApiClientOptions['searchParams'],
+): string => {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(searchParams ?? {})) {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+
+  const query = params.toString();
+
+  return query ? `?${query}` : '';
+};
+
 export const apiClient = async <T>(
   path: string,
-  options?: RequestInit,
+  { searchParams, headers, ...options }: ApiClientOptions = {},
 ): Promise<T> => {
   let response: Response;
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${API_URL}${path}${toQueryString(searchParams)}`, {
       // Send the HttpOnly session cookie to the API (a different port, so a
       // different origin). JavaScript never reads the cookie itself.
       credentials: 'include',
       ...options,
       headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
+        // Only requests with a JSON body need this. On a GET it would make
+        // the browser send an extra CORS preflight request first.
+        ...(options.body !== undefined && {
+          'Content-Type': 'application/json',
+        }),
+        ...headers,
       },
     });
   } catch {

@@ -73,5 +73,23 @@
     "cancel": "Cancel",
     "deleting": "Deleting...",
     "success": "{{name}} was deleted."
+  },
+  "sortBy": "Sort by",
+  "sort": {
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "name": "Name (A–Z)",
+    "age": "Youngest first"
+  },
+  "resultCount_one": "{{count}} pet found",
+  "resultCount_other": "{{count}} pets found",
+  "clearFilters": "Clear filters",
+  "pageOutOfRange": "There are no pets on this page.",
+  "firstPage": "Go to the first page",
+  "pagination": {
+    "label": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{totalPages}}"
   }
 }

@@ -7,7 +7,13 @@ import '../i18n/config';
 import { routes } from './router';
 
 vi.mock('../features/pets/api/get-pets', () => ({
-  getPets: vi.fn().mockResolvedValue([]),
+  getPets: vi.fn().mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 12,
+    totalItems: 0,
+    totalPages: 0,
+  }),
 }));
 
 vi.mock('../features/auth/api/get-current-user', async (importOriginal) => ({

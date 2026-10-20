@@ -1,7 +1,9 @@
-import type { ClientSession, Types } from 'mongoose';
+import type { ClientSession, QueryFilter, SortOrder, Types } from 'mongoose';
 import {
   canTransitionPetStatus,
   type CreatePetInput,
+  type Paginated,
+  type PetSort,
   type PetStatus,
   type UpdatePetInput,
 } from '@pet-adoption/models';
@@ -10,11 +12,73 @@ import { ApplicationModel } from '../applications/application.model';
 import { withTransaction } from '../config/database';
 import { ConflictError } from '../errors/app-error';
 import { PetModel, type PetRecord } from './pet.model';
+import type { ParsedPetListQuery } from './pet.schema';
 
 type StoredPet = PetRecord & { _id: Types.ObjectId };
 
-export const getPets = async (): Promise<PetRecord[]> => {
-  return PetModel.find().sort({ createdAt: -1 }).lean();
+// The sort whitelist. `_id` breaks ties so the order is stable across pages;
+// without it, pets with equal values could appear on two pages or none.
+const SORTS: Record<PetSort, Record<string, SortOrder>> = {
+  newest: { createdAt: -1, _id: -1 },
+  oldest: { createdAt: 1, _id: 1 },
+  name: { name: 1, _id: 1 },
+  age: { age: 1, _id: 1 },
+};
+
+// Case-insensitive ordering for names ("luna" next to "Luna", not after "Z").
+const NAME_COLLATION = { locale: 'en', strength: 2 };
+
+/** User input is matched literally: "a.b" must not match "axb". */
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * One page of pets. Search and filters apply before paging, and the count uses
+ * the same filter, so the metadata matches the results.
+ */
+export const listPets = async ({
+  search,
+  species,
+  status,
+  sort,
+  page,
+  pageSize,
+}: ParsedPetListQuery): Promise<Paginated<PetRecord>> => {
+  const filter: QueryFilter<PetRecord> = {};
+
+  if (search) {
+    filter.name = { $regex: escapeRegex(search), $options: 'i' };
+  }
+
+  if (species) {
+    filter.species = species;
+  }
+
+  if (status) {
+    filter.status = status;
+  }
+
+  const findPage = PetModel.find(filter)
+    .sort(SORTS[sort])
+    .skip((page - 1) * pageSize)
+    .limit(pageSize);
+
+  if (sort === 'name') {
+    findPage.collation(NAME_COLLATION);
+  }
+
+  const [items, totalItems] = await Promise.all([
+    findPage.lean(),
+    PetModel.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    page,
+    pageSize,
+    totalItems,
+    totalPages: Math.ceil(totalItems / pageSize),
+  };
 };
 
 export const getPetById = async (id: string): Promise<PetRecord | null> => {

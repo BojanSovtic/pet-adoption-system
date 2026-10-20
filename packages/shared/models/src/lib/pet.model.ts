@@ -36,3 +36,30 @@ export type CreatePetInput = {
  * server-managed and never part of the input.
  */
 export type UpdatePetInput = CreatePetInput;
+
+/** Sort options for the pet list. Named options form the whitelist. */
+export const PET_SORT_OPTIONS = ['newest', 'oldest', 'name', 'age'] as const;
+export type PetSort = (typeof PET_SORT_OPTIONS)[number];
+
+export const PET_LIST_DEFAULT_PAGE_SIZE = 12;
+export const PET_LIST_MAX_PAGE_SIZE = 50;
+export const PET_SEARCH_MAX_LENGTH = 100;
+
+/** Query parameters of `GET /api/pets`. Omitted values use the defaults. */
+export type PetListQuery = {
+  search?: string;
+  species?: PetSpecies;
+  status?: PetStatus;
+  sort?: PetSort;
+  page?: number;
+  pageSize?: number;
+};
+
+/** One page of results plus what the UI needs to render paging controls. */
+export type Paginated<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};

@@ -64,4 +64,9 @@ const petSchema = new Schema<PetRecord>(
   },
 );
 
+// Serves the default list order (newest first, `_id` as tie-breaker) and,
+// read backwards, "oldest": MongoDB walks the index and stops after one page
+// instead of sorting every pet in memory.
+petSchema.index({ createdAt: -1, _id: -1 });
+
 export const PetModel = model<PetRecord>('Pet', petSchema);

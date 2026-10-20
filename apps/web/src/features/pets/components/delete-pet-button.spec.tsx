@@ -2,10 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Pet } from '@pet-adoption/models';
+import type { Paginated, Pet } from '@pet-adoption/models';
 
 import '../../../i18n/config';
 import { deletePet } from '../api/delete-pet';
+import { petQueryKeys } from '../api/pet-query-keys';
 import { DeletePetButton } from './delete-pet-button';
 
 vi.mock('../api/delete-pet', () => ({
@@ -27,13 +28,22 @@ const pet: Pet = {
 
 const otherPet: Pet = { ...pet, _id: 'pet-2', name: 'Luna' };
 
+const listKey = petQueryKeys.list({ sort: 'newest', page: 1 });
+const listPage: Paginated<Pet> = {
+  items: [pet, otherPet],
+  page: 1,
+  pageSize: 12,
+  totalItems: 2,
+  totalPages: 1,
+};
+
 const renderButton = () => {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
 
-  queryClient.setQueryData(['pets'], [pet, otherPet]);
-  queryClient.setQueryData(['pets', pet._id], pet);
+  queryClient.setQueryData(listKey, listPage);
+  queryClient.setQueryData(petQueryKeys.detail(pet._id), pet);
 
   const router = createMemoryRouter(
     [
@@ -86,8 +96,14 @@ describe('DeletePetButton', () => {
     });
 
     expect(deletePet).toHaveBeenCalledWith(pet._id);
-    expect(queryClient.getQueryData(['pets'])).toEqual([otherPet]);
-    expect(queryClient.getQueryData(['pets', pet._id])).toBeUndefined();
+    // Removed from cached list pages, which are marked stale to refetch.
+    expect(queryClient.getQueryData<Paginated<Pet>>(listKey)?.items).toEqual([
+      otherPet,
+    ]);
+    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(
+      queryClient.getQueryData(petQueryKeys.detail(pet._id)),
+    ).toBeUndefined();
     expect(screen.getByText('Pet list')).toBeTruthy();
   });
 
@@ -103,6 +119,6 @@ describe('DeletePetButton', () => {
     });
 
     expect(router.state.location.pathname).toBe(`/pets/${pet._id}`);
-    expect(queryClient.getQueryData(['pets'])).toEqual([pet, otherPet]);
+    expect(queryClient.getQueryData(listKey)).toEqual(listPage);
   });
 });

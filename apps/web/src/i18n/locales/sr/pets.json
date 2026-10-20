@@ -74,5 +74,24 @@
     "cancel": "Otkaži",
     "deleting": "Brisanje...",
     "success": "Ljubimac {{name}} je obrisan."
+  },
+  "sortBy": "Sortiraj",
+  "sort": {
+    "newest": "Najnovije prvo",
+    "oldest": "Najstarije prvo",
+    "name": "Ime (A–Ž)",
+    "age": "Najmlađi prvo"
+  },
+  "resultCount_one": "Pronađen {{count}} ljubimac",
+  "resultCount_few": "Pronađena {{count}} ljubimca",
+  "resultCount_other": "Pronađeno {{count}} ljubimaca",
+  "clearFilters": "Obriši filtere",
+  "pageOutOfRange": "Na ovoj strani nema ljubimaca.",
+  "firstPage": "Idi na prvu stranu",
+  "pagination": {
+    "label": "Stranice",
+    "previous": "Prethodna",
+    "next": "Sledeća",
+    "pageOf": "Strana {{page}} od {{totalPages}}"
   }
 }

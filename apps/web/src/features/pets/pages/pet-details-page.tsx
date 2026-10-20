@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ApiError } from '../../../lib/api-client';
 import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPet } from '../api/get-pet';
+import { petQueryKeys } from '../api/pet-query-keys';
 import { PetApplicationSection } from '../../applications/components/pet-application-section';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { DeletePetButton } from '../components/delete-pet-button';
@@ -25,7 +26,7 @@ const PetDetailsPage = () => {
     isError,
     error,
   } = useQuery({
-    queryKey: ['pets', id],
+    queryKey: petQueryKeys.detail(id ?? ''),
     queryFn: () => {
       if (!id) {
         throw new Error('Pet ID is required');

@@ -22,6 +22,7 @@ Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies a
   - Rate limiting (`middleware/rate-limit.ts`): per-IP limit on `/login` + `/register`, per-IP+email limit on failed logins → 429 `RATE_LIMITED`. Tests reset counters in `test/setup.ts`; tests that hash many passwords need a longer timeout.
   - Authorization: `auth/require-auth.ts` (`requireAuth` → 401, before validation; `getAuthenticatedUserId(req)` in handlers). Ownership lives in services as owner-scoped queries (`{ _id, owner }`); non-owner → 403 `NOT_PET_OWNER`. Owner ids always come from the session, never the body. API tests sign in with `createSignedInAgent()` (`test/auth-test-helpers.ts`).
 - Authentication (web): current user = TanStack query `['auth', 'me']` (`useCurrentUser`; `getCurrentUser` maps 401 to `null`). Login/register/logout set that cache entry; `query-client.ts` sets it to `null` on any `UNAUTHENTICATED` error. Pages that need sign-in redirect to `/login` with `state.from`; ownership UI uses `isPetOwner` (display only, the API decides).
+- Query keys: use factories (`petQueryKeys`, `applicationQueryKeys`) and put every request parameter in the key. List endpoints are paginated (`Paginated<T>`); query strings are validated with zod via `parseInput` (`middleware/validate.ts`). The pet list keeps its state in the URL (`useSearchParams`).
 - Adoption applications (`apps/api/src/applications/`): state machines for applications and pets live in the shared lib (`adoption-application.model.ts`). Status changes only via explicit actions (`/applications/:id/accept|reject|withdraw`), never by setting a status. Every application or pet-status write runs in `withTransaction` (`config/database.ts`) and starts with `lockPet` (the first write serializes concurrent transactions on that pet); pet status changes go through `transitionPetStatus`. Unique partial indexes back the rules. Web: per-user caches are cleared via `setCurrentUser` on every identity change.
 - MongoDB must be a **replica set** (transactions); the API refuses to start otherwise. Dev: `docker-compose.yml` (single-node `rs0`, host port 27018, `?directConnection=true`). API tests start an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`; first run downloads the MongoDB binary) — no local MongoDB needed. Test DB is dropped/re-indexed once per file, documents cleared after each test, spec files run sequentially (`fileParallelism: false`).
 
@@ -34,6 +35,7 @@ Run tasks through Nx with pnpm:
 ```sh
 pnpm nx run-many -t lint typecheck test   # full check
 pnpm nx test @pet-adoption/api            # uses an in-memory replica set
+pnpm nx test @pet-adoption/api -- src/pets/pet.controller.spec.ts   # one spec (run from the repo root)
 pnpm nx serve @pet-adoption/api           # http://localhost:3333/api
 pnpm nx dev @pet-adoption/web             # http://localhost:4200
 ```

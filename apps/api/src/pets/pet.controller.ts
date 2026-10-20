@@ -5,11 +5,13 @@ import {
   createPet,
   deleteOwnedPet,
   getPetById,
-  getPets,
+  listPets,
   petExists,
   updateOwnedPet,
 } from './pet.service';
+import { petListQuerySchema } from './pet.schema';
 import { getAuthenticatedUserId } from '../auth/require-auth';
+import { parseInput } from '../middleware/validate';
 import {
   BadRequestError,
   ForbiddenError,
@@ -40,9 +42,9 @@ export const getPetsController = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const pets = await getPets();
+  const query = parseInput(petListQuerySchema, req.query);
 
-  res.json(pets);
+  res.json(await listPets(query));
 };
 
 export const getPetByIdController = async (

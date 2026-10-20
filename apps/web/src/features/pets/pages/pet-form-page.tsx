@@ -26,6 +26,7 @@ import {
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
+import { petQueryKeys } from '../api/pet-query-keys';
 import { updatePet } from '../api/update-pet';
 import { isPetOwner } from '../utils/is-pet-owner';
 
@@ -97,7 +98,7 @@ const PetFormPage = () => {
     isPending: isPetPending,
     isError: isPetError,
   } = useQuery({
-    queryKey: ['pets', id],
+    queryKey: petQueryKeys.detail(id ?? ''),
     queryFn: () => {
       if (!id) {
         throw new Error('Pet ID is required');
@@ -130,10 +131,8 @@ const PetFormPage = () => {
       id ? updatePet(id, input) : createPet(input),
 
     onSuccess: async (pet) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['pets'] }),
-        queryClient.invalidateQueries({ queryKey: ['pets', pet._id] }),
-      ]);
+      // Every list page and this pet's detail may have changed.
+      await queryClient.invalidateQueries({ queryKey: petQueryKeys.all });
 
       toast.success(
         isEditing ? t('form.updateSuccess') : t('form.createSuccess'),

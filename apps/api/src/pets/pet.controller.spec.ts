@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import request from 'supertest';
 
 import { app } from '../app';
@@ -27,8 +28,47 @@ const createPetAs = async (
   return response.body._id;
 };
 
+type SeedPet = {
+  name?: string;
+  species?: string;
+  status?: string;
+  age?: number;
+  createdAt?: Date;
+};
+
+/**
+ * Inserts pets directly (much faster than the API) with predictable
+ * `createdAt` values: each pet is one minute newer than the previous one.
+ */
+const seedPets = async (pets: SeedPet[]): Promise<void> => {
+  const owner = new mongoose.Types.ObjectId();
+  const start = Date.UTC(2026, 0, 1);
+
+  await PetModel.collection.insertMany(
+    pets.map((pet, index) => {
+      const createdAt = pet.createdAt ?? new Date(start + index * 60_000);
+
+      return {
+        owner,
+        name: `Pet ${index}`,
+        species: 'dog',
+        status: 'available',
+        age: 1,
+        description: 'A pet.',
+        imageUrls: [],
+        ...pet,
+        createdAt,
+        updatedAt: createdAt,
+      };
+    }),
+  );
+};
+
+const names = (response: { body: { items: Array<{ name: string }> } }) =>
+  response.body.items.map((pet) => pet.name);
+
 describe('GET /api/pets', () => {
-  it('is public and returns all pets, newest first', async () => {
+  it('is public and returns pets newest first with their owner', async () => {
     const owner = await createSignedInAgent();
     await createPetAs(owner, { ...validPet, name: 'Milo' });
     await createPetAs(owner, { ...validPet, name: 'Luna' });
@@ -36,11 +76,211 @@ describe('GET /api/pets', () => {
     const response = await request(app).get('/api/pets');
 
     expect(response.status).toBe(200);
-    expect(response.body.map((pet: { name: string }) => pet.name)).toEqual([
-      'Luna',
-      'Milo',
-    ]);
-    expect(response.body[0].owner).toBe(owner.userId);
+    expect(names(response)).toEqual(['Luna', 'Milo']);
+    expect(response.body.items[0].owner).toBe(owner.userId);
+  });
+
+  describe('pagination', () => {
+    it('returns the first 12 pets and metadata by default', async () => {
+      await seedPets(Array.from({ length: 15 }, () => ({})));
+
+      const response = await request(app).get('/api/pets');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        page: 1,
+        pageSize: 12,
+        totalItems: 15,
+        totalPages: 2,
+      });
+      expect(response.body.items).toHaveLength(12);
+      // Newest first: the last inserted pet comes first.
+      expect(response.body.items[0].name).toBe('Pet 14');
+    });
+
+    it('returns later pages', async () => {
+      await seedPets(Array.from({ length: 15 }, () => ({})));
+
+      const response = await request(app).get('/api/pets?page=2');
+
+      expect(response.body.page).toBe(2);
+      expect(names(response)).toEqual(['Pet 2', 'Pet 1', 'Pet 0']);
+    });
+
+    it('returns an empty page past the end, with correct totals', async () => {
+      await seedPets([{}, {}]);
+
+      const response = await request(app).get('/api/pets?page=5&pageSize=1');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        items: [],
+        page: 5,
+        pageSize: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+    });
+
+    it('reports zero pages when there are no pets', async () => {
+      const response = await request(app).get('/api/pets');
+
+      expect(response.body).toEqual({
+        items: [],
+        page: 1,
+        pageSize: 12,
+        totalItems: 0,
+        totalPages: 0,
+      });
+    });
+
+    it('accepts the maximum page size', async () => {
+      await seedPets(Array.from({ length: 51 }, () => ({})));
+
+      const response = await request(app).get('/api/pets?pageSize=50');
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(50);
+    });
+
+    it('keeps a stable order across pages when sort values are equal', async () => {
+      const sameTime = new Date(Date.UTC(2026, 0, 1));
+      await seedPets(
+        Array.from({ length: 5 }, () => ({ createdAt: sameTime })),
+      );
+
+      const pages = await Promise.all(
+        [1, 2, 3].map((page) =>
+          request(app).get(`/api/pets?pageSize=2&page=${page}`),
+        ),
+      );
+      const ids = pages.flatMap((page) =>
+        page.body.items.map((pet: { _id: string }) => pet._id),
+      );
+
+      expect(ids).toHaveLength(5);
+      expect(new Set(ids).size).toBe(5);
+    });
+
+    it('treats empty parameters as not set', async () => {
+      await seedPets([{}]);
+
+      const response = await request(app).get(
+        '/api/pets?page=&pageSize=&species=&status=&sort=&search=',
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({ page: 1, pageSize: 12 });
+    });
+  });
+
+  describe('validation', () => {
+    it.each([
+      ['page=0', 'page', 'too_small'],
+      ['page=abc', 'page', 'invalid_type'],
+      ['page=1.5', 'page', 'invalid_type'],
+      ['page=10001', 'page', 'too_big'],
+      ['pageSize=0', 'pageSize', 'too_small'],
+      ['pageSize=51', 'pageSize', 'too_big'],
+      ['species=dragon', 'species', 'invalid_value'],
+      ['species=dog&species=cat', 'species', 'invalid_value'],
+      ['status=lost', 'status', 'invalid_value'],
+      ['sort=price', 'sort', 'invalid_value'],
+      [`search=${'a'.repeat(101)}`, 'search', 'too_big'],
+    ])('rejects %s', async (query, field, code) => {
+      const response = await request(app).get(`/api/pets?${query}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('VALIDATION_FAILED');
+      expect(response.body.details).toContainEqual({ field, code });
+    });
+
+    it('ignores unknown parameters', async () => {
+      const response = await request(app).get('/api/pets?color=brown');
+
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe('search and filters', () => {
+    it('searches names case-insensitively, anywhere in the name', async () => {
+      await seedPets([{ name: 'Milo' }, { name: 'Luna' }, { name: 'Camilo' }]);
+
+      const response = await request(app).get('/api/pets?search=MIL');
+
+      expect(names(response)).toEqual(['Camilo', 'Milo']);
+      expect(response.body.totalItems).toBe(2);
+    });
+
+    it('matches the search text literally, not as a pattern', async () => {
+      await seedPets([{ name: 'a.b' }, { name: 'axb' }, { name: 'a*' }]);
+
+      const dot = await request(app).get('/api/pets?search=a.b');
+      const star = await request(app).get(
+        `/api/pets?search=${encodeURIComponent('a*')}`,
+      );
+
+      expect(names(dot)).toEqual(['a.b']);
+      expect(names(star)).toEqual(['a*']);
+    });
+
+    it('filters by species and status', async () => {
+      await seedPets([
+        { name: 'Rex', species: 'dog', status: 'available' },
+        { name: 'Tom', species: 'cat', status: 'available' },
+        { name: 'Kit', species: 'cat', status: 'adopted' },
+      ]);
+
+      const cats = await request(app).get('/api/pets?species=cat');
+      const adopted = await request(app).get('/api/pets?status=adopted');
+
+      expect(names(cats)).toEqual(['Kit', 'Tom']);
+      expect(names(adopted)).toEqual(['Kit']);
+    });
+
+    it('combines search, filters and paging, counting only matches', async () => {
+      await seedPets([
+        ...Array.from({ length: 4 }, (_, i) => ({
+          name: `Cat ${i}`,
+          species: 'cat',
+        })),
+        { name: 'Cat adopted', species: 'cat', status: 'adopted' },
+        ...Array.from({ length: 10 }, (_, i) => ({ name: `Cat-dog ${i}` })),
+      ]);
+
+      const response = await request(app).get(
+        '/api/pets?search=cat&species=cat&status=available&pageSize=3&page=2',
+      );
+
+      expect(response.body).toMatchObject({
+        page: 2,
+        pageSize: 3,
+        totalItems: 4,
+        totalPages: 2,
+      });
+      expect(names(response)).toEqual(['Cat 0']);
+    });
+  });
+
+  describe('sorting', () => {
+    beforeEach(async () => {
+      await seedPets([
+        { name: 'charlie', age: 2 },
+        { name: 'Bella', age: 7 },
+        { name: 'alfie', age: 1 },
+      ]);
+    });
+
+    it.each([
+      ['newest', ['alfie', 'Bella', 'charlie']],
+      ['oldest', ['charlie', 'Bella', 'alfie']],
+      ['name', ['alfie', 'Bella', 'charlie']],
+      ['age', ['alfie', 'charlie', 'Bella']],
+    ])('sorts by %s', async (sort, expected) => {
+      const response = await request(app).get(`/api/pets?sort=${sort}`);
+
+      expect(names(response)).toEqual(expected);
+    });
   });
 });
 

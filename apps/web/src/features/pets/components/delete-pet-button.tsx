@@ -3,11 +3,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { Pet } from '@pet-adoption/models';
+import type { Paginated, Pet } from '@pet-adoption/models';
 
 import { Button } from '@/components/ui/button';
 
 import { deletePet } from '../api/delete-pet';
+import { petQueryKeys } from '../api/pet-query-keys';
 
 type DeletePetButtonProps = {
   pet: Pet;
@@ -24,15 +25,21 @@ const DeletePetButton = ({ pet }: DeletePetButtonProps) => {
     mutationFn: () => deletePet(pet._id),
 
     onSuccess: () => {
-      // Drop the pet from the cached list so it never flashes on the list page;
-      // the list is stale anyway and refetches when it mounts.
-      queryClient.setQueryData<Pet[]>(['pets'], (pets) =>
-        pets?.filter((item) => item._id !== pet._id),
+      // Drop the pet from every cached list page so it never flashes, then mark
+      // the lists stale: page boundaries shift, so they refetch when shown.
+      queryClient.setQueriesData<Paginated<Pet>>(
+        { queryKey: petQueryKeys.lists() },
+        (page) =>
+          page && {
+            ...page,
+            items: page.items.filter((item) => item._id !== pet._id),
+          },
       );
+      void queryClient.invalidateQueries({ queryKey: petQueryKeys.lists() });
 
       // `replace` keeps the deleted pet's page out of the browser history.
       navigate('/pets', { replace: true });
-      queryClient.removeQueries({ queryKey: ['pets', pet._id], exact: true });
+      queryClient.removeQueries({ queryKey: petQueryKeys.detail(pet._id) });
 
       toast.success(t('delete.success', { name: pet.name }));
     },
