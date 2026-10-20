@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-20. Roadmap step 7 (server-side search, filters and pagination for pets) completed, uncommitted on branch `develop` (latest commit `0dfe1c6`, adoption applications)._
+_Last updated: 2026-10-20. Pet photo uploads completed, uncommitted on branch `develop` (latest commit `42b3061`, server-side search and pagination)._
 
 ## Status
 
@@ -22,6 +22,23 @@ Verified by passing tests or by reading the code.
   - **Owner from the session:** `owner` is required and set from the session, never from the body.
   - **Owner-only changes:** owner-scoped queries; a non-owner gets 403 `NOT_PET_OWNER`.
   - **Deleting:** runs in a transaction. It's blocked by pending or accepted applications (409 `PET_HAS_ACTIVE_APPLICATIONS`); otherwise the pet's rejected and withdrawn applications are deleted with it.
+- **Pet photos** (one per pet; replaces the old "image URLs" field):
+  - **Storage:** files on local disk behind a `FileStorage` interface (`storage/`). A pet stores an `imageKey`; the API returns `imageUrl` (or `null`). Files are served at `/uploads` with `X-Content-Type-Options: nosniff` and immutable caching.
+  - **Upload:** `PUT /api/pets/:id/image`, multipart with one file in the field "image".
+    - **Order of checks:** `requireAuth` → owner check (before the body is read) → `multer` (in memory, at most 5 MB) → type detection from the file's bytes (JPEG/PNG/WebP).
+    - **Filenames:** random, and the extension comes from the detected type.
+  - **Errors:** 401; 403 `NOT_PET_OWNER`; 404 `PET_NOT_FOUND`; 400 `INVALID_PET_ID` / `IMAGE_REQUIRED` / `INVALID_IMAGE_UPLOAD`; 413 `IMAGE_TOO_LARGE`; 415 `UNSUPPORTED_IMAGE_TYPE`.
+  - **Removing:** `DELETE /api/pets/:id/image`, owner only.
+  - **Orphaned files:**
+    - On replacement, the old file is deleted after the database update (`returnDocument: 'before'` reports the replaced key, which is safe under concurrent uploads).
+    - A failed database update deletes the new file.
+    - Deleting a pet deletes its photo after the transaction.
+    - A failed file deletion is logged, not fatal.
+  - **Web:**
+    - **Form:** a photo field with a preview, Remove, and quick type/size checks. The form saves the pet first, then uploads or removes the photo. If only the photo step fails, the pet stays saved and the user sees "The pet was saved, but the photo was not: …".
+    - **Card and details page:** use `imageUrl`.
+    - **`apiClient`:** sends the JSON `Content-Type` only for string bodies, so `FormData` gets the browser's multipart boundary.
+  - **Tests:** 15 API tests and 6 web tests.
 - **Adoption applications** (see `docs/architecture.md` §5 for the diagrams):
   - **Data:** `AdoptionApplication { pet, applicant, message (1–2000), status, timestamps }`. The applicant comes from the session; the status only changes through state-machine actions.
   - **Endpoints:**
@@ -86,46 +103,65 @@ Verified by passing tests or by reading the code.
 - **The container's database starts empty.** The old local install on 27017, including its 2 ownerless pets, is untouched and no longer used. `MONGODB_TEST_URI` in `.env` is ignored.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 
-## Changes in this session (step 7)
+## Changes in this session (pet photos)
 
-- **Shared library:** `PET_SORT_OPTIONS`, the page-size and search-length limits, `PetListQuery` and `Paginated<T>`.
+- **Dependencies:** `multer` 2.4 (multipart parsing; no install scripts) and `@types/multer`.
+- **Shared library:**
+  - `Pet.imageUrls: string[]` → `Pet.imageUrl: string | null`.
+  - `CreatePetInput` no longer has image fields.
+  - New `PET_IMAGE_MAX_BYTES` and `PET_IMAGE_TYPES`.
 - **API:**
-  - `petListQuerySchema` (`pet.schema.ts`).
-  - `parseInput` in `middleware/validate.ts`, now also used by `validateBody`.
-  - `listPets` replaces `getPets` (filters, sort whitelist, collation for names, `skip`/`limit`, a parallel `countDocuments`).
-  - Pet index `{ createdAt: -1, _id: -1 }`.
+  - New `storage/` (`file-storage.ts` interface, `local-file-storage.ts`, `index.ts`).
+  - New `pets/pet-image.ts` (multer config, magic-byte detection).
+  - In `pet.service`: `setPetImage`, `removePetImage` and `isPetOwnedBy`; `deleteOwnedPet` now returns the deleted pet.
+  - In `pet.controller`: `toPetView` (`imageKey` → `imageUrl`), `requirePetOwner` and the image controllers.
+  - In `pet.model`: `imageKey` replaces `imageUrls`.
+  - In `env.ts`: `UPLOADS_DIR` and `UPLOADS_BASE_URL` (both optional).
+  - `/uploads` static route in `app.ts`.
+  - Tests write to a temporary uploads directory (`global-setup.ts`, `setup.ts`, `test/upload-test-helpers.ts`).
 - **Web:**
-  - `apiClient`: a `searchParams` option, and `Content-Type` only with a body.
-  - New `petQueryKeys` (list and detail keys) and `utils/pet-list-params.ts` (URL ⇄ state ⇄ API query).
-  - New `lib/use-debounced-value.ts`.
-  - `PetsPage` rewritten around URL state.
-  - The delete button updates the paginated caches.
-  - The client-side `filterPets` and its tests were removed, since the server filters now.
+  - New `api/pet-image.ts` and `components/pet-image-field.tsx`.
+  - Form, card and details page updated.
+  - `apiClient` `Content-Type` rule.
+  - i18n texts and new error codes (`en`, `sr`).
+- **Other:** `.gitignore` (`apps/api/uploads/`) and `.env.example`.
 - **Decisions:**
-  - **Offset pagination** rather than a cursor: it's simple, supports "Page X of Y", and is fine at this data size.
-  - **Named sort options** instead of free field/direction parameters.
-  - **URL as the list state.**
-  - **No index for name search or the filters** (see architecture.md).
+  - **One photo per pet,** replacing the manual image URLs. Two ways to set images would make orphan cleanup much harder; the dev database was empty.
+  - **Separate image endpoints** instead of multipart on create/update, so the JSON API is unchanged.
+  - **Magic-byte detection** instead of a library.
+  - **No image processing** (see the limitations below).
 
-## Check results (2026-10-20, after step 7)
+## Check results (2026-10-20, pet photos)
 
 What actually ran, each with `NX_DAEMON=false … --skipNxCache`:
 
-| Project | lint | typecheck | test | build |
-|---|---|---|---|---|
-| api | ✅ | ✅ | ✅ 127/127 (100 existing + 27 new) | ✅ |
-| web | ✅ | ✅ | ✅ 68/68 | ✅ |
-| models | (typechecked via api/web) | | none | n/a |
+| Check | Result |
+|---|---|
+| API lint and typecheck | ✅ |
+| API `src/pets` (pet + image specs) | ✅ 67/67 (52 pet + 15 image) |
+| API `src/applications` + `src/app.spec.ts` (pet deletion with applications, app wiring) | ✅ 54/54 |
+| Web lint, typecheck, full test suite | ✅ 74/74 (6 new) |
+| Builds (api, web) | ✅ (`multer` stays external in the bundle) |
+| `nx sync:check`, `prettier --check` on changed files | ✅ |
 
-**Order:** the targeted pet spec ran first (54/54), then the full API suite, because `validateBody` changed for every route. On the web, the `api-client` spec was re-run alone (8/8) after a type-only fix to that test.
+**Not run:**
+- The API auth spec, which this change doesn't touch.
+- A browser check (choosing a photo, preview, upload, replacing, removing).
 
-**Also checked:** `nx sync:check` is up to date, and `prettier --check` passes on the changed files.
+## Pet photos: deployment notes
 
-**Not run:** a browser check.
-
-**To run one API spec,** use the repo root: `pnpm nx test @pet-adoption/api -- src/pets/pet.controller.spec.ts`. Running Vitest from `apps/api` fails, because `env.ts` resolves `.env` relative to the working directory.
+- **Development:** files go to `apps/api/uploads/` (gitignored) and are served by the API. Nothing to configure.
+- **Hosts with an ephemeral disk** (most container platforms) **lose uploaded files on redeploy.** Either attach a persistent volume and set `UPLOADS_DIR`, or add an object-storage implementation of `FileStorage`. For example, Cloudflare R2 (free tier about 10 GB, no egress fees) or S3 (pay for storage and egress); this needs the provider's SDK as a new dependency.
+- **Public URL:** set `UPLOADS_BASE_URL` when the public URL differs from `http://HOST:PORT/uploads`, e.g. behind a proxy or on a CDN.
 
 ## Security considerations still open
+
+- **Pet photos:**
+  - **Metadata is kept.** Photos are stored as uploaded, so camera metadata (EXIF, which may include GPS location) isn't removed, and files aren't re-encoded. Stripping it would need an image library such as `sharp` (a native dependency).
+  - **Polyglot files:** the magic-byte check plus `nosniff` and a fixed extension keep a disguised file from being treated as HTML or script, but it doesn't prove the file is a valid image.
+  - **Memory:** uploads are buffered in memory (5 MB each).
+  - **No per-user upload rate limit.**
+  - **Possible orphans:** a crash between writing a file and updating the database could leave an orphaned file; there's no cleanup job.
 
 - **Rate limiting:**
   - The counters are in memory, so they reset on restart and aren't shared between instances.
@@ -174,5 +210,4 @@ What actually ran, each with `NX_DAEMON=false … --skipNxCache`:
 **Candidates** (the owner chooses):
 - **Paginate the application lists:** `/applications/mine` and `/applications/received` currently return everything.
 - **Playwright end-to-end tests** for the main flows: register, add a pet, apply, accept.
-- **Image uploads,** replacing image URLs.
 - **Fix `env.ts`** so it resolves `.env` relative to the file, not the working directory.

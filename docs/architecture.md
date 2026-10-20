@@ -24,11 +24,19 @@ flowchart LR
   api -. "imports types + constants<br/>(bundled inline)" .-> models
   api -- "Mongoose 9<br/>(pets, users, applications;<br/>transactions)" --> mongo
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
+  uploads[("Uploaded pet photos<br/>local disk: apps/api/uploads<br/>(FileStorage interface)")]
+  api -- "save / delete files" --> uploads
+  browser -- "img src: /uploads/pets/…" --> api
 ```
 
 - **Two separate apps.** The frontend calls the API directly at `VITE_API_URL`; there is no Vite proxy. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
 - **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
+- **Photos are files, not database data.** A pet stores only an `imageKey`; the API returns `imageUrl` built by the storage.
+  - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`) with a local-disk implementation, served at `/uploads` with `nosniff` and long-term caching. Object storage (S3, R2) would be a second implementation; nothing else changes.
+  - **Upload:** `PUT /api/pets/:id/image` checks sign-in and ownership first, then parses multipart with `multer` (in memory, 5 MB maximum, one file in the field "image"). It detects JPEG, PNG or WebP from the file's bytes and stores the file under a random name.
+  - **Replacing a photo:** the new file is written first; the old one is deleted after the database points to the new one. A failed database write removes the new file.
+  - **Deleting:** `DELETE /api/pets/:id/image` removes the photo. Deleting the pet removes its photo too, after the transaction.
 - **A replica set is required.** Adoption decisions use transactions, which a standalone MongoDB rejects, so `connectDatabase` refuses to start without one.
   - **Development:** `docker-compose.yml` runs a single-node replica set.
   - **Tests:** an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`).
@@ -217,7 +225,7 @@ erDiagram
     number age "integer >= 0"
     string description "max 2000"
     string status "available | pending | adopted, default available"
-    string_array imageUrls "default []"
+    string imageKey "optional, e.g. pets/uuid.jpg (file in storage)"
     date createdAt
     date updatedAt
   }

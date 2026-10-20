@@ -14,7 +14,6 @@ const validPet = {
   species: 'dog',
   age: 3,
   description: 'A friendly dog.',
-  imageUrls: ['https://example.com/milo.jpg'],
 };
 
 const missingPetId = '507f1f77bcf86cd799439011';
@@ -55,7 +54,6 @@ const seedPets = async (pets: SeedPet[]): Promise<void> => {
         status: 'available',
         age: 1,
         description: 'A pet.',
-        imageUrls: [],
         ...pet,
         createdAt,
         updatedAt: createdAt,
@@ -381,21 +379,6 @@ describe('POST /api/pets', () => {
     });
   });
 
-  it('reports the path of an invalid array item', async () => {
-    const owner = await createSignedInAgent();
-
-    const response = await owner.agent.post('/api/pets').send({
-      ...validPet,
-      imageUrls: ['https://example.com/milo.jpg', 'not-a-url'],
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      code: 'VALIDATION_FAILED',
-      details: [{ field: 'imageUrls.1', code: 'invalid_format' }],
-    });
-  });
-
   it('rejects a malformed JSON body', async () => {
     const response = await request(app)
       .post('/api/pets')
@@ -430,7 +413,6 @@ describe('PUT /api/pets/:id', () => {
       species: 'other',
       age: 4,
       description: 'An even friendlier dog.',
-      imageUrls: ['https://example.com/milo-jr.jpg'],
     });
 
     expect(response.status).toBe(200);
@@ -442,7 +424,7 @@ describe('PUT /api/pets/:id', () => {
       age: 4,
       description: 'An even friendlier dog.',
       status: 'available',
-      imageUrls: ['https://example.com/milo-jr.jpg'],
+      imageUrl: null,
     });
   });
 
@@ -473,29 +455,20 @@ describe('PUT /api/pets/:id', () => {
     expect(response.body.owner).toBe(owner.userId);
   });
 
-  it('clears image URLs when an empty list is sent', async () => {
+  it('keeps the photo, and ignores image fields in the body', async () => {
     const owner = await createSignedInAgent();
     const petId = await createPetAs(owner);
+    await PetModel.updateOne({ _id: petId }, { imageKey: 'pets/existing.jpg' });
 
-    const response = await owner.agent
-      .put(`/api/pets/${petId}`)
-      .send({ ...validPet, imageUrls: [] });
-
-    expect(response.status).toBe(200);
-    expect(response.body.imageUrls).toEqual([]);
-  });
-
-  it('clears image URLs when they are omitted', async () => {
-    const owner = await createSignedInAgent();
-    const petId = await createPetAs(owner);
-
-    // JSON serialization drops `undefined`, so the field is not sent at all.
-    const response = await owner.agent
-      .put(`/api/pets/${petId}`)
-      .send({ ...validPet, imageUrls: undefined });
+    const response = await owner.agent.put(`/api/pets/${petId}`).send({
+      ...validPet,
+      imageKey: 'pets/other.jpg',
+      imageUrl: 'https://evil.example/x.jpg',
+    });
 
     expect(response.status).toBe(200);
-    expect(response.body.imageUrls).toEqual([]);
+    expect(response.body.imageUrl).toContain('/uploads/pets/existing.jpg');
+    expect(response.body).not.toHaveProperty('imageKey');
   });
 
   it('rejects a partial body', async () => {

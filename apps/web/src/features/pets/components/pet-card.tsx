@@ -18,13 +18,12 @@ type PetCardProps = {
 
 const PetCard = ({ pet }: PetCardProps) => {
   const { t } = useTranslation('pets');
-  const hasImage = pet.imageUrls.length > 0;
 
   return (
     <Card className="overflow-hidden">
-      {hasImage ? (
+      {pet.imageUrl ? (
         <img
-          src={pet.imageUrls[0]}
+          src={pet.imageUrl}
           alt={pet.name}
           className="aspect-[4/3] w-full object-cover"
         />

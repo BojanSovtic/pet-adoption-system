@@ -38,15 +38,13 @@
       "species": "Vrsta",
       "age": "Starost (godine)",
       "description": "Opis",
-      "imageUrls": "URL adrese slika (opciono)"
+      "image": "Fotografija (opciono)"
     },
     "placeholders": {
       "name": "npr. Bubi",
       "age": "npr. 3",
-      "description": "Opiši ljubimca potencijalnim udomiteljima...",
-      "imageUrls": "https://primer.rs/ljubimac.jpg"
+      "description": "Opiši ljubimca potencijalnim udomiteljima..."
     },
-    "imageUrlsHint": "Unesi po jednu ispravnu URL adresu slike u svaki red.",
     "submit": "Dodaj ljubimca",
     "submitting": "Dodavanje...",
     "cancel": "Otkaži",
@@ -58,14 +56,20 @@
       "ageInvalid": "Starost mora biti nenegativan ceo broj.",
       "descriptionRequired": "Opis je obavezan.",
       "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
-      "imageUrlsInvalid": "Svaka URL adresa slike mora biti ispravna."
+      "imageType": "Izaberi JPEG, PNG ili WebP sliku.",
+      "imageTooLarge": "Fotografija može imati najviše 5 MB."
     },
     "editTitle": "Izmeni ljubimca",
     "saveChanges": "Sačuvaj izmene",
     "createSuccess": "Ljubimac je uspešno dodat.",
     "updateSuccess": "Ljubimac je uspešno izmenjen.",
     "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo.",
-    "notOwner": "Možeš da menjaš samo svoje ljubimce."
+    "notOwner": "Možeš da menjaš samo svoje ljubimce.",
+    "imageHint": "JPEG, PNG ili WebP, najviše 5 MB.",
+    "imagePreview": "Pregled fotografije",
+    "removeImage": "Ukloni fotografiju",
+    "imageSaveFailed": "Ljubimac je sačuvan, ali fotografija nije: {{reason}}",
+    "imageSaveError": "Došlo je do greške."
   },
   "delete": {
     "button": "Obriši",

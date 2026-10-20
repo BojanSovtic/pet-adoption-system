@@ -64,9 +64,10 @@ export const apiClient = async <T>(
       credentials: 'include',
       ...options,
       headers: {
-        // Only requests with a JSON body need this. On a GET it would make
-        // the browser send an extra CORS preflight request first.
-        ...(options.body !== undefined && {
+        // Only JSON (string) bodies need this. On a GET it would make the
+        // browser send an extra CORS preflight first, and for FormData the
+        // browser must set "multipart/form-data" with its boundary itself.
+        ...(typeof options.body === 'string' && {
           'Content-Type': 'application/json',
         }),
         ...headers,

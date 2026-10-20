@@ -28,13 +28,13 @@ describe('getFieldErrors', () => {
     const error = new ApiError(400, 'VALIDATION_FAILED', [
       { field: 'name', code: 'too_small' },
       { field: 'name', code: 'too_big' },
-      { field: 'imageUrls.0', code: 'invalid_format' },
+      { field: 'items.0', code: 'invalid_format' },
       { field: 'age', code: 'some_unknown_code' },
     ]);
 
     expect(getFieldErrors(error)).toEqual({
       name: 'This value is too short or too small.',
-      imageUrls: 'This value has an invalid format.',
+      items: 'This value has an invalid format.',
       age: 'This value is invalid.',
     });
   });

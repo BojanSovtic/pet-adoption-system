@@ -21,7 +21,7 @@ const pet: Pet = {
   age: 3,
   description: 'A friendly dog.',
   status: 'available',
-  imageUrls: [],
+  imageUrl: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

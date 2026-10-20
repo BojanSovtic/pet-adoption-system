@@ -26,8 +26,13 @@ import {
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
+import { deletePetImage, uploadPetImage } from '../api/pet-image';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { updatePet } from '../api/update-pet';
+import {
+  PetImageField,
+  type PetImageChange,
+} from '../components/pet-image-field';
 import { isPetOwner } from '../utils/is-pet-owner';
 
 const petFormSchema = z.object({
@@ -51,18 +56,6 @@ const petFormSchema = z.object({
     .trim()
     .min(1, 'form.validation.descriptionRequired')
     .max(PET_DESCRIPTION_MAX_LENGTH, 'form.validation.descriptionTooLong'),
-  imageUrls: z
-    .string()
-    .transform((value) =>
-      value
-        .split('\n')
-        .map((url) => url.trim())
-        .filter(Boolean),
-    )
-    .refine(
-      (urls) => urls.every((url) => z.url().safeParse(url).success),
-      'form.validation.imageUrlsInvalid',
-    ),
 });
 
 type FormValues = z.input<typeof petFormSchema>;
@@ -73,7 +66,6 @@ const initialValues: FormValues = {
   species: 'dog',
   age: '',
   description: '',
-  imageUrls: '',
 };
 
 const inputClassName =
@@ -92,6 +84,9 @@ const PetFormPage = () => {
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<FieldName, string>>
   >({});
+  const [imageChange, setImageChange] = useState<PetImageChange>({
+    kind: 'keep',
+  });
 
   const {
     data: existingPet,
@@ -119,7 +114,6 @@ const PetFormPage = () => {
       species: existingPet.species,
       age: String(existingPet.age),
       description: existingPet.description,
-      imageUrls: existingPet.imageUrls.join('\n'),
     });
     setFieldErrors({});
   }, [existingPet]);
@@ -127,16 +121,45 @@ const PetFormPage = () => {
   const mutation = useMutation({
     meta: { skipGlobalErrorToast: true },
 
-    mutationFn: (input: CreatePetInput) =>
-      id ? updatePet(id, input) : createPet(input),
+    // The pet is saved first; the photo needs the pet's id. If only the photo
+    // step fails, the pet stays saved and the user is told about the photo.
+    mutationFn: async ({
+      input,
+      image,
+    }: {
+      input: CreatePetInput;
+      image: PetImageChange;
+    }) => {
+      const pet = id ? await updatePet(id, input) : await createPet(input);
 
-    onSuccess: async (pet) => {
+      try {
+        if (image.kind === 'upload') {
+          await uploadPetImage(pet._id, image.file);
+        } else if (image.kind === 'remove') {
+          await deletePetImage(pet._id);
+        }
+      } catch (imageError) {
+        return { pet, imageError };
+      }
+
+      return { pet, imageError: null };
+    },
+
+    onSuccess: async ({ pet, imageError }) => {
       // Every list page and this pet's detail may have changed.
       await queryClient.invalidateQueries({ queryKey: petQueryKeys.all });
 
-      toast.success(
-        isEditing ? t('form.updateSuccess') : t('form.createSuccess'),
-      );
+      if (imageError) {
+        toast.error(
+          t('form.imageSaveFailed', {
+            reason: getErrorMessage(imageError, t('form.imageSaveError')),
+          }),
+        );
+      } else {
+        toast.success(
+          isEditing ? t('form.updateSuccess') : t('form.createSuccess'),
+        );
+      }
 
       navigate(`/pets/${pet._id}`);
     },
@@ -170,8 +193,8 @@ const PetFormPage = () => {
       return;
     }
 
-    // Always send the full pet (PUT replaces it), including an empty imageUrls.
-    mutation.mutate(result.data);
+    // Always send the full pet (PUT replaces it); the photo is separate.
+    mutation.mutate({ input: result.data, image: imageChange });
   };
 
   // Server-side validation errors are derived from the mutation, so they are
@@ -321,30 +344,14 @@ const PetFormPage = () => {
           )}
         </div>
 
-        <div className="space-y-2">
-          <label htmlFor="imageUrls" className="text-sm font-medium">
-            {t('form.fields.imageUrls')}
-          </label>
-          <textarea
-            id="imageUrls"
-            name="imageUrls"
-            value={values.imageUrls}
-            onChange={(event) => updateField('imageUrls', event.target.value)}
-            rows={3}
-            aria-invalid={Boolean(getFieldError('imageUrls'))}
-            aria-describedby="imageUrls-hint"
-            className={inputClassName}
-            placeholder={t('form.placeholders.imageUrls')}
-          />
-          <p id="imageUrls-hint" className="text-xs text-muted-foreground">
-            {t('form.imageUrlsHint')}
-          </p>
-          {getFieldError('imageUrls') && (
-            <p className="text-sm text-destructive">
-              {getFieldError('imageUrls')}
-            </p>
-          )}
-        </div>
+        <PetImageField
+          currentImageUrl={existingPet?.imageUrl ?? null}
+          change={imageChange}
+          onChange={(change) => {
+            setImageChange(change);
+            mutation.reset();
+          }}
+        />
 
         {errorMessage && (
           <p role="alert" className="text-sm text-destructive">

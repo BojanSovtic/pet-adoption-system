@@ -30,7 +30,11 @@
     "PET_HAS_ACTIVE_APPLICATIONS": "Ovaj ljubimac ima otvorene ili prihvaćene zahteve i ne može se obrisati.",
     "APPLICATION_NOT_FOUND": "Zahtev nije pronađen.",
     "INVALID_APPLICATION_ID": "ID zahteva nije ispravan.",
-    "NOT_APPLICANT": "To može samo podnosilac zahteva."
+    "NOT_APPLICANT": "To može samo podnosilac zahteva.",
+    "IMAGE_REQUIRED": "Izaberi fotografiju za otpremanje.",
+    "IMAGE_TOO_LARGE": "Fotografija je prevelika (najviše 5 MB).",
+    "UNSUPPORTED_IMAGE_TYPE": "Podržane su samo JPEG, PNG i WebP fotografije.",
+    "INVALID_IMAGE_UPLOAD": "Fotografiju nije moguće otpremiti."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

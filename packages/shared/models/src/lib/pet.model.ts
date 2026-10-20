@@ -7,6 +7,15 @@ export type PetStatus = (typeof PET_STATUSES)[number];
 export const PET_NAME_MAX_LENGTH = 100;
 export const PET_DESCRIPTION_MAX_LENGTH = 2000;
 
+/** Pet photos: one per pet, uploaded through `PUT /api/pets/:id/image`. */
+export const PET_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const PET_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+export type PetImageType = (typeof PET_IMAGE_TYPES)[number];
+
 /** A pet as returned by the API (JSON: ids and dates are strings). */
 export type Pet = {
   _id: string;
@@ -17,17 +26,18 @@ export type Pet = {
   age: number;
   description: string;
   status: PetStatus;
-  imageUrls: string[];
+  /** Public URL of the pet's photo, or `null` if it has none. */
+  imageUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
+/** The photo is not part of this input; it has its own endpoint. */
 export type CreatePetInput = {
   name: string;
   species: PetSpecies;
   age: number;
   description: string;
-  imageUrls?: string[];
 };
 
 /**

@@ -37,15 +37,13 @@
       "species": "Species",
       "age": "Age (years)",
       "description": "Description",
-      "imageUrls": "Image URLs (optional)"
+      "image": "Photo (optional)"
     },
     "placeholders": {
       "name": "e.g. Buddy",
       "age": "e.g. 3",
-      "description": "Tell potential adopters about this pet...",
-      "imageUrls": "https://example.com/pet.jpg"
+      "description": "Tell potential adopters about this pet..."
     },
-    "imageUrlsHint": "Enter one valid image URL per line.",
     "submit": "Create pet",
     "submitting": "Creating...",
     "cancel": "Cancel",
@@ -57,14 +55,20 @@
       "ageInvalid": "Age must be a non-negative whole number.",
       "descriptionRequired": "Description is required.",
       "descriptionTooLong": "Description must be at most 2000 characters.",
-      "imageUrlsInvalid": "Every image URL must be a valid URL."
+      "imageType": "Choose a JPEG, PNG or WebP image.",
+      "imageTooLarge": "The photo must be at most 5 MB."
     },
     "editTitle": "Edit pet",
     "saveChanges": "Save changes",
     "createSuccess": "Pet created successfully.",
     "updateSuccess": "Pet updated successfully.",
     "updateError": "The pet could not be updated. Please try again.",
-    "notOwner": "You can only edit pets you posted."
+    "notOwner": "You can only edit pets you posted.",
+    "imageHint": "JPEG, PNG or WebP, up to 5 MB.",
+    "imagePreview": "Photo preview",
+    "removeImage": "Remove photo",
+    "imageSaveFailed": "The pet was saved, but the photo was not: {{reason}}",
+    "imageSaveError": "Something went wrong."
   },
   "delete": {
     "button": "Delete",

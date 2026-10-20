@@ -11,6 +11,9 @@ out-tsc/
 .env.*
 !.env.example
 
+# User-uploaded files (local file storage)
+apps/api/uploads/
+
 # Test / coverage output
 coverage/
 test-output/

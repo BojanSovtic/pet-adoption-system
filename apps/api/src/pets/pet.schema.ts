@@ -19,8 +19,6 @@ export const createPetSchema = z.object({
   species: z.enum(PET_SPECIES),
   age: z.number().int().min(0),
   description: z.string().trim().min(1).max(PET_DESCRIPTION_MAX_LENGTH),
-  // Defaulting to [] means an omitted field clears the images on PUT.
-  imageUrls: z.array(z.url()).default([]),
 }) satisfies z.ZodType<CreatePetInput>;
 
 // PUT replaces all client-editable fields, so it validates the full shape.

@@ -64,9 +64,9 @@ const PetDetailsPage = () => {
       </Button>
 
       <Card className="overflow-hidden">
-        {pet.imageUrls.length > 0 && (
+        {pet.imageUrl && (
           <img
-            src={pet.imageUrls[0]}
+            src={pet.imageUrl}
             alt={pet.name}
             className="aspect-[16/7] w-full object-cover"
           />

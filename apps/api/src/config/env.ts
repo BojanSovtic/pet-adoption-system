@@ -26,11 +26,21 @@ if (!sessionSecret || sessionSecret.length < 32) {
   throw new Error('SESSION_SECRET is required (at least 32 characters)');
 }
 
+const host = process.env.HOST ?? 'localhost';
+
 export const env = {
-  host: process.env.HOST ?? 'localhost',
+  host,
   port,
   mongodbUri,
   corsOrigin,
   sessionSecret,
   isProduction: process.env.NODE_ENV === 'production',
+  /** Where uploaded files are written (local disk storage). */
+  uploadsDir: path.resolve(
+    process.cwd(),
+    process.env.UPLOADS_DIR ?? 'apps/api/uploads',
+  ),
+  /** Public base URL of uploaded files; set it when the API runs behind a proxy. */
+  uploadsBaseUrl:
+    process.env.UPLOADS_BASE_URL ?? `http://${host}:${port}/uploads`,
 };

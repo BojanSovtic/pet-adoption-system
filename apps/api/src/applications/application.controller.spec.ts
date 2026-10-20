@@ -181,7 +181,6 @@ describe('adoption applications', { timeout: 20_000 }, () => {
       const { insertedId } = await PetModel.collection.insertOne({
         ...validPet,
         status: 'available',
-        imageUrls: [],
       });
       const applicant = await createSignedInAgent('applicant@example.com');
 

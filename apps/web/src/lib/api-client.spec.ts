@@ -48,7 +48,7 @@ describe('apiClient', () => {
     );
   });
 
-  it('sends Content-Type only with a body, avoiding CORS preflights on GET', async () => {
+  it('sends a JSON Content-Type only with JSON bodies', async () => {
     // A response body can only be read once, so each call gets a new one.
     const fetchMock = vi.fn<typeof fetch>(() =>
       Promise.resolve(jsonResponse({}, 200)),
@@ -57,11 +57,15 @@ describe('apiClient', () => {
 
     await apiClient('/pets');
     await apiClient('/pets', { method: 'POST', body: '{}' });
+    await apiClient('/pets/1/image', { method: 'PUT', body: new FormData() });
 
+    // GET: none, so no CORS preflight.
     expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({});
     expect(fetchMock.mock.calls[1]?.[1]?.headers).toEqual({
       'Content-Type': 'application/json',
     });
+    // FormData: the browser sets multipart/form-data with its boundary.
+    expect(fetchMock.mock.calls[2]?.[1]?.headers).toEqual({});
   });
 
   it('adds search params, leaving out empty values', async () => {

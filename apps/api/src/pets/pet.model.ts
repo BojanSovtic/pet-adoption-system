@@ -7,12 +7,17 @@ import {
   type Pet,
 } from '@pet-adoption/models';
 
-/** A pet as stored in MongoDB: the API `Pet` fields, with real ids and dates. */
+/**
+ * A pet as stored in MongoDB: the API `Pet` fields with real ids and dates.
+ * The photo is stored as a storage key; the API turns it into `imageUrl`, so
+ * moving files to another storage changes no data.
+ */
 export type PetRecord = Omit<
   Pet,
-  '_id' | 'owner' | 'createdAt' | 'updatedAt'
+  '_id' | 'owner' | 'imageUrl' | 'createdAt' | 'updatedAt'
 > & {
   owner: Types.ObjectId;
+  imageKey?: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -54,9 +59,9 @@ const petSchema = new Schema<PetRecord>(
       default: 'available',
       required: true,
     },
-    imageUrls: {
-      type: [String],
-      default: [],
+    // e.g. "pets/3f2a….jpg"; never accepted from clients.
+    imageKey: {
+      type: String,
     },
   },
   {

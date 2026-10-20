@@ -18,7 +18,7 @@ export const getErrorMessage = (error: unknown, fallback?: string): string => {
 
 /**
  * Groups backend validation issues by top-level field name
- * (`imageUrls.0` → `imageUrls`), keeping the first message per field.
+ * (`items.0` → `items`), keeping the first message per field.
  */
 export const getFieldErrors = (error: unknown): Record<string, string> => {
   if (!(error instanceof ApiError) || error.code !== 'VALIDATION_FAILED') {

@@ -7,6 +7,7 @@ import { sessionMiddleware } from './auth/session';
 import { petRouter } from './pets/pet.routes';
 import { errorHandler } from './middleware/error-handler';
 import { requireTrustedOrigin } from './middleware/require-trusted-origin';
+import { serveLocalFiles } from './storage/local-file-storage';
 import { env } from './config/env';
 
 export const app: Express = express();
@@ -16,6 +17,10 @@ if (env.isProduction) {
   // count to the actual deployment.
   app.set('trust proxy', 1);
 }
+
+// Uploaded pet photos (public). Before CORS and sessions: plain image
+// requests need neither.
+app.use('/uploads', serveLocalFiles(env.uploadsDir));
 
 app.use(
   cors({

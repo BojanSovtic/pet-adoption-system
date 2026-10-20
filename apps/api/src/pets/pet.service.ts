@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import type { ClientSession, QueryFilter, SortOrder, Types } from 'mongoose';
 import {
   canTransitionPetStatus,
   type CreatePetInput,
   type Paginated,
+  type PetImageType,
   type PetSort,
   type PetStatus,
   type UpdatePetInput,
@@ -11,6 +13,8 @@ import {
 import { ApplicationModel } from '../applications/application.model';
 import { withTransaction } from '../config/database';
 import { ConflictError } from '../errors/app-error';
+import { deleteStoredFileQuietly, storage } from '../storage';
+import { IMAGE_EXTENSIONS } from './pet-image';
 import { PetModel, type PetRecord } from './pet.model';
 import type { ParsedPetListQuery } from './pet.schema';
 
@@ -89,6 +93,13 @@ export const petExists = async (id: string): Promise<boolean> => {
   return (await PetModel.exists({ _id: id })) !== null;
 };
 
+export const isPetOwnedBy = async (
+  id: string,
+  ownerId: string,
+): Promise<boolean> => {
+  return (await PetModel.exists({ _id: id, owner: ownerId })) !== null;
+};
+
 export const createPet = async (
   input: CreatePetInput,
   ownerId: string,
@@ -157,14 +168,18 @@ export const transitionPetStatus = async (
 /**
  * Deletes the pet only if `ownerId` owns it and it has no pending or accepted
  * applications. Its inactive (rejected/withdrawn) applications are deleted
- * with it. Returns `false` if no owned pet matched.
+ * with it. Returns the deleted pet (so the caller can remove its photo after
+ * the transaction), or `null` if no owned pet matched.
  */
-export const deleteOwnedPet = (id: string, ownerId: string): Promise<boolean> =>
+export const deleteOwnedPet = (
+  id: string,
+  ownerId: string,
+): Promise<StoredPet | null> =>
   withTransaction(async (session) => {
     const pet = await lockPet(session, id, ownerId);
 
     if (!pet) {
-      return false;
+      return null;
     }
 
     const hasActiveApplications = await ApplicationModel.exists({
@@ -179,5 +194,69 @@ export const deleteOwnedPet = (id: string, ownerId: string): Promise<boolean> =>
     await ApplicationModel.deleteMany({ pet: pet._id }, { session });
     await PetModel.deleteOne({ _id: pet._id }, { session });
 
-    return true;
+    return pet;
   });
+
+/**
+ * Stores a new photo and points the pet to it, then deletes the photo it
+ * replaced. `returnDocument: 'before'` makes the update itself report which
+ * key it replaced, so even two concurrent uploads each delete exactly the
+ * file they replaced. Returns `null` (and stores nothing) if no owned pet
+ * matched.
+ */
+export const setPetImage = async (
+  id: string,
+  ownerId: string,
+  { data, type }: { data: Buffer; type: PetImageType },
+): Promise<PetRecord | null> => {
+  const key = `pets/${randomUUID()}.${IMAGE_EXTENSIONS[type]}`;
+
+  await storage.save(key, data, type);
+
+  let previous: PetRecord | null;
+
+  try {
+    previous = await PetModel.findOneAndUpdate(
+      { _id: id, owner: ownerId },
+      { imageKey: key },
+      { returnDocument: 'before' },
+    ).lean();
+  } catch (error) {
+    // The database never pointed to the new file, so remove it.
+    await deleteStoredFileQuietly(key);
+    throw error;
+  }
+
+  if (!previous) {
+    await deleteStoredFileQuietly(key);
+    return null;
+  }
+
+  if (previous.imageKey) {
+    await deleteStoredFileQuietly(previous.imageKey);
+  }
+
+  return PetModel.findById(id).lean();
+};
+
+/** Removes the pet's photo. Returns `null` if no owned pet matched. */
+export const removePetImage = async (
+  id: string,
+  ownerId: string,
+): Promise<PetRecord | null> => {
+  const previous = await PetModel.findOneAndUpdate(
+    { _id: id, owner: ownerId },
+    { $unset: { imageKey: 1 } },
+    { returnDocument: 'before' },
+  ).lean();
+
+  if (!previous) {
+    return null;
+  }
+
+  if (previous.imageKey) {
+    await deleteStoredFileQuietly(previous.imageKey);
+  }
+
+  return PetModel.findById(id).lean();
+};
