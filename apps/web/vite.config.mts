@@ -17,6 +17,11 @@ export default defineConfig(() => ({
     host: 'localhost',
   },
   plugins: [react(), tailwindcss(), tsconfigPaths()],
+  resolve: {
+    // Same as `"@/*": ["./src/*"]` in tsconfig. Declared here as well so the
+    // alias doesn't depend on tsconfig discovery, which failed for Vitest in CI.
+    alias: { '@': `${import.meta.dirname}/src` },
+  },
   // Uncomment this if you are using workers.
   // worker: {
   //   plugins: () => [ nxViteTsPaths() ],
