@@ -1,8 +1,8 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-20, after the adoption applications step). For status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
-Legend: solid lines and boxes = implemented. Dashed lines or anything labelled _planned_ = not implemented yet.
+Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
 ## 1. System architecture
 
@@ -16,7 +16,7 @@ flowchart LR
   end
 
   browser(["Browser"])
-  mongo[("MongoDB 8, single-node replica set<br/>docker-compose (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications")]
+  mongo[("MongoDB 8, single-node replica set<br/>Docker container (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications")]
 
   browser -- "loads SPA" --> web
   browser -- "axios /api/*<br/>JSON + sid cookie<br/>(withCredentials, CORS)" --> api
@@ -24,12 +24,12 @@ flowchart LR
   api -. "imports types + constants<br/>(bundled inline)" .-> models
   api -- "Mongoose 9<br/>(pets, users, applications;<br/>transactions)" --> mongo
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
-  uploads[("Uploaded pet photos<br/>local disk: apps/api/uploads<br/>(FileStorage interface)")]
+  uploads[("Uploaded pet photos<br/>local disk (UPLOADS_DIR)<br/>dev: apps/api/uploads<br/>Docker: uploads_data volume<br/>(FileStorage interface)")]
   api -- "save / delete files" --> uploads
   browser -- "img src: /uploads/pets/…" --> api
 ```
 
-- **Two separate apps.** The frontend calls the API directly at `VITE_API_URL`; there is no Vite proxy. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
+- **Two separate apps.** The frontend calls the API directly at `VITE_API_URL` (read at build time); there is no Vite or nginx proxy. Section 6 shows how they run in Docker and in E2E tests. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
 - **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
 - **Photos are files, not database data.** A pet stores only an `imageKey`; the API returns `imageUrl` built by the storage.
@@ -63,7 +63,7 @@ sequenceDiagram
   else valid
     Page->>TQ: mutation.mutate(full pet)
     TQ->>Client: updatePet(id, input)
-    Client->>API: PUT /api/pets/:id (JSON, credentials include)
+    Client->>API: PUT /api/pets/:id (JSON, withCredentials)
     API-->>Client: 200 Pet  or  4xx/5xx { code, details? }
     alt success
       Client-->>TQ: Pet
@@ -92,7 +92,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  req(["HTTP request"]) --> cors["cors<br/>origin = CORS_ORIGIN, credentials"]
+  req(["HTTP request"]) -- "/uploads/*" --> files["static photo files<br/>(nosniff, immutable cache)"]
+  req --> cors["cors<br/>origin = CORS_ORIGIN, credentials"]
   cors --> origin["requireTrustedOrigin<br/>unsafe method + foreign Origin → 403"]
   origin --> json["express.json<br/>bad JSON → 400 INVALID_JSON"]
   json --> session["sessionMiddleware<br/>loads req.session from the sid cookie"]
@@ -100,8 +101,8 @@ flowchart TB
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
-  router -- "POST/PUT/DELETE /api/pets<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>session user must exist<br/>→ 401 UNAUTHENTICATED"]
-  router -- "GET /api/pets (public)" --> controller
+  router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>session user must exist<br/>→ 401 UNAUTHENTICATED"]
+  router -- "GET /api/pets, /api/pets/:id (public)<br/>/api/auth/me, /logout" --> controller
 
   rate --> validate["validateBody(zod)<br/>(POST/PUT with a body only)<br/>→ 400 VALIDATION_FAILED"]
   auth --> validate
@@ -117,9 +118,10 @@ flowchart TB
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
 - **Errors leave through one place.** Every error, including rate-limit, validation and origin errors, reaches `errorHandler`. Response bodies are always `{ code, details? }`; the web translates `code`.
 - **Not every route has every step.**
-  - Validation runs only on routes with a body (`POST /pets`, `PUT /pets/:id`, `POST /auth/register`, `POST /auth/login`).
+  - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /auth/register`, `POST /auth/login`).
   - Rate limiting runs only on `register` and `login`.
-  - `requireAuth` runs on pet create, update and delete and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
+  - `requireAuth` runs on pet create, update, delete and photo routes and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
+  - Photo uploads (`PUT /pets/:id/image`) check ownership before `multer` reads the multipart body.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
   - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).
@@ -325,3 +327,54 @@ sequenceDiagram
 
 - **Concurrency:** the first write locks the pet, so two simultaneous acceptances (or a withdraw racing a reject) can't both act on stale data. MongoDB raises a write conflict, `connection.transaction()` retries the losing transaction, and the retry sees the committed result (409). The unique "one accepted per pet" index is the final guarantee.
 - **The same pattern** (lock the pet, check, write, adjust the pet status) is used for submit, reject and withdraw, so the pet status stays consistent even when the last two pending applications end at the same moment.
+
+## 6. Runtime environments
+
+### Docker Compose
+
+```mermaid
+flowchart LR
+  browser(["Browser"])
+
+  subgraph compose["docker-compose.yml"]
+    direction TB
+    web["web (profile app)<br/>nginx: static Vite build<br/>host :4200 → 80"]
+    api["api (profile app)<br/>Node 22: API bundle + production deps<br/>host :3333, runs as non-root"]
+    mongo[("mongodb (always)<br/>mongo:8, replica set rs0<br/>host :27018 → 27017")]
+    dbvol[("volume mongodb_data")]
+    upvol[("volume uploads_data")]
+  end
+
+  browser -- "loads SPA" --> web
+  browser -- "/api/* + /uploads/*<br/>VITE_API_URL baked in at build" --> api
+  api -- "mongodb://mongodb:27017" --> mongo
+  mongo --- dbvol
+  api --- upvol
+```
+
+- **Two modes.** `docker compose up -d` starts only `mongodb`, for running the apps with Nx. `docker compose --profile app up -d --build` also builds and starts `api` and `web`.
+- **Start order:** `api` waits until `mongodb` is healthy (the health check also initiates the replica set on first start); `web` waits until `api` answers `/api/health`.
+- **Images:** the API image is built from the Nx `prune` output (bundle plus a pruned lockfile). The web image serves the Vite build with nginx, which sends every client-side route to `index.html`.
+- **Browser-facing addresses:** the browser calls the API at `localhost`, not through the Compose network, so `VITE_API_URL`, `CORS_ORIGIN` and `UPLOADS_BASE_URL` use host ports (`API_PORT`, `WEB_PORT` in the root `.env`).
+- **Plain HTTP:** the API runs with `NODE_ENV=development` in Compose, so session cookies are not marked `Secure`.
+
+### E2E tests
+
+```mermaid
+flowchart LR
+  pw["Playwright (Chromium)<br/>apps/web-e2e"]
+  web["Vite dev server<br/>localhost:4201"]
+  api["Real API from source (tsx)<br/>localhost:3334"]
+  db[("In-memory MongoDB replica set<br/>empty on every run")]
+  tmp[("Temporary uploads directory")]
+
+  pw -- "drives the UI in a browser" --> web
+  pw -- "test setup: register users,<br/>create pets, apply (support/api.ts)" --> api
+  web -- "pages call VITE_API_URL" --> api
+  api --> db
+  api --> tmp
+```
+
+- **Isolated:** Playwright starts both servers itself (`reuseExistingServer: false`), so dev servers, Docker containers and dev data are never used.
+- **No seed data:** each test creates uniquely named users and pets through the API, then checks the journeys in the UI.
+- **No retries:** login and register share the per-IP rate limit, and retries would add attempts against the same API process.

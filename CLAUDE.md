@@ -1,15 +1,20 @@
 # Pet Adoption System
 
-Learning/portfolio project: users browse and post pets for adoption and (later) submit adoption applications. The owner is experienced with Vue + TypeScript and is learning React, Express and MongoDB here.
+Learning/portfolio project: users browse and post pets for adoption, apply to adopt pets posted by others, and owners review the applications. The owner is experienced with Vue + TypeScript and is learning React, Express and MongoDB here.
 
-**Before continuing development, read [docs/progress.md](docs/progress.md)** for current status, known bugs, the roadmap and the next task. Update it when a task is completed. [docs/architecture.md](docs/architecture.md) has Mermaid diagrams of the current architecture; update them when the structure changes.
+**Before continuing development, read [docs/progress.md](docs/progress.md)** for current status, known bugs, the roadmap and the next task. Update it when a task is completed.
+
+Read the other docs only when the task needs them:
+
+- [docs/requirements.md](docs/requirements.md): user roles, workflows and business rules. Consult it when working on business logic, user-facing behavior, authorization, or tests of those. Update it when behavior changes.
+- [docs/architecture.md](docs/architecture.md): Mermaid diagrams of the current architecture (system, request pipeline, auth, data model, adoption workflow, Docker, E2E). Consult it when architectural context is relevant; update the affected diagram when the structure changes.
 
 ## Architecture
 
 Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies are declared in the root `package.json`; app `package.json` files declare workspace dependencies. Exception: the API's runtime dependencies (everything its bundle `require`s) are also listed in `apps/api/package.json`, with the same version ranges as the root, because the Nx `prune` target (used by the Docker image) builds the production install from it. Add new API runtime packages in both places.
 
 - `apps/api` (`@pet-adoption/api`): Express 4 + Mongoose 9, bundled with esbuild (shared lib is bundled inline). Layering: `*.routes.ts` → `validateBody(zodSchema)` → `asyncHandler` → `*.controller.ts` → `*.service.ts` → `*.model.ts`. All errors flow to `middleware/error-handler.ts`: throw/forward `AppError` subclasses (`errors/app-error.ts`, incl. `ValidationError`); the handler responds `ApiErrorResponse` and logs only unexpected 500s. Env is validated at startup in `config/env.ts` (reads `apps/api/.env`). `app.ts` is separate from `main.ts` so supertest can use `app` directly.
-- `apps/web` (`@pet-adoption/web`): React 19, React Router 6 (`createBrowserRouter`), TanStack Query, Tailwind 4 + shadcn/ui (`components/ui`), react-i18next (`en`, `sr`; namespaces `common`, `pets`), sonner toasts, zod for form validation. Feature folders: `src/features/<feature>/{api,components,pages,utils}`. `@/*` aliases `src/*`. Error handling responsibilities:
+- `apps/web` (`@pet-adoption/web`): React 19, React Router 6 (`createBrowserRouter`), TanStack Query, Tailwind 4 + shadcn/ui (`components/ui`), react-i18next (`en`, `sr`; namespaces `common`, `pets`, `auth`, `applications`), sonner toasts, zod for form validation. Feature folders: `src/features/<feature>/{api,components,pages,utils}`. `@/*` aliases `src/*`. Error handling responsibilities:
   - `src/lib/api-client.ts` (transport): the Axios instance `http` (`baseURL` = `VITE_API_URL`, `withCredentials: true`). Its response interceptor turns every failure into `ApiError { status, code, details }` (no response → `NETWORK_ERROR`, status 0; cancellations pass through). API functions call `http.get/post/...` and return `data`. No UI, retries or translation here. Tests replace the transport with `http.defaults.adapter` (`lib/testing/mock-http-adapter.ts`).
   - `src/app/query-client.ts` (policy): retry only network/5xx; global toast for mutation errors and background refetch errors, opt out with `meta: { skipGlobalErrorToast: true }` (typed via `Register`).
   - `src/lib/get-error-message.ts`: `getErrorMessage` (code → `common:errors.*`) and `getFieldErrors` (validation `details` → `common:validation.*`).
@@ -58,7 +63,6 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 
 - Prefer simple, maintainable solutions. Explain why before adding any dependency.
 - Do not reintroduce removed Nx-generated placeholder apps/libs. Do not restructure the monorepo without a concrete reason.
-- Do not introduce a centralized API client/interceptor until frontend usage justifies it; raise it when it does.
 - Work in small, coherent steps; explain important decisions and trade-offs briefly (relate to Vue when useful), without lengthy tutorials.
 - Inspect only the files relevant to the task; do not repeat investigations already recorded in `docs/progress.md`.
 - Run relevant lint/typecheck/tests after changes and fix regressions you introduce.
@@ -114,7 +118,7 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 
 - Keep responses concise and focused on the current task.
 - Inspect only the files relevant to the task. Avoid rereading the entire repository unless necessary.
-- Read `docs/progress.md` before starting and update it after meaningful milestones.
+- Read `docs/progress.md` before starting and update it after meaningful milestones. Read `docs/requirements.md` and `docs/architecture.md` only when relevant (see the top of this file).
 - Reuse existing architecture, utilities, types and patterns instead of creating duplicates.
 - Avoid unnecessary refactoring, speculative improvements and new dependencies.
 - Explain important decisions and unfamiliar concepts briefly, especially React, Express, TypeScript and backend architecture.

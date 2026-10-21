@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Web HTTP client switched from a fetch wrapper to Axios, uncommitted on branch `develop` (latest commit `74b31bd`, Docker Compose setup)._
+_Last updated: 2026-10-21. Branch `develop`, latest commit `30e753d` (Axios HTTP client). Documentation pass since then, uncommitted: new [requirements.md](requirements.md), architecture diagrams refreshed (Docker Compose and E2E added), `CLAUDE.md` doc pointers updated._
 
 ## Status
 
