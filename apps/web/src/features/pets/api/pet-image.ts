@@ -1,6 +1,6 @@
 import type { Pet } from '@pet-adoption/models';
 
-import { apiClient } from '../../../lib/api-client';
+import { http } from '../../../lib/api-client';
 
 /** Uploads (or replaces) the pet's photo. */
 export const uploadPetImage = async (
@@ -10,9 +10,11 @@ export const uploadPetImage = async (
   const body = new FormData();
   body.append('image', file);
 
-  return apiClient<Pet>(`/pets/${petId}/image`, { method: 'PUT', body });
+  const { data } = await http.put<Pet>(`/pets/${petId}/image`, body);
+  return data;
 };
 
 export const deletePetImage = async (petId: string): Promise<Pet> => {
-  return apiClient<Pet>(`/pets/${petId}/image`, { method: 'DELETE' });
+  const { data } = await http.delete<Pet>(`/pets/${petId}/image`);
+  return data;
 };

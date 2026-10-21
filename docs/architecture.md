@@ -19,7 +19,7 @@ flowchart LR
   mongo[("MongoDB 8, single-node replica set<br/>docker-compose (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications")]
 
   browser -- "loads SPA" --> web
-  browser -- "fetch /api/*<br/>JSON + sid cookie<br/>(credentials: include, CORS)" --> api
+  browser -- "axios /api/*<br/>JSON + sid cookie<br/>(withCredentials, CORS)" --> api
   web -. "imports types<br/>(workspace:*)" .-> models
   api -. "imports types + constants<br/>(bundled inline)" .-> models
   api -- "Mongoose 9<br/>(pets, users, applications;<br/>transactions)" --> mongo
@@ -53,7 +53,7 @@ sequenceDiagram
   actor User
   participant Page as PetFormPage<br/>(route /pets/:id/edit)
   participant TQ as TanStack Query<br/>useMutation
-  participant Client as apiClient (fetch)
+  participant Client as http (axios instance)
   participant API as Express API
 
   User->>Page: submit form
@@ -81,7 +81,7 @@ sequenceDiagram
   - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `['applications', …]` and `['auth', 'me']`. Invalidating `['pets']` refreshes every list and detail.
   - **The pet list keeps its state in the URL** (`?search=&species=&status=&sort=&page=`) through `useSearchParams`, so Back and shared links restore it. Search is debounced by 300 ms, and any change other than the page resets to page 1.
 - **Errors are handled in three places:**
-  - `apiClient` turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
+  - The Axios response interceptor (`lib/api-client.ts`) turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
   - The query client (`app/query-client.ts`) applies the cross-cutting rules: no retries on 4xx, a toast for mutation errors and background-refetch errors, and the user reset to `null` on `UNAUTHENTICATED`.
   - Pages show inline and field errors; the form above opts out of the toast with `meta.skipGlobalErrorToast`.
 - **The UI hides what the API would refuse; the API stays authoritative.**

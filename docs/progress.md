@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Docker Compose setup for the full app added, uncommitted on branch `develop` (latest commit `88f4de7`, Playwright E2E suite)._
+_Last updated: 2026-10-21. Web HTTP client switched from a fetch wrapper to Axios, uncommitted on branch `develop` (latest commit `74b31bd`, Docker Compose setup)._
 
 ## Status
 
@@ -111,49 +111,31 @@ Verified by passing tests or by reading the code.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
 
-## Changes in this session (Docker)
+## Changes in this session (Axios)
 
-- **`apps/api/Dockerfile`:**
-  - **Build stage:** `pnpm install --frozen-lockfile` → `nx run @pet-adoption/api:prune` (production bundle plus a pruned `package.json`/lockfile/workspace modules).
-  - **Runtime stage:** `node:22-bookworm-slim`, `pnpm install --prod`, runs as `node`, `/app/uploads` for photos.
-- **`apps/web/Dockerfile` and `apps/web/nginx.conf`:** a Vite build with the `VITE_API_URL` build argument (browser-facing), served by `nginx:1.27-alpine` with a fallback to `index.html` and immutable caching for `/assets`.
-- **`docker-compose.yml`:**
-  - New `api` and `web` services behind the `app` profile.
-  - **Health checks:** API `/api/health`, web `wget`, and MongoDB as a writable primary. `depends_on: service_healthy` gives the order MongoDB → API → web.
-  - **Settings:** an internal `MONGODB_URI` (`mongodb:27017`), browser-facing `CORS_ORIGIN`, `UPLOADS_BASE_URL` and `VITE_API_URL`.
-  - **Volumes:** `mongodb_data` and `uploads_data`.
-  - **Optional settings:** `API_PORT` and `WEB_PORT`.
-- **Root `.env.example`** (`SESSION_SECRET`, optional ports) and **`.dockerignore`** (node_modules, build output, `.env` files, uploads, `.git`).
-- **`apps/api/package.json`:** now lists the API's runtime dependencies (the same ranges as the root). Without them, `prune` produced an install with only `express`, and the container would fail with "Cannot find module 'mongoose'". The lockfile only gained importer entries; no packages were added or upgraded.
-- **`README.md`:** replaced the Nx template with project setup (Docker, local development, tests).
-- **Decisions:**
-  - **`app` profile:** it keeps the existing workflow (`docker compose up -d` → MongoDB for `nx serve`) unchanged.
-  - **`NODE_ENV=development` in Compose:** "production" would mark session cookies `Secure`, which needs HTTPS.
-  - **No seed step:** there is no seed mechanism in the repo, so the database starts empty.
+- **The owner's decision:** replace the `fetch` wrapper with Axios. This follows an evaluation that found the wrapper sufficient; the change was made by preference, to use a widely used library and interceptor pattern.
+- **Dependency:** `axios` `~1.20.0` (released 2026-08-26, the current `latest`). It was chosen deliberately after the 2026 axios npm account compromise. Its dependencies were checked (follow-redirects, form-data, https-proxy-agent, proxy-from-env), and the malicious `plain-crypto-js` from the incident is not in the lockfile.
+- **`apps/web/src/lib/api-client.ts`:**
+  - The `http` Axios instance (`baseURL`, `withCredentials`).
+  - A response interceptor (`toApiError`) that keeps the same `ApiError` contract: the API's `{ code, details }`, `INTERNAL_SERVER_ERROR` for unexpected bodies, and `NETWORK_ERROR` when there's no response. Cancellations pass through unchanged.
+  - The manual JSON/`Content-Type`/query-string/204 code is gone (Axios handles it).
+- **API functions** (15 calls in `features/*/api`) now use `http.get/post/put/delete` with plain objects and return `data`.
+- **Unchanged:** the 401 sign-out, retries and toasts stay in `app/query-client.ts`. They need the query cache, and importing it into the interceptor would create a circular import.
+- **Tests:** `lib/api-client.spec.ts` and `get-current-user.spec.ts` replace the transport through `http.defaults.adapter` (helper `lib/testing/mock-http-adapter.ts`) instead of stubbing `fetch`.
 
-## Check results (2026-10-21, Docker)
+## Check results (2026-10-21, Axios)
 
 | Check | Result |
 |---|---|
-| `docker compose config` | ✅ default: `mongodb` only; `--profile app`: `mongodb`, `api`, `web` |
-| `docker compose --profile app build` | ✅ after one fix (a duplicate `allowBuilds` key, which `prune` already writes). Images: api 444 MB, web 74 MB |
-| `docker compose --profile app up -d` | ✅ all three healthy; started in order MongoDB → API → web |
-| Smoke checks (read-only) | ✅ see below |
-
-**Smoke checks:**
-- `/api/health` returns ok.
-- `GET /api/pets` → 200, a real DB query.
-- A wrong login → 401 `INVALID_CREDENTIALS`, so argon2 works in the container.
-- The CORS preflight from `http://localhost:4200` allows the origin with credentials.
-- The web app serves `/` and `/pets/abc` (SPA fallback); the bundle contains `http://localhost:3333/api` and has immutable caching.
-- The API runs as `node`, and `/app/uploads` is owned by `node`.
+| Web lint, typecheck and tests | ✅ 75/75 (the client spec now has 9 tests, including cancellation) |
+| Web production build | ✅ main chunk 567 kB / 176 kB gzipped (size before the switch not measured in this session) |
+| `pnpm nx e2e @pet-adoption/web-e2e` | ✅ 6/6: register, login, wrong login (401), browse/search, apply, accept, all through Axios in a real browser |
 
 **Not run:**
-- Writes through the containers (register, create a pet, upload, apply), to keep the shared dev database clean. Covered by the unit and E2E suites against the same code.
-- A browser session against the containers.
+- A browser check of the **photo upload** (`FormData` through Axios). Unit tests mock that call, and E2E doesn't upload.
+- The API suites (no API code changed).
 
-**After the check,** the `api`/`web` containers were removed (images kept); MongoDB keeps running.
-
+**Also:** deleted the stale `apps/api/dist` (gitignored build output from an earlier `prune`), which made `vite-tsconfig-paths` print parse warnings.
 
 ## Pet photos: deployment notes
 

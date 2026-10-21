@@ -5,7 +5,7 @@ import type {
   ReceivedApplication,
 } from '@pet-adoption/models';
 
-import { apiClient } from '../../../lib/api-client';
+import { http } from '../../../lib/api-client';
 
 /** All application data belongs to the signed-in user. */
 export const applicationQueryKeys = {
@@ -15,31 +15,36 @@ export const applicationQueryKeys = {
 };
 
 export const getMyApplications = async (): Promise<MyApplication[]> => {
-  return apiClient<MyApplication[]>('/applications/mine');
+  const { data } = await http.get<MyApplication[]>('/applications/mine');
+  return data;
 };
 
 export const getReceivedApplications = async (): Promise<
   ReceivedApplication[]
 > => {
-  return apiClient<ReceivedApplication[]>('/applications/received');
+  const { data } = await http.get<ReceivedApplication[]>(
+    '/applications/received',
+  );
+  return data;
 };
 
 export const submitApplication = async (
   petId: string,
   input: CreateApplicationInput,
 ): Promise<MyApplication> => {
-  return apiClient<MyApplication>(`/pets/${petId}/applications`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
+  const { data } = await http.post<MyApplication>(
+    `/pets/${petId}/applications`,
+    input,
+  );
+  return data;
 };
 
 export const runApplicationAction = async (
   applicationId: string,
   action: ApplicationAction,
 ): Promise<MyApplication | ReceivedApplication> => {
-  return apiClient<MyApplication | ReceivedApplication>(
+  const { data } = await http.post<MyApplication | ReceivedApplication>(
     `/applications/${applicationId}/${action}`,
-    { method: 'POST' },
   );
+  return data;
 };

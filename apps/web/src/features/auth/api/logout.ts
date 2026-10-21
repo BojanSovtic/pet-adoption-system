@@ -1,5 +1,5 @@
-import { apiClient } from '../../../lib/api-client';
+import { http } from '../../../lib/api-client';
 
 export const logout = async (): Promise<void> => {
-  return apiClient<void>('/auth/logout', { method: 'POST' });
+  await http.post('/auth/logout');
 };

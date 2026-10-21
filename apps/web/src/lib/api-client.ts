@@ -1,6 +1,5 @@
+import axios from 'axios';
 import type { ApiErrorResponse, ValidationIssue } from '@pet-adoption/models';
-
-const API_URL = import.meta.env.VITE_API_URL;
 
 export class ApiError extends Error {
   constructor(
@@ -13,85 +12,49 @@ export class ApiError extends Error {
   }
 }
 
-const parseErrorResponse = async (
-  response: Response,
-): Promise<ApiErrorResponse | null> => {
-  const body: unknown = await response.json().catch(() => null);
+const isApiErrorResponse = (data: unknown): data is ApiErrorResponse =>
+  typeof data === 'object' &&
+  data !== null &&
+  'code' in data &&
+  typeof data.code === 'string';
 
-  if (
-    typeof body === 'object' &&
-    body !== null &&
-    'code' in body &&
-    typeof body.code === 'string'
-  ) {
-    return body as ApiErrorResponse;
+/**
+ * Turns a failed request into an `ApiError` with the API's error code.
+ * Cancelled requests (e.g. by TanStack Query) keep their own error type so
+ * they are still recognised as cancellations.
+ */
+export const toApiError = (error: unknown): unknown => {
+  if (axios.isCancel(error) || !axios.isAxiosError(error)) {
+    return error;
   }
 
-  return null;
+  // No response at all: offline, CORS, DNS.
+  if (!error.response) {
+    return new ApiError(0, 'NETWORK_ERROR');
+  }
+
+  const { status, data } = error.response;
+
+  return isApiErrorResponse(data)
+    ? new ApiError(status, data.code, data.details)
+    : new ApiError(status, 'INTERNAL_SERVER_ERROR');
 };
 
-export type ApiClientOptions = RequestInit & {
-  /** Added as a query string; `undefined` and empty values are left out. */
-  searchParams?: Record<string, string | number | undefined>;
-};
+/**
+ * The one HTTP client for the API. Axios sets `Content-Type: application/json`
+ * for object bodies, none for GETs, and lets the browser set the multipart
+ * boundary for `FormData`.
+ */
+export const http = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  // Send the HttpOnly session cookie to the API (a different port, so a
+  // different origin). JavaScript never reads the cookie itself.
+  withCredentials: true,
+});
 
-const toQueryString = (
-  searchParams: ApiClientOptions['searchParams'],
-): string => {
-  const params = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(searchParams ?? {})) {
-    if (value !== undefined && value !== '') {
-      params.set(key, String(value));
-    }
-  }
-
-  const query = params.toString();
-
-  return query ? `?${query}` : '';
-};
-
-export const apiClient = async <T>(
-  path: string,
-  { searchParams, headers, ...options }: ApiClientOptions = {},
-): Promise<T> => {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_URL}${path}${toQueryString(searchParams)}`, {
-      // Send the HttpOnly session cookie to the API (a different port, so a
-      // different origin). JavaScript never reads the cookie itself.
-      credentials: 'include',
-      ...options,
-      headers: {
-        // Only JSON (string) bodies need this. On a GET it would make the
-        // browser send an extra CORS preflight first, and for FormData the
-        // browser must set "multipart/form-data" with its boundary itself.
-        ...(typeof options.body === 'string' && {
-          'Content-Type': 'application/json',
-        }),
-        ...headers,
-      },
-    });
-  } catch {
-    // fetch only rejects when no response was received (offline, CORS, DNS).
-    throw new ApiError(0, 'NETWORK_ERROR');
-  }
-
-  if (!response.ok) {
-    const error = await parseErrorResponse(response);
-
-    throw new ApiError(
-      response.status,
-      error?.code ?? 'INTERNAL_SERVER_ERROR',
-      error?.details,
-    );
-  }
-
-  // 204 No Content (e.g. DELETE) has no body to parse.
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
-};
+// Every failure reaches the app as an `ApiError`. Reactions that need app
+// state (signing out on 401, toasts, retries) live in app/query-client.ts.
+http.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => Promise.reject(toApiError(error)),
+);

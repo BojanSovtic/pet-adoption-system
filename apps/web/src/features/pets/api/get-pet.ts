@@ -1,7 +1,8 @@
 import type { Pet } from '@pet-adoption/models';
 
-import { apiClient } from '../../../lib/api-client';
+import { http } from '../../../lib/api-client';
 
 export const getPet = async (id: string): Promise<Pet> => {
-  return apiClient<Pet>(`/pets/${id}`);
+  const { data } = await http.get<Pet>(`/pets/${id}`);
+  return data;
 };

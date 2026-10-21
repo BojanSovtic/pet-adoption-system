@@ -1,134 +1,119 @@
+import axios from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, apiClient } from './api-client';
+import { ApiError, http } from './api-client';
+import { failWithNetworkError, respondWith } from './testing/mock-http-adapter';
 
-const mockFetch = (response: Response | Error) => {
-  const fetchMock =
-    response instanceof Error
-      ? vi.fn().mockRejectedValue(response)
-      : vi.fn().mockResolvedValue(response);
+const originalAdapter = http.defaults.adapter;
 
-  vi.stubGlobal('fetch', fetchMock);
-
-  return fetchMock;
+const useAdapter = (adapter: ReturnType<typeof respondWith>) => {
+  const mock = vi.fn(adapter);
+  http.defaults.adapter = mock;
+  return mock;
 };
 
-const jsonResponse = (body: unknown, status: number) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-const catchError = async (promise: Promise<unknown>): Promise<ApiError> => {
+const catchError = async (promise: Promise<unknown>): Promise<unknown> => {
   try {
     await promise;
   } catch (error) {
-    if (error instanceof ApiError) {
-      return error;
-    }
-
-    throw error;
+    return error;
   }
 
   throw new Error('Expected the request to fail');
 };
 
-describe('apiClient', () => {
+describe('http (axios instance)', () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
+    http.defaults.adapter = originalAdapter;
   });
 
-  it('returns the parsed JSON body on success', async () => {
-    const fetchMock = mockFetch(jsonResponse([{ name: 'Milo' }], 200));
+  it('sends the session cookie and returns the response data', async () => {
+    const adapter = useAdapter(respondWith(200, [{ name: 'Milo' }]));
 
-    await expect(apiClient('/pets')).resolves.toEqual([{ name: 'Milo' }]);
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/pets$/),
-      expect.objectContaining({ credentials: 'include' }),
-    );
-  });
+    const { data } = await http.get('/pets');
 
-  it('sends a JSON Content-Type only with JSON bodies', async () => {
-    // A response body can only be read once, so each call gets a new one.
-    const fetchMock = vi.fn<typeof fetch>(() =>
-      Promise.resolve(jsonResponse({}, 200)),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-
-    await apiClient('/pets');
-    await apiClient('/pets', { method: 'POST', body: '{}' });
-    await apiClient('/pets/1/image', { method: 'PUT', body: new FormData() });
-
-    // GET: none, so no CORS preflight.
-    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({});
-    expect(fetchMock.mock.calls[1]?.[1]?.headers).toEqual({
-      'Content-Type': 'application/json',
+    expect(data).toEqual([{ name: 'Milo' }]);
+    expect(adapter.mock.calls[0][0]).toMatchObject({
+      url: '/pets',
+      withCredentials: true,
     });
-    // FormData: the browser sets multipart/form-data with its boundary.
-    expect(fetchMock.mock.calls[2]?.[1]?.headers).toEqual({});
   });
 
-  it('adds search params, leaving out empty values', async () => {
-    const fetchMock = mockFetch(jsonResponse({}, 200));
+  it('leaves undefined params out of the URL', () => {
+    expect(
+      http.getUri({
+        url: '/pets',
+        params: { search: 'milo', species: undefined, page: 2 },
+      }),
+    ).toMatch(/\/pets\?search=milo&page=2$/);
+  });
 
-    await apiClient('/pets', {
-      searchParams: {
-        search: 'milo bo',
-        species: undefined,
-        page: 2,
-        status: '',
-      },
+  it('serializes object bodies as JSON', async () => {
+    const adapter = useAdapter(respondWith(201, {}));
+
+    await http.post('/pets', { name: 'Milo' });
+
+    const config = adapter.mock.calls[0][0];
+    expect(config.data).toBe('{"name":"Milo"}');
+    expect(config.headers['Content-Type']).toContain('application/json');
+  });
+
+  it('turns an API error response into an ApiError', async () => {
+    useAdapter(respondWith(404, { code: 'PET_NOT_FOUND' }));
+
+    const error = await catchError(http.get('/pets/1'));
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 404,
+      code: 'PET_NOT_FOUND',
+      details: [],
     });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/pets\?search=milo\+bo&page=2$/),
-      expect.anything(),
-    );
-  });
-
-  it('returns undefined for 204 No Content', async () => {
-    mockFetch(new Response(null, { status: 204 }));
-
-    await expect(
-      apiClient('/pets/1', { method: 'DELETE' }),
-    ).resolves.toBeUndefined();
-  });
-
-  it('converts an API error response into an ApiError', async () => {
-    mockFetch(jsonResponse({ code: 'PET_NOT_FOUND' }, 404));
-
-    const error = await catchError(apiClient('/pets/1'));
-
-    expect(error.status).toBe(404);
-    expect(error.code).toBe('PET_NOT_FOUND');
-    expect(error.details).toEqual([]);
   });
 
   it('keeps validation details', async () => {
     const details = [{ field: 'name', code: 'too_small' }];
-    mockFetch(jsonResponse({ code: 'VALIDATION_FAILED', details }, 400));
+    useAdapter(respondWith(400, { code: 'VALIDATION_FAILED', details }));
 
-    const error = await catchError(apiClient('/pets'));
+    const error = await catchError(http.post('/pets', {}));
 
-    expect(error.code).toBe('VALIDATION_FAILED');
-    expect(error.details).toEqual(details);
+    expect(error).toMatchObject({ code: 'VALIDATION_FAILED', details });
   });
 
-  it('falls back to INTERNAL_SERVER_ERROR for a non-JSON error body', async () => {
-    mockFetch(new Response('<html>Bad gateway</html>', { status: 502 }));
+  it('falls back to INTERNAL_SERVER_ERROR for an unexpected error body', async () => {
+    useAdapter(respondWith(502, '<html>Bad gateway</html>'));
 
-    const error = await catchError(apiClient('/pets'));
+    const error = await catchError(http.get('/pets'));
 
-    expect(error.status).toBe(502);
-    expect(error.code).toBe('INTERNAL_SERVER_ERROR');
+    expect(error).toMatchObject({ status: 502, code: 'INTERNAL_SERVER_ERROR' });
   });
 
-  it('converts a network failure into NETWORK_ERROR', async () => {
-    mockFetch(new TypeError('Failed to fetch'));
+  it('turns a missing response into NETWORK_ERROR', async () => {
+    useAdapter(failWithNetworkError);
 
-    const error = await catchError(apiClient('/pets'));
+    const error = await catchError(http.get('/pets'));
 
-    expect(error.status).toBe(0);
-    expect(error.code).toBe('NETWORK_ERROR');
+    expect(error).toMatchObject({ status: 0, code: 'NETWORK_ERROR' });
+  });
+
+  it('leaves cancelled requests as cancellations', async () => {
+    useAdapter(respondWith(200, []));
+    const controller = new AbortController();
+    controller.abort();
+
+    const error = await catchError(
+      http.get('/pets', { signal: controller.signal }),
+    );
+
+    expect(error).not.toBeInstanceOf(ApiError);
+    expect(axios.isCancel(error)).toBe(true);
+  });
+
+  it('resolves 204 No Content', async () => {
+    useAdapter(respondWith(204));
+
+    await expect(http.delete('/pets/1')).resolves.toMatchObject({
+      status: 204,
+    });
   });
 });
