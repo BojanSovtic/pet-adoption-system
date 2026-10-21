@@ -58,6 +58,7 @@ The same user can be an owner of some pets and an applicant for others.
 - The **Applications** page shows two lists:
   - **Applications for my pets:** the owner sees each applicant's name, email and message, and can accept or reject pending applications.
   - **My applications:** the applicant sees the status of each application and can withdraw pending ones.
+- Both lists show the newest applications first, 10 per page, and each list pages on its own. The page numbers are part of the page address.
 - Only the pet owner can accept or reject. Only the applicant can withdraw.
 - Applications are private: only the applicant and the pet owner can see an application.
 - Owners see applicants' email addresses so they can get in touch. The applicant does not see the owner's details.
@@ -87,7 +88,7 @@ The same user can be an owner of some pets and an applicant for others.
 
 ## Other behavior
 
-- The interface is in English. Serbian translations exist, but there is no way to switch language in the app yet.
+- The interface is available in English and Serbian. A language selector in the header switches it, and the browser remembers the choice. English is the default.
 - The server sends error codes, not text; the app turns them into translated messages.
 
 ## Known limitations
@@ -97,10 +98,9 @@ Not supported today:
 - No admin or moderator role; nobody can manage other users' pets or accounts.
 - No email verification, password reset, account editing or account deletion.
 - No sign-in with Google, GitHub or other providers (planned).
-- No language switcher (Serbian translations are present but unused).
 - No messaging between owners and applicants; contact happens outside the app using the applicant's email.
 - An accepted adoption cannot be undone, and a rejected applicant cannot reapply for the same pet.
-- The application lists are not paginated or searchable.
+- The application lists cannot be searched or filtered.
 - Search covers pet names only; there are no breed, location or size fields.
 - Uploaded photos keep their original metadata (for example camera location data).
 - Pets created before ownership was introduced have no owner: they are visible, but nobody can edit, delete or apply for them.
@@ -110,6 +110,5 @@ Not supported today:
 
 From the roadmap in [progress.md](progress.md); not implemented:
 
-- Pagination for the application lists.
 - Sign-in with Google or GitHub (OAuth/OIDC).
-- Cloud deployment.
+- Cloud deployment (requirements in [deployment.md](deployment.md)).

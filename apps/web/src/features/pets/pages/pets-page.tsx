@@ -11,6 +11,7 @@ import {
   type PetStatus,
 } from '@pet-adoption/models';
 
+import { Pagination } from '@/components/pagination';
 import { Button } from '@/components/ui/button';
 
 import { getErrorMessage } from '../../../lib/get-error-message';
@@ -199,33 +200,11 @@ const PetsPage = () => {
             </div>
           )}
 
-          {data.totalPages > 1 && (
-            <nav
-              aria-label={t('pagination.label')}
-              className="flex items-center justify-center gap-4"
-            >
-              <Button
-                variant="outline"
-                disabled={params.page <= 1}
-                onClick={() => updateParams({ page: params.page - 1 })}
-              >
-                {t('pagination.previous')}
-              </Button>
-              <span className="text-sm">
-                {t('pagination.pageOf', {
-                  page: params.page,
-                  totalPages: data.totalPages,
-                })}
-              </span>
-              <Button
-                variant="outline"
-                disabled={params.page >= data.totalPages}
-                onClick={() => updateParams({ page: params.page + 1 })}
-              >
-                {t('pagination.next')}
-              </Button>
-            </nav>
-          )}
+          <Pagination
+            page={params.page}
+            totalPages={data.totalPages}
+            onPageChange={(page) => updateParams({ page })}
+          />
         </div>
       )}
     </section>

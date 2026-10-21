@@ -4,6 +4,11 @@ import type { ApplicationAction } from '@pet-adoption/models';
 
 import { getAuthenticatedUserId } from '../auth/require-auth';
 import { BadRequestError, NotFoundError } from '../errors/app-error';
+import { parseInput } from '../middleware/validate';
+import {
+  applicationListQuerySchema,
+  myApplicationListQuerySchema,
+} from './application.schema';
 import {
   getApplicationView,
   listMyApplications,
@@ -40,14 +45,18 @@ export const listMyApplicationsController = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  res.json(await listMyApplications(getAuthenticatedUserId(req)));
+  const query = parseInput(myApplicationListQuerySchema, req.query);
+
+  res.json(await listMyApplications(getAuthenticatedUserId(req), query));
 };
 
 export const listReceivedApplicationsController = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  res.json(await listReceivedApplications(getAuthenticatedUserId(req)));
+  const query = parseInput(applicationListQuerySchema, req.query);
+
+  res.json(await listReceivedApplications(getAuthenticatedUserId(req), query));
 };
 
 /** One handler per state-machine action: accept, reject, withdraw. */

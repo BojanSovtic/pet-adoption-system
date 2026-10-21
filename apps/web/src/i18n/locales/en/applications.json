@@ -4,11 +4,13 @@
   "error": "Applications could not be loaded.",
   "mine": {
     "title": "My applications",
-    "empty": "You haven't applied to adopt any pets yet."
+    "empty": "You haven't applied to adopt any pets yet.",
+    "pagination": "Pages of my applications"
   },
   "received": {
     "title": "Applications for my pets",
-    "empty": "No one has applied for your pets yet."
+    "empty": "No one has applied for your pets yet.",
+    "pagination": "Pages of applications for my pets"
   },
   "status": {
     "pending": "Pending",
@@ -41,5 +43,7 @@
     "error": "The application could not be sent. Please try again.",
     "messageRequired": "Please write a short message.",
     "messageTooLong": "The message must be at most 2000 characters."
-  }
+  },
+  "pageOutOfRange": "There are no applications on this page.",
+  "firstPage": "Go to the first page"
 }

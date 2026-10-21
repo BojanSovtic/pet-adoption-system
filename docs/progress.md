@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Branch `develop`, latest commit `30e753d` (Axios HTTP client). Documentation pass since then, uncommitted: new [requirements.md](requirements.md), architecture diagrams refreshed (Docker Compose and E2E added), `CLAUDE.md` doc pointers updated._
+_Last updated: 2026-10-21. Branch `develop`, latest commit `6a89205` (documentation). Uncommitted on top: GitHub Actions CI, paginated application lists, language selector, edit-form load errors, README and deployment notes (see "Changes in this session")._
 
 ## Status
 
@@ -40,11 +40,11 @@ Verified by passing tests or by reading the code.
     - **`apiClient`:** sends the JSON `Content-Type` only for string bodies, so `FormData` gets the browser's multipart boundary.
   - **Tests:** 15 API tests and 6 web tests.
 - **Adoption applications** (see `docs/architecture.md` §5 for the diagrams):
-  - **Data:** `AdoptionApplication { pet, applicant, message (1–2000), status, timestamps }`. The applicant comes from the session; the status only changes through state-machine actions.
+  - **Data:** `AdoptionApplication { pet, petOwner, applicant, message (1–2000), status, timestamps }`. The applicant comes from the session; `petOwner` is copied from the pet on submit; the status only changes through state-machine actions.
   - **Endpoints:**
     - `POST /api/pets/:petId/applications` → 201.
-    - `GET /api/applications/mine`: applicant view, with pet summary and no owner details.
-    - `GET /api/applications/received`: owner view, including the applicant's name and email.
+    - `GET /api/applications/mine?page=&pageSize=&pet=`: paginated applicant view, with pet summary and no owner details.
+    - `GET /api/applications/received?page=&pageSize=`: paginated owner view, including the applicant's name and email.
     - `POST /api/applications/:id/accept | reject | withdraw`.
     - All of them require sign-in.
   - **Rules:**
@@ -97,7 +97,8 @@ Verified by passing tests or by reading the code.
 
 ### Incomplete or not verified
 
-- **No browser verification** of the application UI or the paginated pet list.
+- **No browser verification** of the application UI, the paginated pet and application lists, or the language selector.
+- **Photo upload through Axios** is not verified in a browser (deferred to the manual QA checklist).
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
@@ -111,7 +112,31 @@ Verified by passing tests or by reading the code.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
 
-## Changes in this session (Axios)
+## Changes in this session (2026-10-21, uncommitted)
+
+- **CI:** `.github/workflows/ci.yml` runs `lint typecheck test build` for every project on pushes and pull requests to `master` and `develop` (Node 22, pnpm 12.3.4, pnpm store and MongoDB binary caches). The API tests' required variables are set in the workflow, because `apps/api/.env` is not in Git; the tests still use the in-memory replica set. **E2E is not in CI yet** (possible later: a second job running `nx e2e` with Playwright's Chromium installed).
+- **Application lists paginated** (API and web): `page`/`pageSize` (default 10, max 50), newest first with `_id` tie-breaker, `Paginated<T>` responses, `VALIDATION_FAILED` for bad parameters.
+  - **`petOwner` on applications:** copied from the pet on submit, indexed with the list order, so `/received` no longer loads all of the owner's pet ids. Existing applications get it at API startup (`backfillApplicationPetOwners`, a no-op once done).
+  - **`/mine?pet=<id>`:** the pet page now asks only for its pet's newest application (`pageSize=1`) instead of the user's whole list.
+  - **Web:** each list on `/applications` pages independently (`?receivedPage=`, `?minePage=`, invalid values → 1), keeps the previous page on screen while loading, and offers "Go to the first page" past the end. Pagination controls are a shared `components/pagination.tsx` (the pet list uses it too; its labels moved to `common:pagination.*`).
+- **Edit form load errors:** `PET_NOT_FOUND` / `INVALID_PET_ID` still show "Pet not found"; network, server and other errors show their translated message with "Try again" and "Back to pets".
+- **Language selector** in the header (English / Srpski). The choice is saved in `localStorage` (falls back to English if unavailable or invalid) and sets `<html lang>`. The header title is now translated. Forms now store validation keys and translate on render, so messages already on screen switch language too (login, register, pet form, application form).
+- **`env.ts`:** checked and left unchanged (see "Other outstanding issues").
+- **Docs:** README rewritten for portfolio readers (highlights, stack, screenshot placeholders, CI badge, limitations); new [deployment.md](deployment.md); requirements, architecture and `CLAUDE.md` updated.
+- **Branches:** GitHub's default branch is `master`, which still holds only the Nx scaffold (`5bd296a`). It is an ancestor of `develop`, so `master` can be fast-forwarded to `develop` without a merge commit or force-push. Not done yet: it needs these changes committed and pushed first, and the owner's approval.
+
+**Check results:**
+
+| Check | Result |
+|---|---|
+| `nx run-many -t lint typecheck test build` (all 4 projects, no cache, `.env` loading disabled, CI variables only) | ✅ web 89/89 tests, API 151/151 tests, builds OK |
+| `nx e2e @pet-adoption/web-e2e` | ✅ 6/6 |
+| CI workflow on GitHub | ⏳ not run yet (nothing pushed) |
+| Workflow YAML | Parsed locally with `js-yaml`; not validated by GitHub yet |
+
+**Not verified:** the new UI in a real browser by hand (pagination controls, language selector, edit-form errors); E2E covers only the original journeys.
+
+## Axios switch (2026-10-21)
 
 - **The owner's decision:** replace the `fetch` wrapper with Axios. This follows an evaluation that found the wrapper sufficient; the change was made by preference, to use a widely used library and interceptor pattern.
 - **Dependency:** `axios` `~1.20.0` (released 2026-08-26, the current `latest`). It was chosen deliberately after the 2026 axios npm account compromise. Its dependencies were checked (follow-redirects, form-data, https-proxy-agent, proxy-from-env), and the malicious `plain-crypto-js` from the incident is not in the lockfile.
@@ -123,7 +148,7 @@ Verified by passing tests or by reading the code.
 - **Unchanged:** the 401 sign-out, retries and toasts stay in `app/query-client.ts`. They need the query cache, and importing it into the interceptor would create a circular import.
 - **Tests:** `lib/api-client.spec.ts` and `get-current-user.spec.ts` replace the transport through `http.defaults.adapter` (helper `lib/testing/mock-http-adapter.ts`) instead of stubbing `fetch`.
 
-## Check results (2026-10-21, Axios)
+## Check results (Axios switch)
 
 | Check | Result |
 |---|---|
@@ -137,11 +162,9 @@ Verified by passing tests or by reading the code.
 
 **Also:** deleted the stale `apps/api/dist` (gitignored build output from an earlier `prune`), which made `vite-tsconfig-paths` print parse warnings.
 
-## Pet photos: deployment notes
+## Deployment
 
-- **Development:** files go to `apps/api/uploads/` (gitignored) and are served by the API. Nothing to configure.
-- **Hosts with an ephemeral disk** (most container platforms) **lose uploaded files on redeploy.** Either attach a persistent volume and set `UPLOADS_DIR`, or add an object-storage implementation of `FileStorage`. For example, Cloudflare R2 (free tier about 10 GB, no egress fees) or S3 (pay for storage and egress); this needs the provider's SDK as a new dependency.
-- **Public URL:** set `UPLOADS_BASE_URL` when the public URL differs from `http://HOST:PORT/uploads`, e.g. behind a proxy or on a CDN.
+Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `trust proxy`, env vars, CORS/CSRF, photo storage, shared rate-limit storage) are in [deployment.md](deployment.md). In development, photos go to `apps/api/uploads/` (gitignored) and need no configuration.
 
 ## Security considerations still open
 
@@ -169,17 +192,13 @@ Verified by passing tests or by reading the code.
 
 ## Other outstanding issues
 
-- **Pages:**
-  - The form page shows "Pet not found" for any load error.
-  - The header title isn't translated.
 - **Imports and dependencies:**
   - Imports mix `@/…` and relative paths.
   - `sass` appears unused.
   - Peer-dependency warnings from `pnpm install` were not investigated.
-- `env.ts` resolves `.env` relative to the working directory.
+- `env.ts` resolves `.env` relative to the working directory. **Checked 2026-10-21 and left as is:** Nx loads `apps/api/.env` into its tasks itself, E2E starts the API from the repo root, and Docker passes the variables directly, so every documented workflow works. A file-relative path would differ between `src/` and the bundled `dist/main.js`.
 - React Router v6 future-flag warning.
 - **Applications whose applicant account is deleted** aren't handled; there's no account deletion yet.
-- **The received-applications query loads all of the owner's pet ids;** this will need pagination once the data grows (step 7).
 
 ## Roadmap (agreed priority)
 
@@ -189,13 +208,11 @@ Verified by passing tests or by reading the code.
 4. ~~Users and authentication.~~ Done.
 5. ~~Pet ownership and authorization.~~ Done.
 6. ~~Adoption applications and their lifecycle.~~ Done.
-7. ~~Server-side filtering, searching and pagination.~~ Done for the pet list. The application lists are still unpaginated.
+7. ~~Server-side filtering, searching and pagination.~~ Done for the pet list and both application lists.
 8. Later: OAuth/OIDC sign-in (Google/GitHub) and cloud deployment. (Image uploads, Playwright E2E tests and local Docker Compose are done.)
 
 ## Next task
 
-**First,** the owner checks the pet list (search, filters, paging, Back from a pet) and the application flow in the browser, then commits.
-
-**Candidates** (the owner chooses):
-- **Paginate the application lists:** `/applications/mine` and `/applications/received` currently return everything.
-- **Fix `env.ts`** so it resolves `.env` relative to the file, not the working directory.
+1. **Manual QA in the browser** (checklist still to be written): register, post a pet with a photo (this also verifies photo upload through Axios), browse/search/page, apply, accept/reject/withdraw, page both application lists, switch language and reload.
+2. **Commit, push `develop`, and check that the CI run passes on GitHub.** Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
+3. Add screenshots to the README (instructions are in the README).

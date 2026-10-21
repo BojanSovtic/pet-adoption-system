@@ -70,13 +70,8 @@ const LoginPage = () => {
     const result = loginFormSchema.safeParse(values);
 
     if (!result.success) {
-      const errors = getFormErrors(result.error);
-
-      setFieldErrors(
-        Object.fromEntries(
-          Object.entries(errors).map(([field, key]) => [field, t(key)]),
-        ),
-      );
+      // Translation keys; translated on render so a language change applies.
+      setFieldErrors(getFormErrors(result.error));
       return;
     }
 
@@ -86,7 +81,7 @@ const LoginPage = () => {
 
   const serverFieldErrors = getFieldErrors(mutation.error);
   const getFieldError = (field: keyof LoginValues) =>
-    fieldErrors[field] || serverFieldErrors[field];
+    (fieldErrors[field] && t(fieldErrors[field])) || serverFieldErrors[field];
 
   const errorMessage = mutation.error
     ? getErrorMessage(mutation.error, t('login.error'))

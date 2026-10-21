@@ -2,7 +2,8 @@
   "actions": {
     "save": "Sačuvaj",
     "cancel": "Otkaži",
-    "delete": "Obriši"
+    "delete": "Obriši",
+    "retry": "Pokušaj ponovo"
   },
   "unexpectedError": "Došlo je do greške. Pokušaj ponovo.",
   "notFound": {
@@ -43,5 +44,15 @@
     "too_big": "Vrednost je predugačka ili prevelika.",
     "invalid_format": "Vrednost nije u ispravnom formatu.",
     "invalid_value": "Vrednost nije dozvoljena."
+  },
+  "pagination": {
+    "label": "Stranice",
+    "previous": "Prethodna",
+    "next": "Sledeća",
+    "pageOf": "Strana {{page}} od {{totalPages}}"
+  },
+  "appTitle": "Udomljavanje ljubimaca",
+  "language": {
+    "label": "Jezik"
   }
 }

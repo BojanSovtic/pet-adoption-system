@@ -69,7 +69,8 @@
     "imagePreview": "Pregled fotografije",
     "removeImage": "Ukloni fotografiju",
     "imageSaveFailed": "Ljubimac je sačuvan, ali fotografija nije: {{reason}}",
-    "imageSaveError": "Došlo je do greške."
+    "imageSaveError": "Došlo je do greške.",
+    "loadError": "Podatke o ljubimcu nije moguće učitati."
   },
   "delete": {
     "button": "Obriši",
@@ -91,11 +92,5 @@
   "resultCount_other": "Pronađeno {{count}} ljubimaca",
   "clearFilters": "Obriši filtere",
   "pageOutOfRange": "Na ovoj strani nema ljubimaca.",
-  "firstPage": "Idi na prvu stranu",
-  "pagination": {
-    "label": "Stranice",
-    "previous": "Prethodna",
-    "next": "Sledeća",
-    "pageOf": "Strana {{page}} od {{totalPages}}"
-  }
+  "firstPage": "Idi na prvu stranu"
 }

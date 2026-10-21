@@ -1,4 +1,4 @@
-import { mongo, type Types } from 'mongoose';
+import { mongo, type QueryFilter, type Types } from 'mongoose';
 import {
   APPLICATION_TRANSITIONS,
   getApplicationTransitionTarget,
@@ -7,6 +7,7 @@ import {
   type ApplicationPetSummary,
   type CreateApplicationInput,
   type MyApplication,
+  type Paginated,
   type ReceivedApplication,
 } from '@pet-adoption/models';
 
@@ -19,6 +20,10 @@ import {
 import { PetModel, type PetRecord } from '../pets/pet.model';
 import { lockPet, transitionPetStatus } from '../pets/pet.service';
 import { ApplicationModel, type ApplicationRecord } from './application.model';
+import type {
+  ParsedApplicationListQuery,
+  ParsedMyApplicationListQuery,
+} from './application.schema';
 
 const DUPLICATE_KEY_ERROR = 11000;
 
@@ -63,12 +68,21 @@ const toBaseView = (
   updatedAt: application.updatedAt.toISOString(),
 });
 
+// Newest first; `_id` breaks ties so every application lands on exactly one
+// page. Both list indexes match this order.
+const NEWEST_FIRST = { createdAt: -1, _id: -1 } as const;
+
+type Paging = { page: number; pageSize: number };
+
 /** Applicant view: the application with a pet summary (no owner details). */
 const findApplicantViews = async (
-  filter: Record<string, unknown>,
+  filter: QueryFilter<ApplicationRecord>,
+  { page, pageSize }: Paging,
 ): Promise<MyApplication[]> => {
   const applications = await ApplicationModel.find(filter)
-    .sort({ createdAt: -1 })
+    .sort(NEWEST_FIRST)
+    .skip((page - 1) * pageSize)
+    .limit(pageSize)
     .populate<{ pet: PopulatedPet }>('pet', PET_SUMMARY_FIELDS)
     .lean();
 
@@ -78,18 +92,22 @@ const findApplicantViews = async (
   }));
 };
 
-/** Owner view: also includes the applicant's name and email. */
+/**
+ * Owner view: also includes the applicant's name and email. Always scoped to
+ * `petOwner`, so it only ever returns applications for the owner's pets.
+ */
 const findOwnerViews = async (
   ownerId: string,
-  filter: Record<string, unknown> = {},
+  filter: QueryFilter<ApplicationRecord>,
+  { page, pageSize }: Paging,
 ): Promise<ReceivedApplication[]> => {
-  const ownPetIds = await PetModel.find({ owner: ownerId }).distinct('_id');
-
   const applications = await ApplicationModel.find({
     ...filter,
-    pet: { $in: ownPetIds },
+    petOwner: ownerId,
   })
-    .sort({ createdAt: -1 })
+    .sort(NEWEST_FIRST)
+    .skip((page - 1) * pageSize)
+    .limit(pageSize)
     .populate<{ pet: PopulatedPet }>('pet', PET_SUMMARY_FIELDS)
     .populate<{ applicant: PopulatedApplicant }>(
       'applicant',
@@ -104,15 +122,51 @@ const findOwnerViews = async (
   }));
 };
 
-/** Applications the user submitted, newest first. */
-export const listMyApplications = (
-  applicantId: string,
-): Promise<MyApplication[]> => findApplicantViews({ applicant: applicantId });
+const toPage = <T>(
+  items: T[],
+  totalItems: number,
+  { page, pageSize }: Paging,
+): Paginated<T> => ({
+  items,
+  page,
+  pageSize,
+  totalItems,
+  totalPages: Math.ceil(totalItems / pageSize),
+});
 
-/** Applications for pets the user owns, newest first. */
-export const listReceivedApplications = (
+/** One page of the applications the user submitted, newest first. */
+export const listMyApplications = async (
+  applicantId: string,
+  { pet, ...paging }: ParsedMyApplicationListQuery,
+): Promise<Paginated<MyApplication>> => {
+  const filter: QueryFilter<ApplicationRecord> = { applicant: applicantId };
+
+  if (pet) {
+    filter.pet = pet;
+  }
+
+  const [items, totalItems] = await Promise.all([
+    findApplicantViews(filter, paging),
+    ApplicationModel.countDocuments(filter),
+  ]);
+
+  return toPage(items, totalItems, paging);
+};
+
+/** One page of the applications for pets the user owns, newest first. */
+export const listReceivedApplications = async (
   ownerId: string,
-): Promise<ReceivedApplication[]> => findOwnerViews(ownerId);
+  paging: ParsedApplicationListQuery,
+): Promise<Paginated<ReceivedApplication>> => {
+  const [items, totalItems] = await Promise.all([
+    findOwnerViews(ownerId, {}, paging),
+    ApplicationModel.countDocuments({ petOwner: ownerId }),
+  ]);
+
+  return toPage(items, totalItems, paging);
+};
+
+const SINGLE: Paging = { page: 1, pageSize: 1 };
 
 export const getApplicationView = async (
   applicationId: string,
@@ -121,10 +175,58 @@ export const getApplicationView = async (
 ): Promise<MyApplication | ReceivedApplication | undefined> => {
   const [view] =
     role === 'owner'
-      ? await findOwnerViews(userId, { _id: applicationId })
-      : await findApplicantViews({ _id: applicationId, applicant: userId });
+      ? await findOwnerViews(userId, { _id: applicationId }, SINGLE)
+      : await findApplicantViews(
+          { _id: applicationId, applicant: userId },
+          SINGLE,
+        );
 
   return view;
+};
+
+/**
+ * Fills in `petOwner` on applications created before the field existed.
+ * Runs at startup; does nothing once every application has it. Returns how
+ * many applications were updated.
+ */
+export const backfillApplicationPetOwners = async (): Promise<number> => {
+  const missing = await ApplicationModel.find({ petOwner: { $exists: false } })
+    .select('pet')
+    .lean();
+
+  if (missing.length === 0) {
+    return 0;
+  }
+
+  const pets = await PetModel.find({
+    _id: { $in: missing.map((application) => application.pet) },
+  })
+    .select('owner')
+    .lean();
+  const ownerByPet = new Map(
+    pets.flatMap((pet) => (pet.owner ? [[pet._id.toString(), pet.owner]] : [])),
+  );
+
+  const updates = missing.flatMap((application) => {
+    const owner = ownerByPet.get(application.pet.toString());
+
+    return owner
+      ? [
+          {
+            updateOne: {
+              filter: { _id: application._id, petOwner: { $exists: false } },
+              update: { $set: { petOwner: owner } },
+            },
+          },
+        ]
+      : [];
+  });
+
+  if (updates.length > 0) {
+    await ApplicationModel.bulkWrite(updates);
+  }
+
+  return updates.length;
 };
 
 /**
@@ -155,7 +257,15 @@ export const submitApplication = async (
       }
 
       const [application] = await ApplicationModel.create(
-        [{ pet: pet._id, applicant: applicantId, message, status: 'pending' }],
+        [
+          {
+            pet: pet._id,
+            petOwner: pet.owner,
+            applicant: applicantId,
+            message,
+            status: 'pending',
+          },
+        ],
         { session },
       );
 

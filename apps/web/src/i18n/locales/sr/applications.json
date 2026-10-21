@@ -4,11 +4,13 @@
   "error": "Zahteve nije moguće učitati.",
   "mine": {
     "title": "Moji zahtevi",
-    "empty": "Još nemaš nijedan zahtev za udomljavanje."
+    "empty": "Još nemaš nijedan zahtev za udomljavanje.",
+    "pagination": "Strane mojih zahteva"
   },
   "received": {
     "title": "Zahtevi za moje ljubimce",
-    "empty": "Još nema zahteva za tvoje ljubimce."
+    "empty": "Još nema zahteva za tvoje ljubimce.",
+    "pagination": "Strane zahteva za moje ljubimce"
   },
   "status": {
     "pending": "Na čekanju",
@@ -41,5 +43,7 @@
     "error": "Zahtev nije moguće poslati. Pokušaj ponovo.",
     "messageRequired": "Napiši kratku poruku.",
     "messageTooLong": "Poruka može imati najviše 2000 karaktera."
-  }
+  },
+  "pageOutOfRange": "Na ovoj strani nema zahteva.",
+  "firstPage": "Idi na prvu stranu"
 }

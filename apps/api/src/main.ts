@@ -1,9 +1,17 @@
 import { app } from './app';
+import { backfillApplicationPetOwners } from './applications/application.service';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { env } from './config/env';
 
 const bootstrap = async () => {
   await connectDatabase(env.mongodbUri);
+
+  // One-time data fix for applications created before `petOwner` existed.
+  const backfilled = await backfillApplicationPetOwners();
+
+  if (backfilled > 0) {
+    console.log(`[ database ] Added petOwner to ${backfilled} application(s)`);
+  }
 
   const server = app.listen(env.port, env.host, () => {
     console.log(`[ ready ] http://${env.host}:${env.port}`);

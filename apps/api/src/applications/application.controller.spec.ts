@@ -7,6 +7,7 @@ import {
 } from '../test/auth-test-helpers';
 import { PetModel } from '../pets/pet.model';
 import { ApplicationModel } from './application.model';
+import { backfillApplicationPetOwners } from './application.service';
 
 const validPet = {
   name: 'Milo',
@@ -202,10 +203,10 @@ describe('adoption applications', { timeout: 20_000 }, () => {
       const othersMine = await other.agent.get('/api/applications/mine');
 
       expect(mine.status).toBe(200);
-      expect(mine.body).toHaveLength(1);
-      expect(mine.body[0]).toMatchObject({ message, status: 'pending' });
-      expect(mine.body[0]).not.toHaveProperty('applicant');
-      expect(othersMine.body).toEqual([]);
+      expect(mine.body.items).toHaveLength(1);
+      expect(mine.body.items[0]).toMatchObject({ message, status: 'pending' });
+      expect(mine.body.items[0]).not.toHaveProperty('applicant');
+      expect(othersMine.body.items).toEqual([]);
     });
 
     it("shows owners applicants' names and emails for their own pets only", async () => {
@@ -220,13 +221,13 @@ describe('adoption applications', { timeout: 20_000 }, () => {
       );
 
       expect(received.status).toBe(200);
-      expect(received.body).toHaveLength(1);
-      expect(received.body[0].applicant).toEqual({
+      expect(received.body.items).toHaveLength(1);
+      expect(received.body.items[0].applicant).toEqual({
         _id: applicant.userId,
         name: 'Test User',
         email: 'applicant@example.com',
       });
-      expect(othersReceived.body).toEqual([]);
+      expect(othersReceived.body.items).toEqual([]);
     });
 
     it('requires authentication to list applications', async () => {
@@ -260,6 +261,150 @@ describe('adoption applications', { timeout: 20_000 }, () => {
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ code: 'INVALID_APPLICATION_ID' });
+    });
+  });
+
+  describe('pagination', () => {
+    /** One owner with `count` pets; one applicant applies to each, in order. */
+    const createApplications = async (count: number) => {
+      const owner = await createSignedInAgent('owner@example.com');
+      const applicant = await createSignedInAgent('applicant@example.com');
+      const petIds: string[] = [];
+
+      for (let index = 0; index < count; index += 1) {
+        const pet = await owner.agent
+          .post('/api/pets')
+          .send({ ...validPet, name: `Pet ${index}` });
+        petIds.push(pet.body._id);
+        await apply(applicant, pet.body._id);
+      }
+
+      return { owner, applicant, petIds };
+    };
+
+    const petNames = (body: { items: Array<{ pet: { name: string } }> }) =>
+      body.items.map((item) => item.pet.name);
+
+    it('returns pages newest first with metadata', async () => {
+      const { owner, applicant } = await createApplications(3);
+
+      for (const [user, path] of [
+        [applicant, '/api/applications/mine'],
+        [owner, '/api/applications/received'],
+      ] as const) {
+        const first = await user.agent.get(`${path}?pageSize=2`);
+        const second = await user.agent.get(`${path}?pageSize=2&page=2`);
+
+        expect(first.status).toBe(200);
+        expect(first.body).toMatchObject({
+          page: 1,
+          pageSize: 2,
+          totalItems: 3,
+          totalPages: 2,
+        });
+        expect(petNames(first.body)).toEqual(['Pet 2', 'Pet 1']);
+        expect(petNames(second.body)).toEqual(['Pet 0']);
+      }
+    });
+
+    it('uses a default page size of 10', async () => {
+      const { owner } = await createApplications(1);
+
+      const response = await owner.agent.get('/api/applications/received');
+
+      expect(response.body).toMatchObject({
+        page: 1,
+        pageSize: 10,
+        totalItems: 1,
+        totalPages: 1,
+      });
+    });
+
+    it('returns an empty page past the end', async () => {
+      const { applicant } = await createApplications(1);
+
+      const response = await applicant.agent.get(
+        '/api/applications/mine?page=5',
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        items: [],
+        page: 5,
+        totalItems: 1,
+        totalPages: 1,
+      });
+    });
+
+    it.each([
+      ['page=0', 'page'],
+      ['page=abc', 'page'],
+      ['pageSize=51', 'pageSize'],
+      ['page=1&page=2', 'page'],
+    ])('rejects ?%s', async (queryString, field) => {
+      const user = await createSignedInAgent();
+
+      for (const path of ['mine', 'received']) {
+        const response = await user.agent.get(
+          `/api/applications/${path}?${queryString}`,
+        );
+
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe('VALIDATION_FAILED');
+        expect(response.body.details[0].field).toBe(field);
+      }
+    });
+
+    it('narrows my applications to one pet', async () => {
+      const { applicant, petIds } = await createApplications(2);
+
+      const response = await applicant.agent.get(
+        `/api/applications/mine?pet=${petIds[0]}`,
+      );
+
+      expect(response.body.totalItems).toBe(1);
+      expect(petNames(response.body)).toEqual(['Pet 0']);
+    });
+
+    it('rejects an invalid pet filter', async () => {
+      const user = await createSignedInAgent();
+
+      const response = await user.agent.get('/api/applications/mine?pet=abc');
+
+      expect(response.status).toBe(400);
+      expect(response.body.details[0].field).toBe('pet');
+    });
+
+    it("never pages through other users' applications", async () => {
+      const { petIds } = await createApplications(2);
+      const stranger = await createSignedInAgent('stranger@example.com');
+
+      const received = await stranger.agent.get('/api/applications/received');
+      const mine = await stranger.agent.get(
+        `/api/applications/mine?pet=${petIds[0]}`,
+      );
+
+      expect(received.body).toMatchObject({ items: [], totalItems: 0 });
+      expect(mine.body).toMatchObject({ items: [], totalItems: 0 });
+    });
+
+    it('backfills petOwner on applications created before the field existed', async () => {
+      const { owner, petIds } = await createApplications(1);
+      // Simulate an old document: remove the field directly in the database.
+      await ApplicationModel.collection.updateMany(
+        {},
+        { $unset: { petOwner: '' } },
+      );
+
+      const before = await owner.agent.get('/api/applications/received');
+      const updated = await backfillApplicationPetOwners();
+      const after = await owner.agent.get('/api/applications/received');
+
+      expect(before.body.totalItems).toBe(0);
+      expect(updated).toBe(1);
+      expect(petNames(after.body)).toEqual(['Pet 0']);
+      expect(after.body.items[0].pet._id).toBe(petIds[0]);
+      expect(await backfillApplicationPetOwners()).toBe(0);
     });
   });
 

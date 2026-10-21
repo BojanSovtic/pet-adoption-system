@@ -19,6 +19,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 
+import { ApiError } from '../../../lib/api-client';
 import {
   getErrorMessage,
   getFieldErrors,
@@ -34,6 +35,9 @@ import {
   type PetImageChange,
 } from '../components/pet-image-field';
 import { isPetOwner } from '../utils/is-pet-owner';
+
+// Load errors that mean "there is no such pet" (a malformed id included).
+const NOT_FOUND_CODES = ['PET_NOT_FOUND', 'INVALID_PET_ID'];
 
 const petFormSchema = z.object({
   name: z
@@ -73,6 +77,7 @@ const inputClassName =
 
 const PetFormPage = () => {
   const { t } = useTranslation('pets');
+  const { t: tCommon } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -92,6 +97,9 @@ const PetFormPage = () => {
     data: existingPet,
     isPending: isPetPending,
     isError: isPetError,
+    error: petError,
+    isFetching: isPetFetching,
+    refetch: refetchPet,
   } = useQuery({
     queryKey: petQueryKeys.detail(id ?? ''),
     queryFn: () => {
@@ -184,8 +192,9 @@ const PetFormPage = () => {
       for (const issue of result.error.issues) {
         const field = issue.path[0] as FieldName;
 
+        // A translation key; translated on render so a language change applies.
         if (!errors[field]) {
-          errors[field] = t(issue.message);
+          errors[field] = issue.message;
         }
       }
 
@@ -201,8 +210,11 @@ const PetFormPage = () => {
   // cleared automatically by `mutation.reset()`.
   const serverFieldErrors = getFieldErrors(mutation.error);
 
-  const getFieldError = (field: FieldName) =>
-    fieldErrors[field] ?? serverFieldErrors[field];
+  const getFieldError = (field: FieldName) => {
+    const key = fieldErrors[field];
+
+    return key ? t(key) : serverFieldErrors[field];
+  };
 
   const errorMessage = mutation.error
     ? getErrorMessage(
@@ -221,7 +233,35 @@ const PetFormPage = () => {
   }
 
   if (isEditing && (isPetError || !existingPet)) {
-    return <p>{t('notFound')}</p>;
+    // Only a missing pet is "not found"; network and server errors may pass,
+    // so they get the real reason and a retry.
+    const isMissing =
+      petError instanceof ApiError && NOT_FOUND_CODES.includes(petError.code);
+
+    return (
+      <section className="space-y-4">
+        <p role="alert">
+          {isMissing
+            ? t('notFound')
+            : getErrorMessage(petError, t('form.loadError'))}
+        </p>
+
+        <div className="flex gap-3">
+          {!isMissing && (
+            <Button
+              variant="outline"
+              onClick={() => void refetchPet()}
+              disabled={isPetFetching}
+            >
+              {tCommon('actions.retry')}
+            </Button>
+          )}
+          <Button asChild variant="outline">
+            <Link to="/pets">{t('backToPets')}</Link>
+          </Button>
+        </div>
+      </section>
+    );
   }
 
   if (existingPet && !isPetOwner(existingPet, currentUser)) {

@@ -78,7 +78,7 @@ sequenceDiagram
 ```
 
 - **React Router only picks the page component.** There are no route loaders or actions; data is fetched inside components with TanStack Query.
-  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `['applications', …]` and `['auth', 'me']`. Invalidating `['pets']` refreshes every list and detail.
+  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `applicationQueryKeys.mine(query)` / `.received(query)` = `['applications', 'mine' | 'received', { page, … }]` and `['auth', 'me']`. Invalidating `['pets']` refreshes every list and detail.
   - **The pet list keeps its state in the URL** (`?search=&species=&status=&sort=&page=`) through `useSearchParams`, so Back and shared links restore it. Search is debounced by 300 ms, and any change other than the page resets to page 1.
 - **Errors are handled in three places:**
   - The Axios response interceptor (`lib/api-client.ts`) turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
@@ -127,6 +127,7 @@ flowchart TB
   - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).
   - **How the query runs:** filters apply before `skip`/`limit`, and `countDocuments` uses the same filter.
   - **Response:** `{ items, page, pageSize, totalItems, totalPages }`.
+- **The application lists are paginated the same way** (`page`, `pageSize` default 10, at most 50; newest first with `_id` as tie-breaker). `/applications/mine` is scoped to the session user as applicant; `/applications/received` to the session user as `petOwner`. `/mine` also takes `pet=<id>`, which the pet page uses to fetch only that pet's newest application.
 
 ## 3. Authentication flow
 
@@ -239,6 +240,7 @@ erDiagram
   ADOPTION_APPLICATION {
     ObjectId _id PK
     ObjectId pet FK "ref Pet"
+    ObjectId petOwner FK "ref User, copy of pet.owner (for owner lists)"
     ObjectId applicant FK "ref User, set from the session"
     string message "1-2000 chars"
     string status "pending | accepted | rejected | withdrawn"
@@ -247,6 +249,7 @@ erDiagram
   }
   USER ||--o{ PET : "owns (owner)"
   USER ||--o{ ADOPTION_APPLICATION : "submits (applicant)"
+  USER ||--o{ ADOPTION_APPLICATION : "receives (petOwner)"
   PET ||--o{ ADOPTION_APPLICATION : "receives"
   SESSION }o--|| USER : "userId (plain string, not a Mongoose ref)"
 ```
@@ -256,6 +259,8 @@ erDiagram
 - **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
 - **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.
 - **Pet list index:** `{ createdAt: -1, _id: -1 }` serves the default "newest" order (and "oldest", read backwards) without an in-memory sort. Name search (a case-insensitive "contains" match) and species/status filters are not indexed: a contains-regex can't use an index efficiently, and the filters have only three values each.
+- **`petOwner` is a copy of the pet's owner,** set when the application is submitted, so `GET /applications/received` can filter, sort and page one collection instead of first loading all of the owner's pet ids. Pets never change owner, so the copy can't go stale. Applications created before the field existed are filled in at API startup (`backfillApplicationPetOwners`).
+- **Application list indexes:** `{ applicant, createdAt: -1, _id: -1 }` and `{ petOwner, createdAt: -1, _id: -1 }` match the newest-first order of the two paginated lists.
 - **Unique partial indexes on applications:**
   - `{ pet, applicant }` for statuses `pending`, `accepted` and `rejected`: one application per user and pet; a withdrawn one can be replaced.
   - `{ pet }` where `status: 'accepted'`: at most one accepted application per pet.

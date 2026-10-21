@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+# A newer push to the same branch or PR cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NX_DAEMON: 'false'
+      NX_NO_CLOUD: 'true'
+      # The API validates its environment on import. Tests connect to their own
+      # in-memory MongoDB replica set (src/test/global-setup.ts), so this URI is
+      # never used; it only has to be present.
+      MONGODB_URI: mongodb://localhost:27017/unused
+      CORS_ORIGIN: http://localhost:4200
+      SESSION_SECRET: ci-only-session-secret-at-least-32-characters
+      VITE_API_URL: http://localhost:3333/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # mongodb-memory-server downloads the MongoDB binary on first use.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+
+      # Every project that defines one of these targets runs it (the shared
+      # models library has lint and typecheck only). Any failure fails the job.
+      # E2E tests (Playwright) are not run here yet.
+      - run: pnpm nx run-many -t lint typecheck test build --outputStyle=static

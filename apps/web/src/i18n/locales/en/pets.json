@@ -68,7 +68,8 @@
     "imagePreview": "Photo preview",
     "removeImage": "Remove photo",
     "imageSaveFailed": "The pet was saved, but the photo was not: {{reason}}",
-    "imageSaveError": "Something went wrong."
+    "imageSaveError": "Something went wrong.",
+    "loadError": "The pet could not be loaded."
   },
   "delete": {
     "button": "Delete",
@@ -89,11 +90,5 @@
   "resultCount_other": "{{count}} pets found",
   "clearFilters": "Clear filters",
   "pageOutOfRange": "There are no pets on this page.",
-  "firstPage": "Go to the first page",
-  "pagination": {
-    "label": "Pagination",
-    "previous": "Previous",
-    "next": "Next",
-    "pageOf": "Page {{page}} of {{totalPages}}"
-  }
+  "firstPage": "Go to the first page"
 }

@@ -7,6 +7,11 @@ import {
 
 export type ApplicationRecord = {
   pet: Types.ObjectId;
+  /**
+   * Copy of the pet's owner, so an owner's applications can be queried and
+   * paginated directly. Pets never change owner, so it cannot go stale.
+   */
+  petOwner: Types.ObjectId;
   applicant: Types.ObjectId;
   message: string;
   status: ApplicationStatus;
@@ -17,6 +22,7 @@ export type ApplicationRecord = {
 const applicationSchema = new Schema<ApplicationRecord>(
   {
     pet: { type: Schema.Types.ObjectId, ref: 'Pet', required: true },
+    petOwner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     applicant: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     message: {
       type: String,
@@ -53,7 +59,9 @@ applicationSchema.index(
 );
 
 applicationSchema.index({ pet: 1, status: 1 });
-applicationSchema.index({ applicant: 1, createdAt: -1 });
+// The two list pages, newest first (`_id` keeps the order stable across pages).
+applicationSchema.index({ applicant: 1, createdAt: -1, _id: -1 });
+applicationSchema.index({ petOwner: 1, createdAt: -1, _id: -1 });
 
 export const ApplicationModel = model<ApplicationRecord>(
   'AdoptionApplication',

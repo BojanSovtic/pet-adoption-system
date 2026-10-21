@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pet, User } from '@pet-adoption/models';
 
 import '../../../i18n/config';
+import { ApiError } from '../../../lib/api-client';
+import { pageOf } from '../../../lib/testing/page-of';
 import { getCurrentUser } from '../../auth/api/get-current-user';
 import { getPet } from '../api/get-pet';
 import { PetDetailsPage } from './pet-details-page';
@@ -17,7 +19,7 @@ vi.mock('../../applications/api/applications', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../applications/api/applications')
   >()),
-  getMyApplications: vi.fn().mockResolvedValue([]),
+  getMyApplications: vi.fn().mockResolvedValue(pageOf([])),
 }));
 
 vi.mock('../../auth/api/get-current-user', async (importOriginal) => ({
@@ -126,6 +128,46 @@ describe('PetFormPage', () => {
 
   it('shows the form to the owner', async () => {
     renderAt('/pets/pet-1/edit', owner);
+
+    expect(
+      await screen.findByRole('button', { name: 'Save changes' }),
+    ).toBeTruthy();
+  });
+
+  it.each([
+    ['a missing pet', new ApiError(404, 'PET_NOT_FOUND')],
+    ['an invalid id', new ApiError(400, 'INVALID_PET_ID')],
+  ])('says "Pet not found" for %s, without a retry', async (_case, error) => {
+    vi.mocked(getPet).mockRejectedValue(error);
+    renderAt('/pets/pet-1/edit', owner);
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Pet not found',
+    );
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Back to pets' })).toBeTruthy();
+  });
+
+  it.each([
+    [
+      'a network error',
+      new ApiError(0, 'NETWORK_ERROR'),
+      'The server could not be reached. Check your connection and try again.',
+    ],
+    [
+      'a server error',
+      new ApiError(500, 'INTERNAL_SERVER_ERROR'),
+      'Something went wrong.',
+    ],
+    ['an unexpected error', new Error('boom'), 'The pet could not be loaded.'],
+  ])('explains %s and offers a retry', async (_case, error, message) => {
+    vi.mocked(getPet).mockRejectedValueOnce(error);
+    renderAt('/pets/pet-1/edit', owner);
+
+    expect((await screen.findByRole('alert')).textContent).toBe(message);
+
+    // The default mock (a pet) answers the retry.
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
     expect(
       await screen.findByRole('button', { name: 'Save changes' }),

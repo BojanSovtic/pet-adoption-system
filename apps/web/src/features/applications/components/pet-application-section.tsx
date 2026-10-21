@@ -46,9 +46,13 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   const [message, setMessage] = useState('');
   const [messageError, setMessageError] = useState<string>();
 
+  // Only the newest application for this pet matters: while one is pending,
+  // accepted or rejected, the API allows no newer one, so if the newest is
+  // withdrawn there is no active application.
+  const myApplicationQuery = { pet: pet._id, pageSize: 1 };
   const { data: myApplications, isPending: isApplicationsPending } = useQuery({
-    queryKey: applicationQueryKeys.mine,
-    queryFn: getMyApplications,
+    queryKey: applicationQueryKeys.mine(myApplicationQuery),
+    queryFn: () => getMyApplications(myApplicationQuery),
     enabled: Boolean(currentUser) && !isOwner,
   });
 
@@ -100,7 +104,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   }
 
   // A withdrawn application can be replaced, so it does not count.
-  const myApplication = myApplications?.find(
+  const myApplication = myApplications?.items.find(
     (application) =>
       application.pet._id === pet._id && application.status !== 'withdrawn',
   );
@@ -130,7 +134,8 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
     const result = messageSchema.safeParse(message);
 
     if (!result.success) {
-      setMessageError(t(result.error.issues[0].message));
+      // A translation key; translated on render so a language change applies.
+      setMessageError(result.error.issues[0].message);
       return;
     }
 
@@ -138,7 +143,9 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
     mutation.mutate(result.data);
   };
 
-  const fieldError = messageError ?? getFieldErrors(mutation.error).message;
+  const fieldError = messageError
+    ? t(messageError)
+    : getFieldErrors(mutation.error).message;
   const errorMessage = mutation.error
     ? getErrorMessage(mutation.error, t('form.error'))
     : null;

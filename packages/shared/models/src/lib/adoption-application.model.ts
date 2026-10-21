@@ -108,3 +108,20 @@ export type ReceivedApplication = ApplicationBase & {
 export type CreateApplicationInput = {
   message: string;
 };
+
+export const APPLICATION_LIST_DEFAULT_PAGE_SIZE = 10;
+export const APPLICATION_LIST_MAX_PAGE_SIZE = 50;
+
+/**
+ * Query parameters of `GET /api/applications/received` (and `/mine`).
+ * Results are newest first; omitted values use the defaults.
+ */
+export type ApplicationListQuery = {
+  page?: number;
+  pageSize?: number;
+};
+
+/** `GET /api/applications/mine` can also be narrowed to one pet. */
+export type MyApplicationListQuery = ApplicationListQuery & {
+  pet?: string;
+};

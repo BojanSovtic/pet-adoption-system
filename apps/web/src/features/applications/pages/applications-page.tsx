@@ -1,8 +1,18 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useQuery,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useLocation } from 'react-router-dom';
-import type { MyApplication, ReceivedApplication } from '@pet-adoption/models';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import type {
+  MyApplication,
+  Paginated,
+  ReceivedApplication,
+} from '@pet-adoption/models';
 
+import { Pagination } from '@/components/pagination';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 import { getErrorMessage } from '../../../lib/get-error-message';
@@ -75,15 +85,21 @@ const ApplicationCard = ({ application, actor }: ApplicationCardProps) => {
 type ApplicationListProps = {
   title: string;
   emptyText: string;
+  paginationLabel: string;
   actor: 'owner' | 'applicant';
-  query: UseQueryResult<Array<MyApplication | ReceivedApplication>>;
+  query: UseQueryResult<Paginated<MyApplication | ReceivedApplication>>;
+  page: number;
+  onPageChange: (page: number) => void;
 };
 
 const ApplicationList = ({
   title,
   emptyText,
+  paginationLabel,
   actor,
   query,
+  page,
+  onPageChange,
 }: ApplicationListProps) => {
   const { t } = useTranslation('applications');
 
@@ -95,21 +111,52 @@ const ApplicationList = ({
         <p>{t('loading')}</p>
       ) : query.isError ? (
         <p>{getErrorMessage(query.error, t('error'))}</p>
-      ) : query.data.length === 0 ? (
+      ) : query.data.totalItems === 0 ? (
         <p className="text-muted-foreground">{emptyText}</p>
       ) : (
-        <div className="grid gap-4">
-          {query.data.map((application) => (
-            <ApplicationCard
-              key={application._id}
-              application={application}
-              actor={actor}
-            />
-          ))}
+        <div
+          className={`space-y-4 transition-opacity ${query.isFetching && query.isPlaceholderData ? 'opacity-60' : ''}`}
+          aria-busy={query.isFetching}
+        >
+          {query.data.items.length === 0 ? (
+            // A page number past the end, e.g. from an old link.
+            <div className="space-y-3">
+              <p className="text-muted-foreground">{t('pageOutOfRange')}</p>
+              <Button variant="outline" onClick={() => onPageChange(1)}>
+                {t('firstPage')}
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {query.data.items.map((application) => (
+                <ApplicationCard
+                  key={application._id}
+                  application={application}
+                  actor={actor}
+                />
+              ))}
+            </div>
+          )}
+
+          <Pagination
+            page={page}
+            totalPages={query.data.totalPages}
+            onPageChange={onPageChange}
+            label={paginationLabel}
+          />
         </div>
       )}
     </section>
   );
+};
+
+/** Page numbers live in the URL; anything invalid falls back to page 1. */
+const PAGE_PARAMS = { received: 'receivedPage', mine: 'minePage' } as const;
+
+const readPage = (searchParams: URLSearchParams, name: string): number => {
+  const page = Number(searchParams.get(name));
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
 };
 
 const ApplicationsPage = () => {
@@ -118,18 +165,46 @@ const ApplicationsPage = () => {
   const { data: currentUser, isPending: isUserPending } = useCurrentUser();
   const isSignedIn = Boolean(currentUser);
 
-  const myApplications = useQuery<Array<MyApplication | ReceivedApplication>>({
-    queryKey: applicationQueryKeys.mine,
-    queryFn: getMyApplications,
+  const [searchParams, setSearchParams] = useSearchParams();
+  const receivedPage = readPage(searchParams, PAGE_PARAMS.received);
+  const minePage = readPage(searchParams, PAGE_PARAMS.mine);
+
+  const setPage = (name: string, page: number) => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+
+        if (page > 1) {
+          next.set(name, String(page));
+        } else {
+          next.delete(name);
+        }
+
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const receivedQuery = { page: receivedPage };
+  const receivedApplications = useQuery<
+    Paginated<MyApplication | ReceivedApplication>
+  >({
+    queryKey: applicationQueryKeys.received(receivedQuery),
+    queryFn: () => getReceivedApplications(receivedQuery),
     enabled: isSignedIn,
+    // Keep showing the previous page while the next one loads.
+    placeholderData: keepPreviousData,
   });
 
-  const receivedApplications = useQuery<
-    Array<MyApplication | ReceivedApplication>
+  const mineQuery = { page: minePage };
+  const myApplications = useQuery<
+    Paginated<MyApplication | ReceivedApplication>
   >({
-    queryKey: applicationQueryKeys.received,
-    queryFn: getReceivedApplications,
+    queryKey: applicationQueryKeys.mine(mineQuery),
+    queryFn: () => getMyApplications(mineQuery),
     enabled: isSignedIn,
+    placeholderData: keepPreviousData,
   });
 
   if (isUserPending) {
@@ -147,15 +222,21 @@ const ApplicationsPage = () => {
       <ApplicationList
         title={t('received.title')}
         emptyText={t('received.empty')}
+        paginationLabel={t('received.pagination')}
         actor="owner"
         query={receivedApplications}
+        page={receivedPage}
+        onPageChange={(page) => setPage(PAGE_PARAMS.received, page)}
       />
 
       <ApplicationList
         title={t('mine.title')}
         emptyText={t('mine.empty')}
+        paginationLabel={t('mine.pagination')}
         actor="applicant"
         query={myApplications}
+        page={minePage}
+        onPageChange={(page) => setPage(PAGE_PARAMS.mine, page)}
       />
     </div>
   );

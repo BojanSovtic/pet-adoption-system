@@ -60,16 +60,8 @@ const RegisterPage = () => {
     const result = registerFormSchema.safeParse(values);
 
     if (!result.success) {
-      const errors = getFormErrors(result.error);
-
-      setFieldErrors(
-        Object.fromEntries(
-          Object.entries(errors).map(([field, key]) => [
-            field,
-            t(key, { min: PASSWORD_MIN_LENGTH }),
-          ]),
-        ),
-      );
+      // Translation keys; translated on render so a language change applies.
+      setFieldErrors(getFormErrors(result.error));
       return;
     }
 
@@ -79,7 +71,9 @@ const RegisterPage = () => {
 
   const serverFieldErrors = getFieldErrors(mutation.error);
   const getFieldError = (field: keyof RegisterValues) =>
-    fieldErrors[field] || serverFieldErrors[field];
+    (fieldErrors[field] &&
+      t(fieldErrors[field], { min: PASSWORD_MIN_LENGTH })) ||
+    serverFieldErrors[field];
 
   const errorMessage = mutation.error
     ? getErrorMessage(mutation.error, t('register.error'))

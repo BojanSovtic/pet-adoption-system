@@ -7,6 +7,7 @@ import type { MyApplication, Pet, User } from '@pet-adoption/models';
 import '../../../i18n/config';
 import { getCurrentUser } from '../../auth/api/get-current-user';
 import { getMyApplications, submitApplication } from '../api/applications';
+import { pageOf } from '../../../lib/testing/page-of';
 import { PetApplicationSection } from './pet-application-section';
 
 vi.mock('../api/applications', async (importOriginal) => ({
@@ -65,7 +66,7 @@ const renderSection = (
   shownPet: Pet = pet,
 ) => {
   vi.mocked(getCurrentUser).mockResolvedValue(user);
-  vi.mocked(getMyApplications).mockResolvedValue(applications);
+  vi.mocked(getMyApplications).mockResolvedValue(pageOf(applications));
 
   const router = createMemoryRouter(
     [
@@ -157,6 +158,11 @@ describe('PetApplicationSection', () => {
     expect(
       screen.queryByRole('button', { name: 'Send application' }),
     ).toBeNull();
+    // Only this pet's newest application is requested, not the whole list.
+    expect(getMyApplications).toHaveBeenCalledWith({
+      pet: pet._id,
+      pageSize: 1,
+    });
   });
 
   it('shows a rejected application without actions or a new form', async () => {
