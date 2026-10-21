@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Playwright E2E suite added, uncommitted on branch `develop` (latest commit `46dee1f`, pet photo uploads)._
+_Last updated: 2026-10-21. Docker Compose setup for the full app added, uncommitted on branch `develop` (latest commit `88f4de7`, Playwright E2E suite)._
 
 ## Status
 
@@ -109,29 +109,50 @@ Verified by passing tests or by reading the code.
 - **Verified:** `rs.status()` reports PRIMARY, and the API's `connectDatabase`, including its replica-set check, connects.
 - **The container's database starts empty.** The old local install on 27017, including its 2 ownerless pets, is untouched and no longer used. `MONGODB_TEST_URI` in `.env` is ignored.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
+- **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
 
-## Changes in this session (E2E tests)
+## Changes in this session (Docker)
 
-- **New `apps/web-e2e`:** `package.json`, `playwright.config.ts`, `tsconfig.json`, `eslint.config.mjs` (with `eslint-plugin-playwright`), `src/support/{config,api,start-api}.ts` and four spec files.
-- **Root `tsconfig.json`:** `nx sync` added the new project reference.
-- **No new dependencies:** `@playwright/test`, `@nx/playwright`, `tsx` and `mongodb-memory-server` were already installed. The Chromium browser was downloaded with `pnpm exec playwright install chromium` (into the user's cache, not the repo).
-- **No application code changed.**
+- **`apps/api/Dockerfile`:**
+  - **Build stage:** `pnpm install --frozen-lockfile` → `nx run @pet-adoption/api:prune` (production bundle plus a pruned `package.json`/lockfile/workspace modules).
+  - **Runtime stage:** `node:22-bookworm-slim`, `pnpm install --prod`, runs as `node`, `/app/uploads` for photos.
+- **`apps/web/Dockerfile` and `apps/web/nginx.conf`:** a Vite build with the `VITE_API_URL` build argument (browser-facing), served by `nginx:1.27-alpine` with a fallback to `index.html` and immutable caching for `/assets`.
+- **`docker-compose.yml`:**
+  - New `api` and `web` services behind the `app` profile.
+  - **Health checks:** API `/api/health`, web `wget`, and MongoDB as a writable primary. `depends_on: service_healthy` gives the order MongoDB → API → web.
+  - **Settings:** an internal `MONGODB_URI` (`mongodb:27017`), browser-facing `CORS_ORIGIN`, `UPLOADS_BASE_URL` and `VITE_API_URL`.
+  - **Volumes:** `mongodb_data` and `uploads_data`.
+  - **Optional settings:** `API_PORT` and `WEB_PORT`.
+- **Root `.env.example`** (`SESSION_SECRET`, optional ports) and **`.dockerignore`** (node_modules, build output, `.env` files, uploads, `.git`).
+- **`apps/api/package.json`:** now lists the API's runtime dependencies (the same ranges as the root). Without them, `prune` produced an install with only `express`, and the container would fail with "Cannot find module 'mongoose'". The lockfile only gained importer entries; no packages were added or upgraded.
+- **`README.md`:** replaced the Nx template with project setup (Docker, local development, tests).
 - **Decisions:**
-  - **Sign-in through `page.request`:** it shares the browser's cookies, so a test signs in through the API without UI steps. The separate `request` fixture acts as the second user.
-  - **The API runs as a child process** (`node --import tsx apps/api/src/main.ts`) rather than being imported, which respects the module boundaries.
-  - **`retries: 0`:** login and register share a 20-per-15-minutes per-IP limit; one run makes about 9 such requests against a fresh API process.
+  - **`app` profile:** it keeps the existing workflow (`docker compose up -d` → MongoDB for `nx serve`) unchanged.
+  - **`NODE_ENV=development` in Compose:** "production" would mark session cookies `Secure`, which needs HTTPS.
+  - **No seed step:** there is no seed mechanism in the repo, so the database starts empty.
 
-## Check results (2026-10-21, E2E tests)
+## Check results (2026-10-21, Docker)
 
 | Check | Result |
 |---|---|
-| `pnpm nx e2e @pet-adoption/web-e2e` | ✅ 6/6, run three times (two before and one after the start-script change); about 20–40 s |
-| `apps/web-e2e` lint and typecheck | ✅ |
-| Leftover processes after a run | none (nothing on 3334/4201; the only `mongod` is the locally installed MongoDB service on 27017) |
+| `docker compose config` | ✅ default: `mongodb` only; `--profile app`: `mongodb`, `api`, `web` |
+| `docker compose --profile app build` | ✅ after one fix (a duplicate `allowBuilds` key, which `prune` already writes). Images: api 444 MB, web 74 MB |
+| `docker compose --profile app up -d` | ✅ all three healthy; started in order MongoDB → API → web |
+| Smoke checks (read-only) | ✅ see below |
+
+**Smoke checks:**
+- `/api/health` returns ok.
+- `GET /api/pets` → 200, a real DB query.
+- A wrong login → 401 `INVALID_CREDENTIALS`, so argon2 works in the container.
+- The CORS preflight from `http://localhost:4200` allows the origin with credentials.
+- The web app serves `/` and `/pets/abc` (SPA fallback); the bundle contains `http://localhost:3333/api` and has immutable caching.
+- The API runs as `node`, and `/app/uploads` is owned by `node`.
 
 **Not run:**
-- The API and web unit suites (no application code changed).
-- Other browsers (only Chromium is configured).
+- Writes through the containers (register, create a pet, upload, apply), to keep the shared dev database clean. Covered by the unit and E2E suites against the same code.
+- A browser session against the containers.
+
+**After the check,** the `api`/`web` containers were removed (images kept); MongoDB keeps running.
 
 
 ## Pet photos: deployment notes
@@ -187,7 +208,7 @@ Verified by passing tests or by reading the code.
 5. ~~Pet ownership and authorization.~~ Done.
 6. ~~Adoption applications and their lifecycle.~~ Done.
 7. ~~Server-side filtering, searching and pagination.~~ Done for the pet list. The application lists are still unpaginated.
-8. Later: OAuth/OIDC sign-in (Google/GitHub), Docker and deployment. (Image uploads and Playwright E2E tests are done.)
+8. Later: OAuth/OIDC sign-in (Google/GitHub) and cloud deployment. (Image uploads, Playwright E2E tests and local Docker Compose are done.)
 
 ## Next task
 

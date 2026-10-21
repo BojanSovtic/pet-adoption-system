@@ -136,7 +136,17 @@
     ]
   },
   "dependencies": {
+    "@pet-adoption/models": "workspace:*",
+    "argon2": "^0.45.1",
+    "connect-mongo": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^4.21.2",
-    "@pet-adoption/models": "workspace:*"
+    "express-rate-limit": "~8.6.2",
+    "express-session": "^1.19.0",
+    "mongodb": "~7.5.0",
+    "mongoose": "^9.9.5",
+    "multer": "~2.4.0",
+    "zod": "^4.5.4"
   }
 }

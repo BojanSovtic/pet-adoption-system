@@ -1,3 +1,7 @@
+# `docker compose up -d` starts only MongoDB (for running the apps with Nx).
+# `docker compose --profile app up -d --build` also builds and starts the API
+# and the web app. See README.md.
+
 services:
   mongodb:
     image: mongo:8
@@ -13,17 +17,78 @@ services:
       - mongodb_data:/data/db
     healthcheck:
       # Initiates the replica set on the first start (a no-op afterwards) and
-      # reports healthy once it is ready.
+      # reports healthy once this node accepts writes.
       test:
         - CMD
         - mongosh
         - --quiet
         - --eval
-        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"
+        - "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
       interval: 5s
       timeout: 10s
       retries: 30
       start_period: 10s
 
+  api:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: pet-adoption-api
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3333
+      # Compose network: the service name, not localhost.
+      MONGODB_URI: mongodb://mongodb:27017/pet-adoption?directConnection=true
+      # Browser-facing addresses.
+      CORS_ORIGIN: http://localhost:${WEB_PORT:-4200}
+      UPLOADS_BASE_URL: http://localhost:${API_PORT:-3333}/uploads
+      UPLOADS_DIR: /app/uploads
+      # Required; the API refuses to start without it (see .env.example).
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      # Local Compose runs over plain http; "production" would mark session
+      # cookies Secure (HTTPS only).
+      NODE_ENV: development
+    ports:
+      - '${API_PORT:-3333}:3333'
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3333/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  web:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # The browser calls the API directly, so use the host-mapped address.
+        VITE_API_URL: http://localhost:${API_PORT:-3333}/api
+    container_name: pet-adoption-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${WEB_PORT:-4200}:80'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mongodb_data:
+  uploads_data:

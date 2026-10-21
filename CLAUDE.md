@@ -6,7 +6,7 @@ Learning/portfolio project: users browse and post pets for adoption and (later) 
 
 ## Architecture
 
-Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies are declared in the root `package.json`; app `package.json` files declare workspace dependencies.
+Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies are declared in the root `package.json`; app `package.json` files declare workspace dependencies. Exception: the API's runtime dependencies (everything its bundle `require`s) are also listed in `apps/api/package.json`, with the same version ranges as the root, because the Nx `prune` target (used by the Docker image) builds the production install from it. Add new API runtime packages in both places.
 
 - `apps/api` (`@pet-adoption/api`): Express 4 + Mongoose 9, bundled with esbuild (shared lib is bundled inline). Layering: `*.routes.ts` → `validateBody(zodSchema)` → `asyncHandler` → `*.controller.ts` → `*.service.ts` → `*.model.ts`. All errors flow to `middleware/error-handler.ts`: throw/forward `AppError` subclasses (`errors/app-error.ts`, incl. `ValidationError`); the handler responds `ApiErrorResponse` and logs only unexpected 500s. Env is validated at startup in `config/env.ts` (reads `apps/api/.env`). `app.ts` is separate from `main.ts` so supertest can use `app` directly.
 - `apps/web` (`@pet-adoption/web`): React 19, React Router 6 (`createBrowserRouter`), TanStack Query, Tailwind 4 + shadcn/ui (`components/ui`), react-i18next (`en`, `sr`; namespaces `common`, `pets`), sonner toasts, zod for form validation. Feature folders: `src/features/<feature>/{api,components,pages,utils}`. `@/*` aliases `src/*`. Error handling responsibilities:
@@ -26,8 +26,9 @@ Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies a
 - Query keys: use factories (`petQueryKeys`, `applicationQueryKeys`) and put every request parameter in the key. List endpoints are paginated (`Paginated<T>`); query strings are validated with zod via `parseInput` (`middleware/validate.ts`). The pet list keeps its state in the URL (`useSearchParams`).
 - Adoption applications (`apps/api/src/applications/`): state machines for applications and pets live in the shared lib (`adoption-application.model.ts`). Status changes only via explicit actions (`/applications/:id/accept|reject|withdraw`), never by setting a status. Every application or pet-status write runs in `withTransaction` (`config/database.ts`) and starts with `lockPet` (the first write serializes concurrent transactions on that pet); pet status changes go through `transitionPetStatus`. Unique partial indexes back the rules. Web: per-user caches are cleared via `setCurrentUser` on every identity change.
 - MongoDB must be a **replica set** (transactions); the API refuses to start otherwise. Dev: `docker-compose.yml` (single-node `rs0`, host port 27018, `?directConnection=true`). API tests start an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`; first run downloads the MongoDB binary) — no local MongoDB needed. Test DB is dropped/re-indexed once per file, documents cleared after each test, spec files run sequentially (`fileParallelism: false`).
+- Docker: `docker compose up -d` starts only MongoDB; `docker compose --profile app up -d --build` also runs the API (`apps/api/Dockerfile`: Nx `prune` → bundle + production deps, non-root) and web (`apps/web/Dockerfile`: Vite build served by nginx; `VITE_API_URL` is a build arg and must be browser-reachable). Root `.env` (from `.env.example`) holds `SESSION_SECRET` for Compose.
 
-`README.md` is the unmodified Nx template and does not describe this project.
+`README.md` describes setup (Docker and local development).
 
 ## Commands
 
