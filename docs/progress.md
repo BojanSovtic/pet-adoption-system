@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-20. Pet photo uploads completed, uncommitted on branch `develop` (latest commit `42b3061`, server-side search and pagination)._
+_Last updated: 2026-10-21. Playwright E2E suite added, uncommitted on branch `develop` (latest commit `46dee1f`, pet photo uploads)._
 
 ## Status
 
@@ -84,6 +84,13 @@ Verified by passing tests or by reading the code.
   - **New `/applications` page:** "Applications for my pets" (applicant name and email, Accept/Reject while pending) and "My applications" (Withdraw while pending). Buttons come from the shared state machine (`getAllowedApplicationActions`).
   - **Identity changes:** every one (sign-in, sign-out, expired session) goes through `setCurrentUser`, which removes cached application data first.
   - **Tests:** 68 web tests.
+- **E2E tests** (`apps/web-e2e`, Playwright, Chromium): 6 tests for 4 journeys.
+  - **Registration and login:** register; sign in; wrong credentials.
+  - **Browse and search:** public listing, name search, species filter.
+  - **Apply:** a non-owner applies from the pet page; the application shows as pending.
+  - **Owner:** sees the applicant's name and email, accepts, and the pet becomes adopted.
+  - **Isolated stack:** Playwright starts the real API on port 3334 against a throwaway in-memory MongoDB replica set (`src/support/start-api.ts`), and the web app on port 4201 with `VITE_API_URL` pointing at it. Dev servers and dev data are never used, and each run starts with an empty database.
+  - **No seed data:** tests create their own uniquely named users and pets through the API (`src/support/api.ts`).
 - **Test infrastructure:**
   - **Database:** the API tests run against an in-memory **replica set** (`mongodb-memory-server`, started once in `test/global-setup.ts`), so transactions are real. `MONGODB_TEST_URI` is no longer used.
   - **Ordering:** spec files run sequentially. The database is dropped and re-indexed once per file, and documents are cleared between tests.
@@ -103,50 +110,29 @@ Verified by passing tests or by reading the code.
 - **The container's database starts empty.** The old local install on 27017, including its 2 ownerless pets, is untouched and no longer used. `MONGODB_TEST_URI` in `.env` is ignored.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 
-## Changes in this session (pet photos)
+## Changes in this session (E2E tests)
 
-- **Dependencies:** `multer` 2.4 (multipart parsing; no install scripts) and `@types/multer`.
-- **Shared library:**
-  - `Pet.imageUrls: string[]` → `Pet.imageUrl: string | null`.
-  - `CreatePetInput` no longer has image fields.
-  - New `PET_IMAGE_MAX_BYTES` and `PET_IMAGE_TYPES`.
-- **API:**
-  - New `storage/` (`file-storage.ts` interface, `local-file-storage.ts`, `index.ts`).
-  - New `pets/pet-image.ts` (multer config, magic-byte detection).
-  - In `pet.service`: `setPetImage`, `removePetImage` and `isPetOwnedBy`; `deleteOwnedPet` now returns the deleted pet.
-  - In `pet.controller`: `toPetView` (`imageKey` → `imageUrl`), `requirePetOwner` and the image controllers.
-  - In `pet.model`: `imageKey` replaces `imageUrls`.
-  - In `env.ts`: `UPLOADS_DIR` and `UPLOADS_BASE_URL` (both optional).
-  - `/uploads` static route in `app.ts`.
-  - Tests write to a temporary uploads directory (`global-setup.ts`, `setup.ts`, `test/upload-test-helpers.ts`).
-- **Web:**
-  - New `api/pet-image.ts` and `components/pet-image-field.tsx`.
-  - Form, card and details page updated.
-  - `apiClient` `Content-Type` rule.
-  - i18n texts and new error codes (`en`, `sr`).
-- **Other:** `.gitignore` (`apps/api/uploads/`) and `.env.example`.
+- **New `apps/web-e2e`:** `package.json`, `playwright.config.ts`, `tsconfig.json`, `eslint.config.mjs` (with `eslint-plugin-playwright`), `src/support/{config,api,start-api}.ts` and four spec files.
+- **Root `tsconfig.json`:** `nx sync` added the new project reference.
+- **No new dependencies:** `@playwright/test`, `@nx/playwright`, `tsx` and `mongodb-memory-server` were already installed. The Chromium browser was downloaded with `pnpm exec playwright install chromium` (into the user's cache, not the repo).
+- **No application code changed.**
 - **Decisions:**
-  - **One photo per pet,** replacing the manual image URLs. Two ways to set images would make orphan cleanup much harder; the dev database was empty.
-  - **Separate image endpoints** instead of multipart on create/update, so the JSON API is unchanged.
-  - **Magic-byte detection** instead of a library.
-  - **No image processing** (see the limitations below).
+  - **Sign-in through `page.request`:** it shares the browser's cookies, so a test signs in through the API without UI steps. The separate `request` fixture acts as the second user.
+  - **The API runs as a child process** (`node --import tsx apps/api/src/main.ts`) rather than being imported, which respects the module boundaries.
+  - **`retries: 0`:** login and register share a 20-per-15-minutes per-IP limit; one run makes about 9 such requests against a fresh API process.
 
-## Check results (2026-10-20, pet photos)
-
-What actually ran, each with `NX_DAEMON=false … --skipNxCache`:
+## Check results (2026-10-21, E2E tests)
 
 | Check | Result |
 |---|---|
-| API lint and typecheck | ✅ |
-| API `src/pets` (pet + image specs) | ✅ 67/67 (52 pet + 15 image) |
-| API `src/applications` + `src/app.spec.ts` (pet deletion with applications, app wiring) | ✅ 54/54 |
-| Web lint, typecheck, full test suite | ✅ 74/74 (6 new) |
-| Builds (api, web) | ✅ (`multer` stays external in the bundle) |
-| `nx sync:check`, `prettier --check` on changed files | ✅ |
+| `pnpm nx e2e @pet-adoption/web-e2e` | ✅ 6/6, run three times (two before and one after the start-script change); about 20–40 s |
+| `apps/web-e2e` lint and typecheck | ✅ |
+| Leftover processes after a run | none (nothing on 3334/4201; the only `mongod` is the locally installed MongoDB service on 27017) |
 
 **Not run:**
-- The API auth spec, which this change doesn't touch.
-- A browser check (choosing a photo, preview, upload, replacing, removing).
+- The API and web unit suites (no application code changed).
+- Other browsers (only Chromium is configured).
+
 
 ## Pet photos: deployment notes
 
@@ -201,7 +187,7 @@ What actually ran, each with `NX_DAEMON=false … --skipNxCache`:
 5. ~~Pet ownership and authorization.~~ Done.
 6. ~~Adoption applications and their lifecycle.~~ Done.
 7. ~~Server-side filtering, searching and pagination.~~ Done for the pet list. The application lists are still unpaginated.
-8. Later: image uploads, OAuth/OIDC sign-in (Google/GitHub), Playwright e2e tests, Docker and deployment.
+8. Later: OAuth/OIDC sign-in (Google/GitHub), Docker and deployment. (Image uploads and Playwright E2E tests are done.)
 
 ## Next task
 
@@ -209,5 +195,4 @@ What actually ran, each with `NX_DAEMON=false … --skipNxCache`:
 
 **Candidates** (the owner chooses):
 - **Paginate the application lists:** `/applications/mine` and `/applications/received` currently return everything.
-- **Playwright end-to-end tests** for the main flows: register, add a pet, apply, accept.
 - **Fix `env.ts`** so it resolves `.env` relative to the file, not the working directory.
