@@ -10,6 +10,22 @@ Read the other docs only when the task needs them:
 - [docs/architecture.md](docs/architecture.md): Mermaid diagrams of the current architecture (system, request pipeline, auth, data model, adoption workflow, Docker, E2E). Consult it when architectural context is relevant; update the affected diagram when the structure changes.
 - [docs/deployment.md](docs/deployment.md): requirements for a future deployment (cookies, HTTPS, proxy, env vars). Consult it only for deployment or production-config work.
 
+## Testing policy (risk-based)
+
+Before running anything expensive, look at what changed and pick the checks that cover its risk. Say which checks you ran, which you skipped and why, and report actual results; never claim a check passed that wasn't run.
+
+| Change | Run |
+|---|---|
+| Documentation only (no code or executable config) | Nothing |
+| Localized code change | The affected project's relevant specs, plus `lint` / `typecheck` (`build` if build config changed) |
+| API, auth/session, authorization, database, or a change spanning API + web + shared lib | The affected projects' full `test` suites plus `lint typecheck`, and E2E if the next row applies |
+| Critical user journeys, auth/session, frontend-to-backend integration, routing, application workflows, or shared infrastructure (Docker, Nx, env, CI) | Also `pnpm nx e2e @pet-adoption/web-e2e` |
+| Finishing a significant batch, before a release, or at a v1 integration checkpoint | `pnpm nx run-many -t lint typecheck test build` and E2E |
+
+- Don't rerun the full E2E suite for routine, unrelated changes. When skipping it, say why in one line.
+- Rerun a check only after a failure or a further code change.
+- Risk-based means choosing the right tests, not avoiding them: never skip a check a change actually needs.
+
 ## Architecture
 
 Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies are declared in the root `package.json`; app `package.json` files declare workspace dependencies. Exception: the API's runtime dependencies (everything its bundle `require`s) are also listed in `apps/api/package.json`, with the same version ranges as the root, because the Nx `prune` target (used by the Docker image) builds the production install from it. Add new API runtime packages in both places.
@@ -66,21 +82,9 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 - Do not reintroduce removed Nx-generated placeholder apps/libs. Do not restructure the monorepo without a concrete reason.
 - Work in small, coherent steps; explain important decisions and trade-offs briefly (relate to Vue when useful), without lengthy tutorials.
 - Inspect only the files relevant to the task; do not repeat investigations already recorded in `docs/progress.md`.
-- Run relevant lint/typecheck/tests after changes and fix regressions you introduce.
+- Run the checks the testing policy above calls for, and fix regressions you introduce.
 - Never make unrelated refactors, and never overwrite or discard existing changes without asking first.
 - Treat authentication, authorization, input validation and database access as security-sensitive. Never trust client-supplied user IDs or ownership claims; enforce permissions on the server and test unauthorized access.
-
-## Testing and verification workflow
-
-- Prefer targeted tests for the code changed in the current task.
-- Identify the relevant test files and run those first. Do not run the entire test suite by default.
-- Run only the necessary checks for the affected apps and libraries, using the existing Nx project configuration and package scripts.
-- Avoid running the same tests or checks repeatedly unless a failure requires it or the code changes again.
-- If targeted tests are slow, inspect the available test commands and configuration before choosing a narrower, reliable option. Do not skip important tests just to save time.
-- Report exactly which tests and checks were run, which passed or failed, and which were not run.
-- Run the full test suite when explicitly requested, before a significant release, or when a change has broad impact and targeted tests are insufficient.
-- Never claim a test passed if it was not run.
-- When finished, summarize verification results concisely.
 
 ## Architecture documentation
 
@@ -124,8 +128,6 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 - Avoid unnecessary refactoring, speculative improvements and new dependencies.
 - Explain important decisions and unfamiliar concepts briefly, especially React, Express, TypeScript and backend architecture.
 - Don't repeat explanations or summarize every file inspected.
-- Run the most relevant tests and checks rather than rerunning every check after every small edit. Run the full suite at meaningful milestones.
 - Report changed files, checks performed, their results and any remaining concerns concisely.
 - If blocked, explain the specific issue and ask for the missing information instead of repeatedly investigating.
 - Never skip necessary validation, security checks or tests just to reduce usage.
-- Never claim a test passed unless it was actually run and passed.

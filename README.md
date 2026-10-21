@@ -14,7 +14,7 @@ The interface is available in English and Serbian. The full rules are in [docs/r
 
 <!--
   Screenshots are not captured yet. To add them:
-  1. Run the app (see "Run with Docker" below), register two users and add a few pets.
+  1. Run the app (see "Option A: everything in Docker" below), register two users and add a few pets.
   2. Save PNGs in docs/screenshots/ with these names:
        pet-list.png       the pet list with search and filters
        pet-details.png    a pet's page with the apply form
@@ -56,62 +56,126 @@ packages/shared/models  Types and rules shared by the API and the web app
 docs/                 Requirements, architecture, deployment notes, progress
 ```
 
-## Run with Docker (recommended)
+## Running the app
 
-**Prerequisites:** Docker Desktop (or Docker Engine with Compose v2).
+There are two ways to run it locally:
 
-1. Create `.env` in the repository root (skip this if you already have one):
+|                      | Option A: everything in Docker | Option B: local development              |
+| -------------------- | ------------------------------ | ---------------------------------------- |
+| Best for             | Trying the app                 | Changing the code (hot reload)           |
+| Runs in Docker       | MongoDB, API, web app          | MongoDB only                             |
+| Runs on your machine | Nothing                        | API and web app (Node.js)                |
+| Needs                | Docker Desktop, Git            | Docker Desktop, Git, Node.js 22, pnpm 12 |
 
-   ```sh
-   cp .env.example .env
-   ```
+Both use the same ports (web 4200, API 3333) and the **same MongoDB database**, so run one option at a time. Uploaded photos are _not_ shared: Docker keeps them in a volume, local development in `apps/api/uploads/`, so a photo added in one option shows as missing in the other.
 
-   Set `SESSION_SECRET` to at least 32 random characters, e.g. the output of
-   `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
+### Option A: everything in Docker
 
-2. Build and start everything:
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (started, with the whale icon showing "running") and Git. You don't need Node.js or pnpm: the images install everything themselves.
 
-   ```sh
-   docker compose --profile app up -d --build
-   ```
+All commands run in a terminal opened in the **repository root**, the `pet-adoption-system` folder that contains `docker-compose.yml`.
 
-   The first build takes a few minutes. Compose starts MongoDB, waits until it is ready, then the API, then the web app.
-
-3. Open:
-
-   | Service                             | URL                                                            |
-   | ----------------------------------- | -------------------------------------------------------------- |
-   | Web app                             | http://localhost:4200                                          |
-   | API health                          | http://localhost:3333/api/health                               |
-   | MongoDB (for tools such as Compass) | `mongodb://localhost:27018/pet-adoption?directConnection=true` |
-
-   `docker compose ps` shows each service's health; `docker compose logs -f api` shows API logs.
-
-**Data:** MongoDB data and uploaded pet photos live in named volumes (`mongodb_data`, `uploads_data`) and survive restarts and rebuilds. There is no seed data: the database starts empty, so register a user in the web app and add pets from there.
-
-**Stop:**
+**1. One-time setup:** create `.env` in the repository root from the example:
 
 ```sh
-docker compose --profile app down      # keeps the data
-docker compose --profile app down -v   # also deletes the database and photos
+cp .env.example .env
 ```
 
-To use other host ports, set `API_PORT` / `WEB_PORT` in `.env` and rebuild (the web app's API address is fixed at build time).
+Open `.env` and set `SESSION_SECRET` to at least 32 random characters. The API refuses to start without it. Any long random string works, for example from a password generator, or, if Node.js is installed:
 
-## Local development (without containers for the apps)
+```sh
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
 
-**Prerequisites:** Node.js 22, pnpm 12, Docker (for MongoDB only).
+**2. Build and start:**
+
+```sh
+docker compose --profile app up -d --build
+```
+
+The first build takes a few minutes. Compose starts MongoDB, waits until it is healthy, then starts the API, waits for it, then starts the web app. `-d` returns you to the prompt while the containers keep running.
+
+**3. Open the app:**
+
+| What                                         | Address                                                        |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| Web app                                      | http://localhost:4200                                          |
+| API health check (returns `{"status":"ok"}`) | http://localhost:3333/api/health                               |
+| API: public pet list (JSON)                  | http://localhost:3333/api/pets                                 |
+| MongoDB, for tools such as MongoDB Compass   | `mongodb://localhost:27018/pet-adoption?directConnection=true` |
+
+There are no demo accounts or seed data: the database starts empty. Register a user in the web app and add pets. To try the adoption flow, register a second user (for example in a private browser window) and apply for the first user's pet.
+
+**Check status and logs:**
+
+```sh
+docker compose --profile app ps              # each container's state: "healthy" is good
+docker compose --profile app logs -f api     # follow the API's log (Ctrl+C stops following, not the app)
+docker compose --profile app logs mongodb    # MongoDB's log
+```
+
+The API logs `[ ready ] http://0.0.0.0:3333` when it has started. If it fails, the log ends with the reason: an `Error: …` line for missing settings (for example `SESSION_SECRET is required`), or a line starting with `[ startup ]` for problems such as the database.
+
+**Stop and start again:**
+
+```sh
+docker compose --profile app stop              # stop the containers; start again with "start"
+docker compose --profile app start
+docker compose --profile app down              # stop and remove the containers (data is kept)
+docker compose --profile app up -d             # start again after "down"
+docker compose --profile app up -d --build     # after changing code: rebuild and restart
+```
+
+The containers restart automatically when Docker Desktop starts, unless you stopped them.
+
+#### Your data
+
+- The database is stored in the Docker volume `pet-adoption-system_mongodb_data` and uploaded photos in `pet-adoption-system_uploads_data`. Stopping, `down`, restarting and rebuilding all **keep** them.
+- These **delete** them, so avoid them unless you want to start from scratch:
+  - `docker compose --profile app down -v` (the `-v` removes the volumes)
+  - `docker volume rm …` or `docker volume prune`, `docker system prune --volumes`
+  - Deleting the volumes in Docker Desktop's _Volumes_ tab, or _Troubleshoot → Clean / Purge data_
+- To back up the database first (photos are not included):
+
+  ```sh
+  docker exec pet-adoption-mongodb mongodump --db pet-adoption --archive=/tmp/pet-adoption.archive
+  docker cp pet-adoption-mongodb:/tmp/pet-adoption.archive ./pet-adoption.archive
+  ```
+
+  To restore it later, copy it back in and run `mongorestore`:
+
+  ```sh
+  docker cp ./pet-adoption.archive pet-adoption-mongodb:/tmp/pet-adoption.archive
+  docker exec pet-adoption-mongodb mongorestore --archive=/tmp/pet-adoption.archive
+  ```
+
+#### Troubleshooting
+
+| Problem                                                                               | What to do                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cannot connect to the Docker daemon`, `error during connect`, or similar             | Docker Desktop isn't running. Start it and wait until it says it's running.                                                                                                                                                                                                                                                                                                                                       |
+| `api` keeps restarting, `web` never starts, the log says `SESSION_SECRET is required` | The root `.env` is missing or `SESSION_SECRET` is shorter than 32 characters. Fix it, then run `docker compose --profile app up -d`.                                                                                                                                                                                                                                                                              |
+| `port is already allocated` / `address already in use`                                | Something else uses port 4200, 3333 or 27018, often the local dev servers from option B. Stop them (Ctrl+C), or find the program with `netstat -ano \| findstr :3333` (Windows) / `lsof -i :3333` (macOS/Linux). For 4200 and 3333 you can instead set `WEB_PORT` / `API_PORT` in `.env` and run `up -d --build` (the web app's API address is fixed at build time). Port 27018 is fixed in `docker-compose.yml`. |
+| The page loads but shows "The server could not be reached"                            | The API isn't running or not healthy yet. Check `docker compose --profile app ps` and the API log.                                                                                                                                                                                                                                                                                                                |
+| The API log mentions MongoDB or a replica set                                         | MongoDB isn't ready. Check `docker compose --profile app logs mongodb` and that `mongodb` is "healthy" in `ps`. The first start initializes the replica set and can take a few seconds longer.                                                                                                                                                                                                                    |
+| The app can't reach the API after changing `WEB_PORT` / `API_PORT`                    | Run `docker compose --profile app up -d --build` so the web app and the API's allowed origin both use the new ports.                                                                                                                                                                                                                                                                                              |
+
+### Option B: local development (MongoDB in Docker, apps with Node.js)
+
+**Prerequisites:** Docker Desktop, Git, Node.js 22 and pnpm 12. Run the commands in the repository root.
 
 ```sh
 pnpm install
-cp apps/api/.env.example apps/api/.env   # then set SESSION_SECRET
+cp apps/api/.env.example apps/api/.env   # then set SESSION_SECRET in it (32+ characters)
 cp apps/web/.env.example apps/web/.env
 docker compose up -d                     # MongoDB only (replica set on port 27018)
-pnpm nx serve @pet-adoption/api          # http://localhost:3333/api
-pnpm nx dev @pet-adoption/web            # http://localhost:4200
+pnpm nx serve @pet-adoption/api          # API: http://localhost:3333/api
+pnpm nx dev @pet-adoption/web            # web app: http://localhost:4200 (in a second terminal)
 ```
 
-Stop the dev servers with Ctrl+C and MongoDB with `docker compose down`. The Docker app stack and the dev servers use the same ports (3333, 4200), so run one or the other.
+- Option B uses `apps/api/.env` and `apps/web/.env`; the root `.env` is only for option A.
+- Stop the dev servers with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data; `docker compose up -d` starts it again.
+- Before switching to option A, stop the dev servers (same ports).
 
 ## Tests
 

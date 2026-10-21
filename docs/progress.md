@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Branch `develop`, latest commit `6a89205` (documentation). Uncommitted on top: GitHub Actions CI, paginated application lists, language selector, edit-form load errors, README and deployment notes (see "Changes in this session")._
+_Last updated: 2026-10-21. Branch `develop` at `060eb5d` (CI, paginated application lists, language selector, edit-form errors, docs), pushed to `origin/develop`. `master` not updated yet. Uncommitted: README run instructions (Docker/local) and the testing policy in `CLAUDE.md`._
 
 ## Status
 
@@ -112,7 +112,7 @@ Verified by passing tests or by reading the code.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
 
-## Changes in this session (2026-10-21, uncommitted)
+## Changes in commit `060eb5d` (2026-10-21)
 
 - **CI:** `.github/workflows/ci.yml` runs `lint typecheck test build` for every project on pushes and pull requests to `master` and `develop` (Node 22, pnpm 12.3.4, pnpm store and MongoDB binary caches). The API tests' required variables are set in the workflow, because `apps/api/.env` is not in Git; the tests still use the in-memory replica set. **E2E is not in CI yet** (possible later: a second job running `nx e2e` with Playwright's Chromium installed).
 - **Application lists paginated** (API and web): `page`/`pageSize` (default 10, max 50), newest first with `_id` tie-breaker, `Paginated<T>` responses, `VALIDATION_FAILED` for bad parameters.
@@ -123,7 +123,7 @@ Verified by passing tests or by reading the code.
 - **Language selector** in the header (English / Srpski). The choice is saved in `localStorage` (falls back to English if unavailable or invalid) and sets `<html lang>`. The header title is now translated. Forms now store validation keys and translate on render, so messages already on screen switch language too (login, register, pet form, application form).
 - **`env.ts`:** checked and left unchanged (see "Other outstanding issues").
 - **Docs:** README rewritten for portfolio readers (highlights, stack, screenshot placeholders, CI badge, limitations); new [deployment.md](deployment.md); requirements, architecture and `CLAUDE.md` updated.
-- **Branches:** GitHub's default branch is `master`, which still holds only the Nx scaffold (`5bd296a`). It is an ancestor of `develop`, so `master` can be fast-forwarded to `develop` without a merge commit or force-push. Not done yet: it needs these changes committed and pushed first, and the owner's approval.
+- **Branches:** GitHub's default branch is `master`, which still holds only the Nx scaffold (`5bd296a`). It is an ancestor of `develop`, so `master` can be fast-forwarded to `develop` without a merge commit or force-push. Not done yet: waiting for a green CI run on `develop` and the owner's approval.
 
 **Check results:**
 
@@ -131,7 +131,7 @@ Verified by passing tests or by reading the code.
 |---|---|
 | `nx run-many -t lint typecheck test build` (all 4 projects, no cache, `.env` loading disabled, CI variables only) | ✅ web 89/89 tests, API 151/151 tests, builds OK |
 | `nx e2e @pet-adoption/web-e2e` | ✅ 6/6 |
-| CI workflow on GitHub | ⏳ not run yet (nothing pushed) |
+| CI workflow on GitHub | ⏳ `develop` pushed; result not checked (the repository is private and `gh` isn't installed here, so the owner checks the Actions tab) |
 | Workflow YAML | Parsed locally with `js-yaml`; not validated by GitHub yet |
 
 **Not verified:** the new UI in a real browser by hand (pagination controls, language selector, edit-form errors); E2E covers only the original journeys.
@@ -214,5 +214,5 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 ## Next task
 
 1. **Manual QA in the browser** (checklist still to be written): register, post a pet with a photo (this also verifies photo upload through Axios), browse/search/page, apply, accept/reject/withdraw, page both application lists, switch language and reload.
-2. **Commit, push `develop`, and check that the CI run passes on GitHub.** Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
+2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).
