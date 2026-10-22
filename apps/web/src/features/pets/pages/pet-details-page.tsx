@@ -13,6 +13,7 @@ import { petQueryKeys } from '../api/pet-query-keys';
 import { PetApplicationSection } from '../../applications/components/pet-application-section';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { DeletePetButton } from '../components/delete-pet-button';
+import { PetGallery } from '../components/pet-gallery';
 import { isPetOwner } from '../utils/is-pet-owner';
 
 const PetDetailsPage = () => {
@@ -64,13 +65,7 @@ const PetDetailsPage = () => {
       </Button>
 
       <Card className="overflow-hidden">
-        {pet.imageUrl && (
-          <img
-            src={pet.imageUrl}
-            alt={pet.name}
-            className="aspect-[16/7] w-full object-cover"
-          />
-        )}
+        <PetGallery pet={pet} />
 
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-4">

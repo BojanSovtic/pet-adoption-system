@@ -1,43 +1,66 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import multer from 'multer';
-import { PET_IMAGE_MAX_BYTES, type PetImageType } from '@pet-adoption/models';
+import {
+  PET_IMAGE_MAX_BYTES,
+  PET_IMAGE_MAX_COUNT,
+  type PetImageType,
+} from '@pet-adoption/models';
 
 import { AppError, BadRequestError } from '../errors/app-error';
 
-const multipart = multer({
-  // Keep the upload in memory (at most 5 MB) so its content can be checked
-  // before anything is written to storage.
+// Uploads are kept in memory (at most 5 MB per file) so their content can be
+// checked before anything is written to storage.
+const singleImage = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: PET_IMAGE_MAX_BYTES, files: 1, fields: 0, parts: 1 },
 }).single('image');
 
-/**
- * Parses a multipart upload with one file in the field "image" and turns
- * parser errors into the API's error format.
- */
-export const parsePetImageUpload = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void => {
-  multipart(req, res, (error: unknown) => {
-    if (!error) {
-      next();
-      return;
-    }
+const multipleImages = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: PET_IMAGE_MAX_BYTES,
+    files: PET_IMAGE_MAX_COUNT,
+    fields: 0,
+  },
+}).array('images', PET_IMAGE_MAX_COUNT);
 
-    if (
-      error instanceof multer.MulterError &&
-      error.code === 'LIMIT_FILE_SIZE'
-    ) {
-      next(new AppError('IMAGE_TOO_LARGE', 413));
-      return;
-    }
+export const tooManyImagesError = (): AppError =>
+  new AppError('TOO_MANY_IMAGES', 409);
 
-    // Wrong field name, extra fields or files, or a malformed body.
-    next(new BadRequestError('INVALID_IMAGE_UPLOAD'));
-  });
-};
+/** Runs a multer parser and turns its errors into the API's error format. */
+const withUploadErrors =
+  (parser: RequestHandler): RequestHandler =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    parser(req, res, (error: unknown) => {
+      if (!error) {
+        next();
+        return;
+      }
+
+      if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          next(new AppError('IMAGE_TOO_LARGE', 413));
+          return;
+        }
+
+        if (error.code === 'LIMIT_FILE_COUNT') {
+          next(tooManyImagesError());
+          return;
+        }
+      }
+
+      // Wrong field name, extra fields, or a malformed body.
+      next(new BadRequestError('INVALID_IMAGE_UPLOAD'));
+    });
+  };
+
+/** One file in the field "image" (`PUT /api/pets/:id/image`). */
+export const parsePetImageUpload: RequestHandler =
+  withUploadErrors(singleImage);
+
+/** 1 to PET_IMAGE_MAX_COUNT files in the field "images". */
+export const parsePetImagesUpload: RequestHandler =
+  withUploadErrors(multipleImages);
 
 const startsWith = (data: Buffer, bytes: number[], offset = 0): boolean =>
   data.length >= offset + bytes.length &&

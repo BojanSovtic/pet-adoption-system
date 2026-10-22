@@ -37,7 +37,7 @@
       "species": "Species",
       "age": "Age (years)",
       "description": "Description",
-      "image": "Photo (optional)"
+      "images": "Photos (optional)"
     },
     "placeholders": {
       "name": "e.g. Buddy",
@@ -56,7 +56,8 @@
       "descriptionRequired": "Description is required.",
       "descriptionTooLong": "Description must be at most 2000 characters.",
       "imageType": "Choose a JPEG, PNG or WebP image.",
-      "imageTooLarge": "The photo must be at most 5 MB."
+      "imageTooLarge": "The photo must be at most 5 MB.",
+      "tooManyImages": "Not added: a pet can have at most {{max}} photos."
     },
     "editTitle": "Edit pet",
     "saveChanges": "Save changes",
@@ -64,12 +65,16 @@
     "updateSuccess": "Pet updated successfully.",
     "updateError": "The pet could not be updated. Please try again.",
     "notOwner": "You can only edit pets you posted.",
-    "imageHint": "JPEG, PNG or WebP, up to 5 MB.",
-    "imagePreview": "Photo preview",
-    "removeImage": "Remove photo",
-    "imageSaveFailed": "The pet was saved, but the photo was not: {{reason}}",
+    "imageHint": "JPEG, PNG or WebP, up to 5 MB each, at most {{max}} photos.",
+    "removeImage": "Remove",
+    "imageSaveFailed": "The pet was saved, but the photos were not: {{reason}}",
     "imageSaveError": "Something went wrong.",
-    "loadError": "The pet could not be loaded."
+    "loadError": "The pet could not be loaded.",
+    "addImages": "Add photos",
+    "imageCount": "Photos: {{current}} of {{max}}.",
+    "imageAlt": "Photo {{number}}",
+    "primaryImage": "Main photo",
+    "removeImageNumber": "Remove photo {{number}}"
   },
   "delete": {
     "button": "Delete",
@@ -90,5 +95,10 @@
   "resultCount_other": "{{count}} pets found",
   "clearFilters": "Clear filters",
   "pageOutOfRange": "There are no pets on this page.",
-  "firstPage": "Go to the first page"
+  "firstPage": "Go to the first page",
+  "gallery": {
+    "label": "Photos of {{name}}",
+    "show": "Show photo {{number}} of {{total}}",
+    "photoAlt": "{{name}}, photo {{number}} of {{total}}"
+  }
 }

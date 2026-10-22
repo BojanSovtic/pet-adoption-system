@@ -38,7 +38,7 @@
       "species": "Vrsta",
       "age": "Starost (godine)",
       "description": "Opis",
-      "image": "Fotografija (opciono)"
+      "images": "Fotografije (opciono)"
     },
     "placeholders": {
       "name": "npr. Bubi",
@@ -57,7 +57,8 @@
       "descriptionRequired": "Opis je obavezan.",
       "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
       "imageType": "Izaberi JPEG, PNG ili WebP sliku.",
-      "imageTooLarge": "Fotografija može imati najviše 5 MB."
+      "imageTooLarge": "Fotografija može imati najviše 5 MB.",
+      "tooManyImages": "Nije dodato: ljubimac može imati najviše {{max}} fotografija."
     },
     "editTitle": "Izmeni ljubimca",
     "saveChanges": "Sačuvaj izmene",
@@ -65,12 +66,16 @@
     "updateSuccess": "Ljubimac je uspešno izmenjen.",
     "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo.",
     "notOwner": "Možeš da menjaš samo svoje ljubimce.",
-    "imageHint": "JPEG, PNG ili WebP, najviše 5 MB.",
-    "imagePreview": "Pregled fotografije",
-    "removeImage": "Ukloni fotografiju",
-    "imageSaveFailed": "Ljubimac je sačuvan, ali fotografija nije: {{reason}}",
+    "imageHint": "JPEG, PNG ili WebP, najviše 5 MB po fotografiji, najviše {{max}} fotografija.",
+    "removeImage": "Ukloni",
+    "imageSaveFailed": "Ljubimac je sačuvan, ali fotografije nisu: {{reason}}",
     "imageSaveError": "Došlo je do greške.",
-    "loadError": "Podatke o ljubimcu nije moguće učitati."
+    "loadError": "Podatke o ljubimcu nije moguće učitati.",
+    "addImages": "Dodaj fotografije",
+    "imageCount": "Fotografije: {{current}} od {{max}}.",
+    "imageAlt": "Fotografija {{number}}",
+    "primaryImage": "Glavna fotografija",
+    "removeImageNumber": "Ukloni fotografiju {{number}}"
   },
   "delete": {
     "button": "Obriši",
@@ -92,5 +97,10 @@
   "resultCount_other": "Pronađeno {{count}} ljubimaca",
   "clearFilters": "Obriši filtere",
   "pageOutOfRange": "Na ovoj strani nema ljubimaca.",
-  "firstPage": "Idi na prvu stranu"
+  "firstPage": "Idi na prvu stranu",
+  "gallery": {
+    "label": "Fotografije: {{name}}",
+    "show": "Prikaži fotografiju {{number}} od {{total}}",
+    "photoAlt": "{{name}}, fotografija {{number}} od {{total}}"
+  }
 }

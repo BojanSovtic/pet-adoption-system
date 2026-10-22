@@ -1,6 +1,6 @@
 # Manual QA checklist
 
-My QA process for this project: risk-based, so a change gets the checks its risk calls for, not all 48 cases.
+My QA process for this project: risk-based, so a change gets the checks its risk calls for, not all 50 cases.
 
 | File                                                 | What it is                                                               |
 | ---------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -64,10 +64,10 @@ docker compose --profile app down            # stop; keeps the data (never add -
 | 1. Automated checks    | Every code change                                                                                        | Per the testing policy in `CLAUDE.md`: the affected projects' lint, typecheck and tests before committing. CI runs lint, typecheck, test and build for everything on push. Run E2E (`pnpm nx e2e @pet-adoption/web-e2e`) when auth/session, the application workflow, routing, frontend–API integration or shared infrastructure changed. | Minutes, mostly unattended |
 | 2. Smoke               | After a change to anything a user sees or does                                                           | The 9 smoke cases below, on the demo                                                                                                                                                                                                                                                                                                      | 5–10 min                   |
 | 3. Targeted regression | When a change touches a feature area                                                                     | The cases tagged with that area that automation doesn't fully cover (section 3)                                                                                                                                                                                                                                                           | 5–15 min                   |
-| 4. Pre-release         | Before calling a version ready, merging to `master`, or a demo                                           | Reset the demo; run all automated checks and E2E; then smoke + the 14 release cases + the Docker suite                                                                                                                                                                                                                                    | About 1 hour               |
+| 4. Pre-release         | Before calling a version ready, merging to `master`, or a demo                                           | Reset the demo; run all automated checks and E2E; then smoke + the 15 release cases + the Docker suite                                                                                                                                                                                                                                    | About 1 hour               |
 | 5. Docker smoke        | After changing Dockerfiles, `docker-compose.yml`, `nginx.conf` or env handling, and in every pre-release | The Docker suite below                                                                                                                                                                                                                                                                                                                    | About 10 min               |
 
-Docs-only and CI-only changes need no manual QA. The other 21 cases are targeted only: they run when their area changes.
+Docs-only and CI-only changes need no manual QA. The other 22 cases are targeted only: they run when their area changes.
 
 ### Smoke suite
 
@@ -78,7 +78,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 3. [ ] **AUTH-004** Sign in with valid credentials
 4. [ ] **AUTH-006** The session survives a refresh and a new tab
 5. [ ] **PETS-004** Create a pet
-6. [ ] **UPL-001** Add a photo when creating a pet
+6. [ ] **UPL-001** Add several photos when creating a pet
 7. [ ] **APP-001** Apply to adopt another user's pet
 8. [ ] **OWN-001** The owner sees received applications with contact details
 9. [ ] **AUTH-007** Sign out
@@ -92,7 +92,8 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 - [ ] **PETS-005** Pet form validation
 - [ ] **PETS-006** Edit a pet
 - [ ] **PETS-009** A pet with an active application cannot be deleted
-- [ ] **UPL-002** Replace and remove a photo
+- [ ] **UPL-002** Add and remove individual photos when editing
+- [ ] **UPL-006** The pet page shows a photo gallery
 - [ ] **APP-004** Withdraw a pending application and apply again
 - [ ] **OWN-002** Accepting adopts the pet and rejects the other applications
 - [ ] **OWN-003** Rejecting the last pending application makes the pet available
@@ -135,7 +136,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 - **Styling change on the pet card:** automated checks and the smoke suite (look at the cards). No targeted cases.
 - **Change to accept/reject logic** (`application.service.ts`): API tests, E2E, smoke, and PETS-009, APP-004, APP-005, OWN-002, OWN-003, OWN-004, OWN-006.
 - **Change to sessions or sign-in:** API and web tests, E2E, smoke, and AUTH-002, AUTH-003, AUTH-006, AUTH-007, AUTH-009, AUTH-011.
-- **Change to photo upload:** tests, smoke, UPL-001, UPL-002, UPL-004, plus DOCKER-004 if storage paths or env changed.
+- **Change to photo upload:** tests, smoke, UPL-001, UPL-002, UPL-004, UPL-006, plus DOCKER-004 if storage paths or env changed.
 
 ## 4. Recording results
 
@@ -171,7 +172,7 @@ Critical · Smoke · Manual only · Run when changed: demo-scripts
   1. Check the `pnpm demo:start` output.
   2. Open http://localhost:3335/api/health.
   3. Open http://localhost:4202.
-- **Expect:** The output says "Database: pet-adoption-demo" and a photo folder under tmp/demo-uploads. Health returns {"status":"ok"}. The web app shows the 14 demo pets ("Pet Adoption" header), not your development pets.
+- **Expect:** The output says "Database: pet-adoption-demo" and a photo folder under tmp/demo-uploads. Health returns {"status":"ok"}. The web app shows the 14 demo pets ("Pet Adoption" header), most of them with a photo, not your development pets.
 
 ### 5.2 Visitor: browsing
 
@@ -209,6 +210,17 @@ High · Release · Partially covered · Run when changed: pet-list
   3. Refresh the page.
   4. Change a filter.
 - **Expect:** "Page 2 of 2" is shown and the URL has page=2. Back and refresh return to the same page with the same filters. Changing a filter goes back to page 1. "Previous" is disabled on page 1 and "Next" on the last page.
+
+#### UPL-006 · The pet page shows a photo gallery
+
+High · Release · Partially covered · Run when changed: uploads; pets
+
+- **Before:** Signed out is fine. A pet with several photos, one with one photo, one with none. Demo: Max (5), Toby (1), Kiki (0).
+- **Steps:**
+  1. Open the pet with several photos; click the second thumbnail.
+  2. Press Tab until a thumbnail is focused and press Enter.
+  3. Open the pet with one photo, then the one without photos; check them at a narrow window width too.
+- **Expect:** The large photo switches to the chosen thumbnail, which is highlighted; thumbnails work with the keyboard and show a focus ring. A single photo shows no thumbnails; a pet without photos shows no photo area. Thumbnails wrap on narrow screens.
 
 ### 5.3 Accounts and sessions
 
@@ -377,25 +389,26 @@ High · Targeted · Covered by other automated tests · Run when changed: pets; 
   2. Open /pets/<that pet id>/edit directly.
 - **Expect:** No Edit or Delete controls on the pet page. The edit URL shows "You can only edit pets you posted." without a form.
 
-#### UPL-001 · Add a photo when creating a pet
+#### UPL-001 · Add several photos when creating a pet
 
 Critical · Smoke · Partially covered · Run when changed: uploads; pets
 
-- **Before:** Signed in as Owner. A JPEG or PNG under 5 MB without personal metadata.
+- **Before:** Signed in as Owner. 2–3 JPEG or PNG files under 5 MB each, without personal metadata. Demo: Ana creates a new pet.
 - **Steps:**
-  1. On "Add a pet" fill the fields and choose the photo in "Photo (optional)".
+  1. On "Add a pet" fill the fields, click "Add photos" and choose 2–3 files at once.
   2. Click "Create pet".
-- **Expect:** A preview appears before saving. After saving, the photo shows on the pet page and on the card in the list. Opening the image in a new tab works (demo: URL under http://localhost:3335/uploads/pets/).
+- **Expect:** Before saving, each file shows as a preview tile ("Photo 1", "Photo 2"…), the first marked "Main photo", and the hint says "Photos: N of 5." After saving, the pet page shows the first photo large with a thumbnail per photo, and the card in the list shows the first photo. Opening a photo in a new tab works (demo: URL under http://localhost:3335/uploads/pets/).
 
-#### UPL-002 · Replace and remove a photo
+#### UPL-002 · Add and remove individual photos when editing
 
 High · Release · Partially covered · Run when changed: uploads
 
-- **Before:** Signed in as Owner, a pet with a photo.
+- **Before:** Signed in as Owner, a pet with at least 2 photos. Demo: Ana edits Max (5 photos); this changes Max's demo photos (see the demo-images README to restore them).
 - **Steps:**
-  1. Edit the pet, choose a different photo, save.
-  2. Edit again, click "Remove photo", save.
-- **Expect:** After replacing, the new photo is shown everywhere. After removing, the pet shows "No image available". Each save shows "Pet updated successfully."
+  1. Edit the pet and click "Remove photo 1".
+  2. Click "Add photos" and choose one new file.
+  3. Click "Save changes".
+- **Expect:** The removed photo disappears from the form at once and the next photo becomes "Main photo"; with Max, removing one re-enables "Add photos". After saving ("Pet updated successfully."), the pet page shows the remaining photos in order with the new one last, and the removed photo is gone everywhere.
 
 #### PETS-009 · A pet with an active application cannot be deleted
 
@@ -416,24 +429,33 @@ Medium · Targeted · Covered by other automated tests · Run when changed: pets
   2. Open your own pet's edit page with the browser offline (DevTools > Network > Offline), then go online and click "Try again".
 - **Expect:** Missing pet: "Pet not found" and "Back to pets", no "Try again". Offline: "The server could not be reached. Check your connection and try again." with "Try again", which loads the form once online.
 
-#### UPL-003 · Wrong file type or too large a file is refused before upload
+#### UPL-003 · Wrong file types and too large files are refused before upload
 
 High · Targeted · Covered by other automated tests · Run when changed: uploads
 
-- **Before:** Signed in, on the pet form. A GIF (or PDF) and an image larger than 5 MB.
+- **Before:** Signed in, on the pet form. One valid JPEG, plus a GIF (or PDF) and an image larger than 5 MB.
 - **Steps:**
-  1. Choose the GIF/PDF (switch the file dialog to "All files"; it offers only JPEG, PNG and WebP).
-  2. Choose the large image.
-- **Expect:** "Choose a JPEG, PNG or WebP image." and "The photo must be at most 5 MB." respectively. No preview; the file is not sent.
+  1. Click "Add photos" and choose all three files at once (switch the file dialog to "All files"; it offers only JPEG, PNG and WebP).
+- **Expect:** The valid file is added as a preview. For the others: "<file name>: Choose a JPEG, PNG or WebP image." and "<file name>: The photo must be at most 5 MB." They are not sent.
 
 #### UPL-004 · A non-image renamed to .png is rejected by the server
 
 Medium · Targeted · Partially covered · Run when changed: uploads; http
 
-- **Before:** Signed in, on "Add a pet". A text file renamed to fake.png.
+- **Before:** Signed in, on "Add a pet". A text file renamed to fake.png, plus one real JPEG.
 - **Steps:**
-  1. Fill the form, choose fake.png, click "Create pet".
-- **Expect:** The pet is created, then the toast says "The pet was saved, but the photo was not: Only JPEG, PNG and WebP photos are supported." The pet has no photo. (Assumes the browser reports the type from the extension, so the client check passes; unverified.)
+  1. Fill the form, add both files with "Add photos", click "Create pet".
+- **Expect:** The pet is created, then the toast says "The pet was saved, but the photos were not: Only JPEG, PNG and WebP photos are supported." The pet has no photos: the server stores all files of an upload or none. (Assumes the browser reports the type from the extension, so the client check passes; unverified.)
+
+#### UPL-005 · At most 5 photos per pet, counting the existing ones
+
+High · Targeted · Covered by other automated tests · Run when changed: uploads
+
+- **Before:** Signed in as Owner, a pet with 3 photos. Demo: Ana edits Rex.
+- **Steps:**
+  1. Click "Add photos" and choose 3 files at once.
+  2. Click "Save changes".
+- **Expect:** Two files are added; the third shows "<file name>: Not added: a pet can have at most 5 photos." The hint says "Photos: 5 of 5." and "Add photos" is disabled. After saving, the pet has 5 photos.
 
 #### OWN-006 · A stale decision in a second tab is refused
 
@@ -671,12 +693,12 @@ High · Docker · Manual only · Run when changed: docker; uploads
 
 Checked against the specs on 2026-10-22. "Covered" means the rule and the UI behaviour are tested; it doesn't mean everything about the case is.
 
-| Coverage                         | Cases                                                                                                                                                                                                                      | What I do                                                                                                                                                              |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Covered by Playwright            | AUTH-001, AUTH-004, AUTH-005, APP-001, OWN-001                                                                                                                                                                             | Rely on E2E. They still appear in the smoke suite because that's the journey I demo.                                                                                   |
-| Covered by other automated tests | AUTH-008, AUTH-010, PETS-007, PETS-008, PETS-010, UPL-003, APP-002, APP-003, APP-006, OWN-005, OWN-007, I18N-002, ERR-002, ERR-003                                                                                         | Rely on the API/component tests. Check by hand only to eyeball UI I changed.                                                                                           |
-| Partially covered                | PETS-001, PETS-002, PETS-003, AUTH-002, AUTH-003, AUTH-006, AUTH-007, AUTH-009, PETS-004, PETS-005, PETS-006, PETS-009, UPL-001, UPL-002, UPL-004, APP-004, APP-005, OWN-002, OWN-003, OWN-004, OWN-006, I18N-001, ERR-001 | The rules are tested, but not the whole flow in a real browser (e.g. real photo upload, sessions across tabs, URL/Back behaviour). Test by hand when the area changes. |
-| Manual only                      | ENV-001, AUTH-011, DOCKER-001, DOCKER-002, DOCKER-003, DOCKER-004                                                                                                                                                          | No automated test (environment checks, the Docker deployment, redirects away from sign-in pages).                                                                      |
+| Coverage                         | Cases                                                                                                                                                                                                                               | What I do                                                                                                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Covered by Playwright            | AUTH-001, AUTH-004, AUTH-005, APP-001, OWN-001                                                                                                                                                                                      | Rely on E2E. They still appear in the smoke suite because that's the journey I demo.                                                                                   |
+| Covered by other automated tests | AUTH-008, AUTH-010, PETS-007, PETS-008, PETS-010, UPL-003, UPL-005, APP-002, APP-003, APP-006, OWN-005, OWN-007, I18N-002, ERR-002, ERR-003                                                                                         | Rely on the API/component tests. Check by hand only to eyeball UI I changed.                                                                                           |
+| Partially covered                | PETS-001, PETS-002, PETS-003, AUTH-002, AUTH-003, AUTH-006, AUTH-007, AUTH-009, PETS-004, PETS-005, PETS-006, PETS-009, UPL-001, UPL-002, UPL-004, UPL-006, APP-004, APP-005, OWN-002, OWN-003, OWN-004, OWN-006, I18N-001, ERR-001 | The rules are tested, but not the whole flow in a real browser (e.g. real photo upload, sessions across tabs, URL/Back behaviour). Test by hand when the area changes. |
+| Manual only                      | ENV-001, AUTH-011, DOCKER-001, DOCKER-002, DOCKER-003, DOCKER-004                                                                                                                                                                   | No automated test (environment checks, the Docker deployment, redirects away from sign-in pages).                                                                      |
 
 **Where the tests live:**
 
@@ -688,12 +710,12 @@ Checked against the specs on 2026-10-22. "Covered" means the rule and the UI beh
 - **API** (`apps/api/src/**/*.spec.ts`):
   - sessions, rate limits, origin check
   - pet rules and ownership, list paging and search
-  - photo type, size, replace and clean-up
+  - photos: type, size, the 5-photo limit (also with simultaneous uploads), adding, removing, replacing and clean-up
   - every application rule and transition, including transactions and simultaneous decisions
 - **Web components** (`apps/web/src/**/*.spec.tsx`):
   - login form and redirects
   - pet detail and owner controls, delete confirmation
-  - photo field checks and the partial-failure message
+  - the photo field (several files, per-file checks, the 5-photo limit, removing), the partial-failure message and the photo gallery
   - the application section and page, including pagination, empty and error states
   - error mapping, the language selector
 

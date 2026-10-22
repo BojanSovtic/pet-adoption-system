@@ -425,6 +425,7 @@ describe('PUT /api/pets/:id', () => {
       description: 'An even friendlier dog.',
       status: 'available',
       imageUrl: null,
+      images: [],
     });
   });
 
@@ -458,17 +459,22 @@ describe('PUT /api/pets/:id', () => {
   it('keeps the photo, and ignores image fields in the body', async () => {
     const owner = await createSignedInAgent();
     const petId = await createPetAs(owner);
-    await PetModel.updateOne({ _id: petId }, { imageKey: 'pets/existing.jpg' });
+    await PetModel.updateOne(
+      { _id: petId },
+      { images: [{ key: 'pets/existing.jpg' }] },
+    );
 
     const response = await owner.agent.put(`/api/pets/${petId}`).send({
       ...validPet,
-      imageKey: 'pets/other.jpg',
+      images: [{ key: 'pets/other.jpg' }],
       imageUrl: 'https://evil.example/x.jpg',
     });
 
     expect(response.status).toBe(200);
     expect(response.body.imageUrl).toContain('/uploads/pets/existing.jpg');
-    expect(response.body).not.toHaveProperty('imageKey');
+    expect(response.body.images).toEqual([
+      { _id: expect.any(String), url: response.body.imageUrl },
+    ]);
   });
 
   it('rejects a partial body', async () => {

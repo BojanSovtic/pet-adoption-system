@@ -35,7 +35,9 @@
     "IMAGE_REQUIRED": "Choose a photo to upload.",
     "IMAGE_TOO_LARGE": "The photo is too large (maximum 5 MB).",
     "UNSUPPORTED_IMAGE_TYPE": "Only JPEG, PNG and WebP photos are supported.",
-    "INVALID_IMAGE_UPLOAD": "The photo could not be uploaded."
+    "INVALID_IMAGE_UPLOAD": "The photo could not be uploaded.",
+    "TOO_MANY_IMAGES": "A pet can have at most 5 photos.",
+    "IMAGE_NOT_FOUND": "The photo could not be found."
   },
   "validation": {
     "invalid": "This value is invalid.",

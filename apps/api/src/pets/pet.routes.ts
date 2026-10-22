@@ -4,13 +4,16 @@ import { requireAuth } from '../auth/require-auth';
 import { validateBody } from '../middleware/validate';
 import { asyncHandler } from '../middleware/async-handler';
 import { createPetSchema, updatePetSchema } from './pet.schema';
-import { parsePetImageUpload } from './pet-image';
+import { parsePetImagesUpload, parsePetImageUpload } from './pet-image';
 import {
+  addPetImagesController,
   createPetController,
   deletePetController,
+  deletePetImageByIdController,
   deletePetImageController,
   getPetByIdController,
   getPetsController,
+  requirePetImageCapacity,
   requirePetOwner,
   updatePetController,
   uploadPetImageController,
@@ -41,8 +44,9 @@ petRouter.put(
 
 petRouter.delete('/:id', requireAuth, asyncHandler(deletePetController));
 
-// Photo: one multipart file in the field "image". Sign-in and ownership are
-// checked before the upload is read.
+// Single photo (kept for existing clients): PUT replaces all photos with one
+// file in the field "image"; DELETE removes all photos. Sign-in and ownership
+// are checked before the upload is read.
 petRouter.put(
   '/:id/image',
   requireAuth,
@@ -55,4 +59,21 @@ petRouter.delete(
   '/:id/image',
   requireAuth,
   asyncHandler(deletePetImageController),
+);
+
+// Photo gallery: POST adds 1-5 files in the field "images" (at most 5 photos
+// per pet); DELETE removes one photo by id.
+petRouter.post(
+  '/:id/images',
+  requireAuth,
+  asyncHandler(requirePetOwner),
+  asyncHandler(requirePetImageCapacity),
+  parsePetImagesUpload,
+  asyncHandler(addPetImagesController),
+);
+
+petRouter.delete(
+  '/:id/images/:imageId',
+  requireAuth,
+  asyncHandler(deletePetImageByIdController),
 );

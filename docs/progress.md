@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-22. Branch `develop` at `8d9b854` (demo data scripts, QA docs). Uncommitted: risk-based QA workflow (checklist, catalog CSV, new execution log `docs/manual-qa-log.csv`)._
+_Last updated: 2026-10-22. Branch `develop` at `bed569b`. Uncommitted: multiple photos per pet and demo photo preparation (see "Multiple photos")._
 
 ## Status
 
@@ -22,7 +22,7 @@ Verified by passing tests or by reading the code.
   - **Owner from the session:** `owner` is required and set from the session, never from the body.
   - **Owner-only changes:** owner-scoped queries; a non-owner gets 403 `NOT_PET_OWNER`.
   - **Deleting:** runs in a transaction. It's blocked by pending or accepted applications (409 `PET_HAS_ACTIVE_APPLICATIONS`); otherwise the pet's rejected and withdrawn applications are deleted with it.
-- **Pet photos** (one per pet; replaces the old "image URLs" field):
+- **Pet photos** (up to 5 per pet since 2026-10-22; see "Multiple photos" below for the current behaviour; the single-photo notes here are historical):
   - **Storage:** files on local disk behind a `FileStorage` interface (`storage/`). A pet stores an `imageKey`; the API returns `imageUrl` (or `null`). Files are served at `/uploads` with `X-Content-Type-Options: nosniff` and immutable caching.
   - **Upload:** `PUT /api/pets/:id/image`, multipart with one file in the field "image".
     - **Order of checks:** `requireAuth` → owner check (before the body is read) → `multer` (in memory, at most 5 MB) → type detection from the file's bytes (JPEG/PNG/WebP).
@@ -111,6 +111,36 @@ Verified by passing tests or by reading the code.
 - **The container's database starts empty.** The old local install on 27017, including its 2 ownerless pets, is untouched and no longer used. `MONGODB_TEST_URI` in `.env` is ignored.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
+
+## Multiple photos (2026-10-22, uncommitted)
+
+- **Data and API:**
+  - A pet has up to 5 photos (`images: [{ _id, key }]`, `PET_IMAGE_MAX_COUNT`). Responses have `images: [{ _id, url }]` plus `imageUrl` (the first photo), so cards and older clients keep working.
+  - `POST /api/pets/:id/images` adds 1–5 files (field "images"); all are stored or none. `DELETE /api/pets/:id/images/:imageId` removes one.
+  - The limit is checked before the body is read, and again atomically in the update query, so simultaneous uploads can't exceed it. New error codes: 409 `TOO_MANY_IMAGES`, 404 `IMAGE_NOT_FOUND`.
+  - `PUT`/`DELETE /api/pets/:id/image` still work: they replace all photos with one, or remove all.
+  - **Old records:** pets with the old single `imageKey` are converted at API startup (`backfillPetImages`, a no-op once done).
+- **Files:** new files are written before the database update and removed again if it fails or matches nothing. Files are deleted only after the database stops referencing them, and keys are never reused. Deleting a pet deletes all its photos.
+- **Web:**
+  - **Form:** existing photos and new previews as tiles with per-photo Remove buttons, "Add photos" (several files at once), per-file type/size messages, and the 5-photo limit counting existing photos. Saving runs the pet update, then the removals, then one upload; if a photo step fails, the pet stays saved.
+  - **Detail page:** a gallery with keyboard-accessible thumbnails.
+  - **Cards:** unchanged (`imageUrl`).
+- **Demo photos:**
+  - `apps/api/src/scripts/demo-images/mapping.json` lists which downloaded image (`cat.*`/`dog.*`) becomes which pet's photo.
+  - `pnpm demo:images` copies them to `max.jpg`, `max-2.jpg`, …: originals kept, never overwrites, rerun-safe, species checked.
+  - `pnpm demo:seed` uploads all of a pet's photos in one request, only to pets without photos.
+  - The default mapping gives 11 pets 23 photos; Kiki, Coco and Pip (budgie, rabbit, hamster) have none, as no images of those animals exist.
+- **Checks (2026-10-22):**
+  - lint, typecheck, test and build for all 4 projects: ✅ web 95, API 194 (photo API +16, demo images 27)
+  - E2E: ✅ 6/6
+  - `pnpm demo:images`: ✅ copied 23 files; the rerun copied 0
+  - seed against a throwaway in-memory MongoDB on a separate port: ✅ 23 photos uploaded and served; the rerun added none
+- **Not verified:**
+  - the new UI in a real browser (UPL-001, UPL-002, UPL-005, UPL-006 in the QA checklist)
+  - photos on the real demo database
+  - the Docker volume with several photos (DOCKER-004)
+- **Note:** a `pnpm demo:start` that was already running uses the old API code; restart it before seeding.
+- **Images:** the downloaded images are at most 500 px wide, so they look soft in the wide gallery view. The 270 originals (6.6 MB, licence confirmed by the owner) are committed with the 23 prepared copies, so `pnpm demo:images` can be rerun after editing `mapping.json`.
 
 ## Changes in commit `060eb5d` (2026-10-21)
 
@@ -229,6 +259,6 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-1. **Manual QA on the demo environment** ([manual-qa-checklist.md](manual-qa-checklist.md)): the smoke suite first (it includes the photo upload through Axios, UPL-001), then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
+1. **Manual QA on the demo environment** ([manual-qa-checklist.md](manual-qa-checklist.md)): restart `pnpm demo:start`, run `pnpm demo:seed`, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

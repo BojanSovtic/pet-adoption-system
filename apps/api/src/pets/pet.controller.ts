@@ -1,20 +1,25 @@
 import mongoose from 'mongoose';
 import type { NextFunction, Request, Response } from 'express';
 
+import { PET_IMAGE_MAX_COUNT } from '@pet-adoption/models';
+
 import {
+  addPetImages,
   createPet,
   deleteOwnedPet,
   getPetById,
   isPetOwnedBy,
   listPets,
   petExists,
-  removePetImage,
+  petImageKeys,
+  removePetImageById,
+  removePetImages,
   setPetImage,
   updateOwnedPet,
 } from './pet.service';
 import { petListQuerySchema } from './pet.schema';
-import { detectImageType } from './pet-image';
-import type { PetRecord } from './pet.model';
+import { detectImageType, tooManyImagesError } from './pet-image';
+import { PetModel, type PetRecord } from './pet.model';
 import { getAuthenticatedUserId } from '../auth/require-auth';
 import { parseInput } from '../middleware/validate';
 import { deleteStoredFileQuietly, storage } from '../storage';
@@ -45,11 +50,18 @@ const throwNotOwnedError = async (petId: string): Promise<never> => {
   throw new NotFoundError('PET_NOT_FOUND');
 };
 
-/** The API shape of a pet: the storage key becomes a public `imageUrl`. */
-const toPetView = ({ imageKey, ...pet }: PetRecord) => ({
-  ...pet,
-  imageUrl: imageKey ? storage.publicUrl(imageKey) : null,
-});
+/**
+ * The API shape of a pet: storage keys become public URLs. `imageUrl` is the
+ * primary (first) photo, so single-photo clients keep working.
+ */
+const toPetView = ({ images = [], ...pet }: PetRecord) => {
+  const views = images.map(({ _id, key }) => ({
+    _id: _id.toString(),
+    url: storage.publicUrl(key),
+  }));
+
+  return { ...pet, imageUrl: views[0]?.url ?? null, images: views };
+};
 
 export const getPetsController = async (
   req: Request,
@@ -114,9 +126,7 @@ export const deletePetController = async (
   }
 
   // After the transaction: a file can't be "un-deleted" if it rolled back.
-  if (deleted.imageKey) {
-    await deleteStoredFileQuietly(deleted.imageKey);
-  }
+  await Promise.all(petImageKeys(deleted).map(deleteStoredFileQuietly));
 
   res.status(204).end();
 };
@@ -178,7 +188,82 @@ export const deletePetImageController = async (
   res: Response,
 ): Promise<void> => {
   const petId = getPetId(req);
-  const pet = await removePetImage(petId, getAuthenticatedUserId(req));
+  const pet = await removePetImages(petId, getAuthenticatedUserId(req));
+
+  if (!pet) {
+    return throwNotOwnedError(petId);
+  }
+
+  res.json(toPetView(pet));
+};
+
+/**
+ * Runs after `requirePetOwner` and before the upload is parsed: a pet that
+ * already has the maximum number of photos is refused without reading the
+ * files. The service checks the count again, atomically, when adding.
+ */
+export const requirePetImageCapacity = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const pet = await PetModel.findById(getPetId(req)).select('images').lean();
+
+  if ((pet?.images?.length ?? 0) >= PET_IMAGE_MAX_COUNT) {
+    throw tooManyImagesError();
+  }
+
+  next();
+};
+
+/** Adds 1 to PET_IMAGE_MAX_COUNT photos; all of them or none are stored. */
+export const addPetImagesController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const petId = getPetId(req);
+  const uploaded = Array.isArray(req.files) ? req.files : [];
+
+  if (uploaded.length === 0) {
+    throw new BadRequestError('IMAGE_REQUIRED');
+  }
+
+  // Every file is checked by its content before any of them is stored.
+  const files = uploaded.map((file) => {
+    const type = detectImageType(file.buffer);
+
+    if (!type) {
+      throw new AppError('UNSUPPORTED_IMAGE_TYPE', 415);
+    }
+
+    return { data: file.buffer, type };
+  });
+
+  const pet = await addPetImages(petId, getAuthenticatedUserId(req), files);
+
+  if (!pet) {
+    return throwNotOwnedError(petId);
+  }
+
+  res.json(toPetView(pet));
+};
+
+export const deletePetImageByIdController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const petId = getPetId(req);
+  const { imageId } = req.params;
+
+  if (!mongoose.isValidObjectId(imageId)) {
+    throw new NotFoundError('IMAGE_NOT_FOUND');
+  }
+
+  const pet = await removePetImageById(
+    petId,
+    getAuthenticatedUserId(req),
+    imageId,
+  );
 
   if (!pet) {
     return throwNotOwnedError(petId);

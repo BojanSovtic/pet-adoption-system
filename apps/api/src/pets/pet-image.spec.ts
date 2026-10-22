@@ -1,6 +1,8 @@
 import path from 'node:path';
+import { Types } from 'mongoose';
 import request from 'supertest';
 import { PET_IMAGE_MAX_BYTES } from '@pet-adoption/models';
+import { backfillPetImages } from './pet.service';
 
 import { app } from '../app';
 import {
@@ -50,6 +52,22 @@ const upload = (
   agent
     .put(`/api/pets/${petId}/image`)
     .attach(field, data, { filename, contentType });
+
+/** Adds photos through the gallery endpoint (field "images"). */
+const addImages = (
+  agent: SignedInAgent['agent'] | ReturnType<typeof request>,
+  petId: string,
+  files: Buffer[],
+  field = 'images',
+) =>
+  files.reduce(
+    (req, data, index) =>
+      req.attach(field, data, {
+        filename: `photo-${index}.png`,
+        contentType: 'image/png',
+      }),
+    agent.post(`/api/pets/${petId}/images`),
+  );
 
 /** The path part of an `imageUrl`, e.g. "/uploads/pets/….png". */
 const uploadPath = (imageUrl: string) => new URL(imageUrl).pathname;
@@ -250,27 +268,292 @@ describe('pet photos', { timeout: 20_000 }, () => {
     });
   });
 
+  describe('POST /api/pets/:id/images', () => {
+    it('requires authentication and ownership, storing nothing', async () => {
+      const owner = await createSignedInAgent('owner@example.com');
+      const other = await createSignedInAgent('other@example.com');
+      const petId = await createPet(owner);
+
+      const anonymous = await addImages(request(app), petId, [PNG]);
+      const notOwner = await addImages(other.agent, petId, [PNG]);
+
+      expect(anonymous.status).toBe(401);
+      expect(notOwner.status).toBe(403);
+      expect(notOwner.body).toEqual({ code: 'NOT_PET_OWNER' });
+      expect(await storedFiles()).toEqual([]);
+    });
+
+    it('adds several photos in order; the first is the primary one', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+
+      const response = await addImages(owner.agent, petId, [PNG, JPEG, WEBP]);
+
+      expect(response.status).toBe(200);
+      expect(response.body.images).toHaveLength(3);
+      expect(
+        response.body.images.map((image: { url: string }) =>
+          path.extname(image.url),
+        ),
+      ).toEqual(['.png', '.jpg', '.webp']);
+      expect(response.body.imageUrl).toBe(response.body.images[0].url);
+      expect(await storedFiles()).toHaveLength(3);
+
+      const file = await request(app).get(
+        uploadPath(response.body.images[1].url),
+      );
+      expect(file.headers['content-type']).toBe('image/jpeg');
+    });
+
+    it('appends to the existing photos', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const first = await addImages(owner.agent, petId, [PNG, PNG]);
+
+      const second = await addImages(owner.agent, petId, [JPEG]);
+
+      expect(second.status).toBe(200);
+      expect(second.body.images.slice(0, 2)).toEqual(first.body.images);
+      expect(second.body.images).toHaveLength(3);
+    });
+
+    it('allows 5 photos in total, counting the existing ones', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      await addImages(owner.agent, petId, [PNG, PNG, PNG, PNG]);
+
+      const tooMany = await addImages(owner.agent, petId, [PNG, PNG]);
+      const fifth = await addImages(owner.agent, petId, [PNG]);
+      const sixth = await addImages(owner.agent, petId, [PNG]);
+
+      expect(tooMany.status).toBe(409);
+      expect(tooMany.body).toEqual({ code: 'TOO_MANY_IMAGES' });
+      expect(fifth.status).toBe(200);
+      expect(fifth.body.images).toHaveLength(5);
+      expect(sixth.status).toBe(409);
+      expect(await storedFiles()).toHaveLength(5);
+    });
+
+    it('rejects more than 5 files in one request', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+
+      const response = await addImages(owner.agent, petId, Array(6).fill(PNG));
+
+      expect(response.status).toBe(409);
+      expect(response.body).toEqual({ code: 'TOO_MANY_IMAGES' });
+      expect(await storedFiles()).toEqual([]);
+    });
+
+    it('never exceeds the limit with simultaneous uploads', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+
+      const responses = await Promise.all([
+        addImages(owner.agent, petId, [PNG, PNG, PNG]),
+        addImages(owner.agent, petId, [PNG, PNG, PNG]),
+      ]);
+
+      expect(responses.map((response) => response.status).sort()).toEqual([
+        200, 409,
+      ]);
+      expect((await PetModel.findById(petId).lean())?.images).toHaveLength(3);
+      expect(await storedFiles()).toHaveLength(3);
+    });
+
+    it('stores nothing if any file is not a supported image', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+
+      const response = await addImages(owner.agent, petId, [
+        PNG,
+        Buffer.from('<script>alert(1)</script>'),
+      ]);
+
+      expect(response.status).toBe(415);
+      expect(response.body).toEqual({ code: 'UNSUPPORTED_IMAGE_TYPE' });
+      expect(await storedFiles()).toEqual([]);
+    });
+
+    it('rejects a file over 5 MB, storing nothing', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const tooLarge = Buffer.concat([
+        PNG,
+        Buffer.alloc(PET_IMAGE_MAX_BYTES - PNG.length + 1),
+      ]);
+
+      const response = await addImages(owner.agent, petId, [PNG, tooLarge]);
+
+      expect(response.status).toBe(413);
+      expect(response.body).toEqual({ code: 'IMAGE_TOO_LARGE' });
+      expect(await storedFiles()).toEqual([]);
+    });
+
+    it('requires at least one file in the "images" field', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+
+      const none = await owner.agent.post(`/api/pets/${petId}/images`);
+      const wrongField = await addImages(owner.agent, petId, [PNG], 'image');
+
+      expect(none.status).toBe(400);
+      expect(none.body).toEqual({ code: 'IMAGE_REQUIRED' });
+      expect(wrongField.status).toBe(400);
+      expect(wrongField.body).toEqual({ code: 'INVALID_IMAGE_UPLOAD' });
+    });
+
+    it('removes the new files if saving to the database fails', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const existing = await addImages(owner.agent, petId, [PNG]);
+      const update = vi
+        .spyOn(PetModel, 'findOneAndUpdate')
+        .mockImplementationOnce(() => {
+          throw new Error('simulated database failure');
+        });
+
+      const response = await addImages(owner.agent, petId, [JPEG, JPEG]);
+      update.mockRestore();
+
+      expect(response.status).toBe(500);
+      // Only the photo that was already there is left.
+      expect(await storedFiles()).toEqual([
+        path.basename(existing.body.images[0].url),
+      ]);
+    });
+  });
+
+  describe('DELETE /api/pets/:id/images/:imageId', () => {
+    it('removes one photo and only its file', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const added = await addImages(owner.agent, petId, [PNG, JPEG, WEBP]);
+      const [first, second, third] = added.body.images;
+
+      const response = await owner.agent.delete(
+        `/api/pets/${petId}/images/${first._id}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.images).toEqual([second, third]);
+      // The next photo becomes the primary one.
+      expect(response.body.imageUrl).toBe(second.url);
+      expect((await storedFiles()).sort()).toEqual(
+        [path.basename(second.url), path.basename(third.url)].sort(),
+      );
+    });
+
+    it('returns 404 for a photo the pet does not have', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      await addImages(owner.agent, petId, [PNG]);
+
+      const unknown = await owner.agent.delete(
+        `/api/pets/${petId}/images/${missingPetId}`,
+      );
+      const invalid = await owner.agent.delete(
+        `/api/pets/${petId}/images/banana`,
+      );
+
+      expect(unknown.status).toBe(404);
+      expect(unknown.body).toEqual({ code: 'IMAGE_NOT_FOUND' });
+      expect(invalid.status).toBe(404);
+      expect(await storedFiles()).toHaveLength(1);
+    });
+
+    it('is only allowed for the owner', async () => {
+      const owner = await createSignedInAgent('owner@example.com');
+      const other = await createSignedInAgent('other@example.com');
+      const petId = await createPet(owner);
+      const added = await addImages(owner.agent, petId, [PNG]);
+      const imagePath = `/api/pets/${petId}/images/${added.body.images[0]._id}`;
+
+      const anonymous = await request(app).delete(imagePath);
+      const notOwner = await other.agent.delete(imagePath);
+
+      expect(anonymous.status).toBe(401);
+      expect(notOwner.status).toBe(403);
+      expect(notOwner.body).toEqual({ code: 'NOT_PET_OWNER' });
+      expect(await storedFiles()).toHaveLength(1);
+    });
+  });
+
+  describe('single-photo endpoints with several photos', () => {
+    it('PUT /image replaces all photos with one and deletes the old files', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      await addImages(owner.agent, petId, [PNG, PNG, PNG]);
+
+      const response = await upload(owner.agent, petId, JPEG, {
+        filename: 'new.jpg',
+        contentType: 'image/jpeg',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.images).toHaveLength(1);
+      expect(await storedFiles()).toEqual([
+        path.basename(response.body.imageUrl),
+      ]);
+    });
+
+    it('DELETE /image removes all photos and their files', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      await addImages(owner.agent, petId, [PNG, PNG]);
+
+      const response = await owner.agent.delete(`/api/pets/${petId}/image`);
+
+      expect(response.body).toMatchObject({ imageUrl: null, images: [] });
+      expect(await storedFiles()).toEqual([]);
+    });
+  });
+
   describe('pet responses and deletion', () => {
-    it('returns imageUrl null for pets without a photo', async () => {
+    it('returns no photos for pets without one', async () => {
       const owner = await createSignedInAgent();
       const petId = await createPet(owner);
 
       const detail = await request(app).get(`/api/pets/${petId}`);
       const list = await request(app).get('/api/pets');
 
-      expect(detail.body.imageUrl).toBeNull();
-      expect(list.body.items[0].imageUrl).toBeNull();
+      expect(detail.body).toMatchObject({ imageUrl: null, images: [] });
+      expect(list.body.items[0]).toMatchObject({ imageUrl: null, images: [] });
     });
 
-    it("deletes the pet's photo when the pet is deleted", async () => {
+    it("deletes all of the pet's photos when the pet is deleted", async () => {
       const owner = await createSignedInAgent();
       const petId = await createPet(owner);
-      await upload(owner.agent, petId, PNG);
+      await addImages(owner.agent, petId, [PNG, JPEG, WEBP]);
 
       const response = await owner.agent.delete(`/api/pets/${petId}`);
 
       expect(response.status).toBe(204);
       expect(await storedFiles()).toEqual([]);
+    });
+
+    it('converts pets saved with a single imageKey, once', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const uploaded = await upload(owner.agent, petId, PNG);
+      const key = `pets/${path.basename(uploaded.body.imageUrl)}`;
+      // Recreate the old document shape directly in the database.
+      await PetModel.collection.updateOne(
+        { _id: new Types.ObjectId(petId) },
+        { $set: { imageKey: key }, $unset: { images: '' } },
+      );
+
+      expect(await backfillPetImages()).toBe(1);
+      expect(await backfillPetImages()).toBe(0);
+
+      const detail = await request(app).get(`/api/pets/${petId}`);
+      expect(detail.body.imageUrl).toBe(uploaded.body.imageUrl);
+      expect(detail.body.images).toEqual([
+        { _id: expect.any(String), url: uploaded.body.imageUrl },
+      ]);
+      expect(
+        await PetModel.collection.findOne({ imageKey: { $exists: true } }),
+      ).toBeNull();
     });
   });
 });

@@ -1,6 +1,7 @@
 import { app } from './app';
 import { backfillApplicationPetOwners } from './applications/application.service';
 import { connectDatabase, disconnectDatabase } from './config/database';
+import { backfillPetImages } from './pets/pet.service';
 import { env } from './config/env';
 
 const bootstrap = async () => {
@@ -11,6 +12,13 @@ const bootstrap = async () => {
 
   if (backfilled > 0) {
     console.log(`[ database ] Added petOwner to ${backfilled} application(s)`);
+  }
+
+  // One-time data fix for pets saved with a single `imageKey`.
+  const convertedPets = await backfillPetImages();
+
+  if (convertedPets > 0) {
+    console.log(`[ database ] Moved ${convertedPets} pet photo(s) into images`);
   }
 
   const server = app.listen(env.port, env.host, () => {

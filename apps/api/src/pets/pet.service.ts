@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ClientSession, QueryFilter, SortOrder, Types } from 'mongoose';
 import {
   canTransitionPetStatus,
+  PET_IMAGE_MAX_COUNT,
   type CreatePetInput,
   type Paginated,
   type PetImageType,
@@ -12,9 +13,9 @@ import {
 
 import { ApplicationModel } from '../applications/application.model';
 import { withTransaction } from '../config/database';
-import { ConflictError } from '../errors/app-error';
+import { ConflictError, NotFoundError } from '../errors/app-error';
 import { deleteStoredFileQuietly, storage } from '../storage';
-import { IMAGE_EXTENSIONS } from './pet-image';
+import { IMAGE_EXTENSIONS, tooManyImagesError } from './pet-image';
 import { PetModel, type PetRecord } from './pet.model';
 import type { ParsedPetListQuery } from './pet.schema';
 
@@ -197,56 +198,167 @@ export const deleteOwnedPet = (
     return pet;
   });
 
+type ImageFile = { data: Buffer; type: PetImageType };
+
+/** The storage keys of a pet's photos. */
+export const petImageKeys = (pet: Pick<PetRecord, 'images'>): string[] =>
+  (pet.images ?? []).map((image) => image.key);
+
+const deleteStoredFilesQuietly = (keys: string[]): Promise<unknown> =>
+  Promise.all(keys.map(deleteStoredFileQuietly));
+
 /**
- * Stores a new photo and points the pet to it, then deletes the photo it
- * replaced. `returnDocument: 'before'` makes the update itself report which
- * key it replaced, so even two concurrent uploads each delete exactly the
- * file they replaced. Returns `null` (and stores nothing) if no owned pet
- * matched.
+ * Writes the files to storage under new random keys. If one write fails, the
+ * ones already written are removed again. Keys are never reused, so a file
+ * always belongs to exactly one photo.
  */
-export const setPetImage = async (
-  id: string,
-  ownerId: string,
-  { data, type }: { data: Buffer; type: PetImageType },
-): Promise<PetRecord | null> => {
-  const key = `pets/${randomUUID()}.${IMAGE_EXTENSIONS[type]}`;
-
-  await storage.save(key, data, type);
-
-  let previous: PetRecord | null;
+const storeImageFiles = async (files: ImageFile[]): Promise<string[]> => {
+  const keys = files.map(
+    ({ type }) => `pets/${randomUUID()}.${IMAGE_EXTENSIONS[type]}`,
+  );
 
   try {
-    previous = await PetModel.findOneAndUpdate(
-      { _id: id, owner: ownerId },
-      { imageKey: key },
-      { returnDocument: 'before' },
-    ).lean();
+    await Promise.all(
+      files.map(({ data, type }, index) =>
+        storage.save(keys[index], data, type),
+      ),
+    );
   } catch (error) {
-    // The database never pointed to the new file, so remove it.
-    await deleteStoredFileQuietly(key);
+    await deleteStoredFilesQuietly(keys);
     throw error;
   }
 
+  return keys;
+};
+
+/**
+ * Runs a photo update that points the pet at `newKeys`. If the update fails
+ * or matches no pet, the database never referenced the new files, so they are
+ * removed again.
+ */
+const updateWithNewFiles = async (
+  newKeys: string[],
+  update: () => Promise<PetRecord | null>,
+): Promise<PetRecord | null> => {
+  let result: PetRecord | null;
+
+  try {
+    result = await update();
+  } catch (error) {
+    await deleteStoredFilesQuietly(newKeys);
+    throw error;
+  }
+
+  if (!result) {
+    await deleteStoredFilesQuietly(newKeys);
+  }
+
+  return result;
+};
+
+/**
+ * Adds photos after the existing ones. The count limit is part of the update
+ * query, so two concurrent uploads can't exceed it together. Returns `null`
+ * if no owned pet matched; throws TOO_MANY_IMAGES if the pet has no room.
+ */
+export const addPetImages = async (
+  id: string,
+  ownerId: string,
+  files: ImageFile[],
+): Promise<PetRecord | null> => {
+  const keys = await storeImageFiles(files);
+  const maxExisting = PET_IMAGE_MAX_COUNT - files.length;
+
+  const pet = await updateWithNewFiles(keys, () =>
+    PetModel.findOneAndUpdate(
+      {
+        _id: id,
+        owner: ownerId,
+        $expr: {
+          $lte: [{ $size: { $ifNull: ['$images', []] } }, maxExisting],
+        },
+      },
+      { $push: { images: { $each: keys.map((key) => ({ key })) } } },
+      { returnDocument: 'after' },
+    ).lean(),
+  );
+
+  if (!pet && (await isPetOwnedBy(id, ownerId))) {
+    throw tooManyImagesError();
+  }
+
+  return pet;
+};
+
+/**
+ * Removes one photo and then its file. `returnDocument: 'before'` reports the
+ * removed photo's key from the update itself. Returns `null` if no owned pet
+ * matched; throws IMAGE_NOT_FOUND if the pet has no such photo.
+ */
+export const removePetImageById = async (
+  id: string,
+  ownerId: string,
+  imageId: string,
+): Promise<PetRecord | null> => {
+  const previous = await PetModel.findOneAndUpdate(
+    { _id: id, owner: ownerId, 'images._id': imageId },
+    { $pull: { images: { _id: imageId } } },
+    { returnDocument: 'before' },
+  ).lean();
+
   if (!previous) {
-    await deleteStoredFileQuietly(key);
+    if (await isPetOwnedBy(id, ownerId)) {
+      throw new NotFoundError('IMAGE_NOT_FOUND');
+    }
+
     return null;
   }
 
-  if (previous.imageKey) {
-    await deleteStoredFileQuietly(previous.imageKey);
+  const removed = previous.images?.find((image) => image._id.equals(imageId));
+
+  if (removed) {
+    await deleteStoredFileQuietly(removed.key);
   }
 
   return PetModel.findById(id).lean();
 };
 
-/** Removes the pet's photo. Returns `null` if no owned pet matched. */
-export const removePetImage = async (
+/**
+ * Replaces all photos with one (`PUT /api/pets/:id/image`, the single-photo
+ * endpoint kept for existing clients). The replaced files are deleted after
+ * the update. Returns `null` (and stores nothing) if no owned pet matched.
+ */
+export const setPetImage = async (
+  id: string,
+  ownerId: string,
+  file: ImageFile,
+): Promise<PetRecord | null> => {
+  const keys = await storeImageFiles([file]);
+  const previous = await updateWithNewFiles(keys, () =>
+    PetModel.findOneAndUpdate(
+      { _id: id, owner: ownerId },
+      { $set: { images: [{ key: keys[0] }] } },
+      { returnDocument: 'before' },
+    ).lean(),
+  );
+
+  if (!previous) {
+    return null;
+  }
+
+  await deleteStoredFilesQuietly(petImageKeys(previous));
+
+  return PetModel.findById(id).lean();
+};
+
+/** Removes all photos. Returns `null` if no owned pet matched. */
+export const removePetImages = async (
   id: string,
   ownerId: string,
 ): Promise<PetRecord | null> => {
   const previous = await PetModel.findOneAndUpdate(
     { _id: id, owner: ownerId },
-    { $unset: { imageKey: 1 } },
+    { $set: { images: [] } },
     { returnDocument: 'before' },
   ).lean();
 
@@ -254,9 +366,46 @@ export const removePetImage = async (
     return null;
   }
 
-  if (previous.imageKey) {
-    await deleteStoredFileQuietly(previous.imageKey);
-  }
+  await deleteStoredFilesQuietly(petImageKeys(previous));
 
   return PetModel.findById(id).lean();
+};
+
+/**
+ * Moves the single `imageKey` of pets saved before photo galleries into
+ * `images`. Runs at startup and does nothing once every pet is converted.
+ * `imageKey` is no longer part of the schema, so it is read from the raw
+ * collection and removed with `strict: false`. Returns how many pets were
+ * converted.
+ */
+export const backfillPetImages = async (): Promise<number> => {
+  const legacy = await PetModel.collection
+    .find(
+      { imageKey: { $exists: true } },
+      { projection: { imageKey: 1, images: 1 } },
+    )
+    .toArray();
+
+  for (const pet of legacy) {
+    const legacyKey: unknown = pet.imageKey;
+    const images: Array<{ key?: unknown }> = Array.isArray(pet.images)
+      ? pet.images
+      : [];
+    const needsMove =
+      typeof legacyKey === 'string' &&
+      legacyKey !== '' &&
+      !images.some((image) => image.key === legacyKey);
+
+    await PetModel.updateOne(
+      { _id: pet._id },
+      {
+        // The legacy photo goes last, so it never displaces newer photos.
+        ...(needsMove ? { $push: { images: { key: legacyKey } } } : {}),
+        $unset: { imageKey: '' },
+      },
+      { strict: false },
+    );
+  }
+
+  return legacy.length;
 };

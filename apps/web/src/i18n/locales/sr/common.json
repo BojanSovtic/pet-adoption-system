@@ -35,7 +35,9 @@
     "IMAGE_REQUIRED": "Izaberi fotografiju za otpremanje.",
     "IMAGE_TOO_LARGE": "Fotografija je prevelika (najviše 5 MB).",
     "UNSUPPORTED_IMAGE_TYPE": "Podržane su samo JPEG, PNG i WebP fotografije.",
-    "INVALID_IMAGE_UPLOAD": "Fotografiju nije moguće otpremiti."
+    "INVALID_IMAGE_UPLOAD": "Fotografiju nije moguće otpremiti.",
+    "TOO_MANY_IMAGES": "Ljubimac može imati najviše 5 fotografija.",
+    "IMAGE_NOT_FOUND": "Fotografija nije pronađena."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

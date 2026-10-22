@@ -27,13 +27,14 @@ import {
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
-import { deletePetImage, uploadPetImage } from '../api/pet-image';
+import { addPetImages, deletePetImage } from '../api/pet-image';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { updatePet } from '../api/update-pet';
 import {
-  PetImageField,
-  type PetImageChange,
-} from '../components/pet-image-field';
+  NO_IMAGE_CHANGE,
+  PetImagesField,
+  type PetImagesChange,
+} from '../components/pet-images-field';
 import { isPetOwner } from '../utils/is-pet-owner';
 
 // Load errors that mean "there is no such pet" (a malformed id included).
@@ -89,9 +90,8 @@ const PetFormPage = () => {
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<FieldName, string>>
   >({});
-  const [imageChange, setImageChange] = useState<PetImageChange>({
-    kind: 'keep',
-  });
+  const [imageChange, setImageChange] =
+    useState<PetImagesChange>(NO_IMAGE_CHANGE);
 
   const {
     data: existingPet,
@@ -129,22 +129,25 @@ const PetFormPage = () => {
   const mutation = useMutation({
     meta: { skipGlobalErrorToast: true },
 
-    // The pet is saved first; the photo needs the pet's id. If only the photo
-    // step fails, the pet stays saved and the user is told about the photo.
+    // The pet is saved first; photos need the pet's id. Removals run before
+    // additions, so freed slots can be reused within the 5-photo limit. If a photo
+    // step fails, the pet stays saved and the user is told about the photos.
     mutationFn: async ({
       input,
-      image,
+      images,
     }: {
       input: CreatePetInput;
-      image: PetImageChange;
+      images: PetImagesChange;
     }) => {
       const pet = id ? await updatePet(id, input) : await createPet(input);
 
       try {
-        if (image.kind === 'upload') {
-          await uploadPetImage(pet._id, image.file);
-        } else if (image.kind === 'remove') {
-          await deletePetImage(pet._id);
+        for (const imageId of images.removeIds) {
+          await deletePetImage(pet._id, imageId);
+        }
+
+        if (images.add.length > 0) {
+          await addPetImages(pet._id, images.add);
         }
       } catch (imageError) {
         return { pet, imageError };
@@ -202,8 +205,8 @@ const PetFormPage = () => {
       return;
     }
 
-    // Always send the full pet (PUT replaces it); the photo is separate.
-    mutation.mutate({ input: result.data, image: imageChange });
+    // Always send the full pet (PUT replaces it); photos are saved separately.
+    mutation.mutate({ input: result.data, images: imageChange });
   };
 
   // Server-side validation errors are derived from the mutation, so they are
@@ -384,8 +387,8 @@ const PetFormPage = () => {
           )}
         </div>
 
-        <PetImageField
-          currentImageUrl={existingPet?.imageUrl ?? null}
+        <PetImagesField
+          existingImages={existingPet?.images ?? []}
           change={imageChange}
           onChange={(change) => {
             setImageChange(change);

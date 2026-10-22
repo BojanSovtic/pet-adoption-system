@@ -1,0 +1,22 @@
+{
+  "description": "Which downloaded image becomes which demo pet's photo. Keys are demo pet names in lowercase; the list order is the photo order (the first is the main photo); at most 5 per pet. Cat images (cat.*) may only go to cats, dog images (dog.*) only to dogs. After editing, run: pnpm demo:images",
+  "pets": {
+    "max": [
+      "dog.4048.jpg",
+      "dog.4161.jpg",
+      "dog.4074.jpg",
+      "dog.4010.jpg",
+      "dog.4006.jpg"
+    ],
+    "maxi": ["dog.4024.jpg", "dog.4118.jpg"],
+    "rex": ["dog.4097.jpg", "dog.4142.jpg", "dog.4126.jpg"],
+    "toby": ["dog.4012.jpg"],
+    "bello": ["dog.4009.jpg", "dog.4145.jpg"],
+    "daisy": ["dog.4147.jpg"],
+    "bella": ["cat.4066.jpg", "cat.4084.jpg"],
+    "luna": ["cat.4030.jpg"],
+    "mila": ["cat.4069.jpg", "cat.4068.jpg"],
+    "nala": ["cat.4001.jpg"],
+    "oscar": ["cat.4010.jpg", "cat.4003.jpg", "cat.4070.jpg"]
+  }
+}

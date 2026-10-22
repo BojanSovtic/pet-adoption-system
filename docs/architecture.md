@@ -32,11 +32,14 @@ flowchart LR
 - **Two separate apps.** The frontend calls the API directly at `VITE_API_URL` (read at build time); there is no Vite or nginx proxy. Section 6 shows how they run in Docker and in E2E tests. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
 - **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
-- **Photos are files, not database data.** A pet stores only an `imageKey`; the API returns `imageUrl` built by the storage.
+- **Photos are files, not database data.** A pet stores up to 5 storage keys in `images`; the API returns `images: [{ _id, url }]` and `imageUrl` (the first photo) built by the storage.
   - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`) with a local-disk implementation, served at `/uploads` with `nosniff` and long-term caching. Object storage (S3, R2) would be a second implementation; nothing else changes.
-  - **Upload:** `PUT /api/pets/:id/image` checks sign-in and ownership first, then parses multipart with `multer` (in memory, 5 MB maximum, one file in the field "image"). It detects JPEG, PNG or WebP from the file's bytes and stores the file under a random name.
-  - **Replacing a photo:** the new file is written first; the old one is deleted after the database points to the new one. A failed database write removes the new file.
-  - **Deleting:** `DELETE /api/pets/:id/image` removes the photo. Deleting the pet removes its photo too, after the transaction.
+  - **Upload:** `POST /api/pets/:id/images` checks sign-in, ownership and free photo slots first, then parses multipart with `multer` (in memory, at most 5 files of 5 MB in the field "images"). It detects JPEG, PNG or WebP from each file's bytes and stores the files under random names: all of them or none.
+  - **The 5-photo limit is part of the update query** (`$expr` on the array size), so simultaneous uploads can't exceed it.
+  - **New files are written first;** files are deleted only after the database no longer points to them. A failed database write removes the new files. Keys are never reused, so a file belongs to exactly one photo.
+  - **Deleting:** `DELETE /api/pets/:id/images/:imageId` removes one photo. Deleting the pet removes all its photos too, after the transaction.
+  - **Kept for existing clients:** `PUT /api/pets/:id/image` replaces all photos with one; `DELETE /api/pets/:id/image` removes all.
+  - **Old records:** pets saved with a single `imageKey` are converted at startup (`backfillPetImages`).
 - **A replica set is required.** Adoption decisions use transactions, which a standalone MongoDB rejects, so `connectDatabase` refuses to start without one.
   - **Development:** `docker-compose.yml` runs a single-node replica set.
   - **Tests:** an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`).
@@ -121,7 +124,7 @@ flowchart TB
   - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /auth/register`, `POST /auth/login`).
   - Rate limiting runs only on `register` and `login`.
   - `requireAuth` runs on pet create, update, delete and photo routes and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
-  - Photo uploads (`PUT /pets/:id/image`) check ownership before `multer` reads the multipart body.
+  - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check ownership (and free slots) before `multer` reads the multipart body.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
   - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).
@@ -228,7 +231,7 @@ erDiagram
     number age "integer >= 0"
     string description "max 2000"
     string status "available | pending | adopted, default available"
-    string imageKey "optional, e.g. pets/uuid.jpg (file in storage)"
+    array images "0-5 x { _id, key }, e.g. key pets/uuid.jpg; the first is the main photo"
     date createdAt
     date updatedAt
   }

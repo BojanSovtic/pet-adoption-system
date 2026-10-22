@@ -7,17 +7,25 @@ import {
   type Pet,
 } from '@pet-adoption/models';
 
+/** One stored photo: a storage key such as "pets/3f2a….jpg". */
+export type PetImageRecord = {
+  _id: Types.ObjectId;
+  key: string;
+};
+
 /**
  * A pet as stored in MongoDB: the API `Pet` fields with real ids and dates.
- * The photo is stored as a storage key; the API turns it into `imageUrl`, so
- * moving files to another storage changes no data.
+ * Photos are stored as storage keys; the API turns them into URLs, so moving
+ * files to another storage changes no data. Pets saved before photo galleries
+ * had a single `imageKey`; `backfillPetImages` moves it into `images`.
  */
 export type PetRecord = Omit<
   Pet,
-  '_id' | 'owner' | 'imageUrl' | 'createdAt' | 'updatedAt'
+  '_id' | 'owner' | 'imageUrl' | 'images' | 'createdAt' | 'updatedAt'
 > & {
   owner: Types.ObjectId;
-  imageKey?: string;
+  /** At most PET_IMAGE_MAX_COUNT; the first is the primary photo. */
+  images?: PetImageRecord[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -59,9 +67,13 @@ const petSchema = new Schema<PetRecord>(
       default: 'available',
       required: true,
     },
-    // e.g. "pets/3f2a….jpg"; never accepted from clients.
-    imageKey: {
-      type: String,
+    // Never accepted from clients; only the photo endpoints change it. The
+    // count limit is enforced by the photo update queries themselves.
+    images: {
+      type: [
+        new Schema<PetImageRecord>({ key: { type: String, required: true } }),
+      ],
+      default: [],
     },
   },
   {

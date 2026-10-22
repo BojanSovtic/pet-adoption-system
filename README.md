@@ -5,7 +5,7 @@
 A full-stack web app where people post pets that need a new home, others apply to adopt them, and the person who posted the pet reviews the applications and accepts one.
 
 - **Visitors** browse, search and filter pets without an account.
-- **Signed-in users** post pets (with a photo), apply to adopt other people's pets, and withdraw their applications.
+- **Signed-in users** post pets (with up to 5 photos), apply to adopt other people's pets, and withdraw their applications.
 - **Pet owners** see who applied, with their contact details, and accept or reject applications. Accepting one adopts the pet and rejects the others.
 
 The interface is available in English and Serbian. The full rules are in [docs/requirements.md](docs/requirements.md).
@@ -192,7 +192,7 @@ Sign in at http://localhost:4202 as `ana@demo.example.com` (owner with the most 
 
 - **Rerunning** `pnpm demo:seed` only adds what is missing. If demo data was changed by hand (decisions are final), it reports the difference instead of guessing.
 - **Starting over:** `pnpm demo:reset` shows what it would delete. `pnpm demo:reset --yes` empties the demo database and deletes the demo photos. It refuses any database whose name doesn't end in `-demo`.
-- **Photos:** add your own to [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) before seeding (for example `max.jpg`).
+- **Photos:** up to 5 per pet from [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) (`max.jpg`, `max-2.jpg`, …). `pnpm demo:images` copies downloaded images to those names as listed in `mapping.json`. The seed adds photos only to pets that have none yet.
 - **Seeding a fresh Docker stack** (option A, e.g. for someone reviewing the project) works through its API. Run this only when that stack has no data of your own:
 
   ```sh

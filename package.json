@@ -4,6 +4,7 @@
   "license": "MIT",
   "scripts": {
     "demo:start": "tsx apps/api/src/scripts/start-demo.ts",
+    "demo:images": "tsx apps/api/src/scripts/prepare-demo-images.ts",
     "demo:seed": "tsx apps/api/src/scripts/seed-demo.ts",
     "demo:reset": "tsx apps/api/src/scripts/reset-demo.ts"
   },

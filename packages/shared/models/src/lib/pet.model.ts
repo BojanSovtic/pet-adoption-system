@@ -7,7 +7,12 @@ export type PetStatus = (typeof PET_STATUSES)[number];
 export const PET_NAME_MAX_LENGTH = 100;
 export const PET_DESCRIPTION_MAX_LENGTH = 2000;
 
-/** Pet photos: one per pet, uploaded through `PUT /api/pets/:id/image`. */
+/**
+ * Pet photos: up to `PET_IMAGE_MAX_COUNT` per pet, each at most
+ * `PET_IMAGE_MAX_BYTES`. Added with `POST /api/pets/:id/images`, removed one
+ * by one with `DELETE /api/pets/:id/images/:imageId`.
+ */
+export const PET_IMAGE_MAX_COUNT = 5;
 export const PET_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const PET_IMAGE_TYPES = [
   'image/jpeg',
@@ -15,6 +20,12 @@ export const PET_IMAGE_TYPES = [
   'image/webp',
 ] as const;
 export type PetImageType = (typeof PET_IMAGE_TYPES)[number];
+
+/** One photo of a pet. `_id` identifies it for removal. */
+export type PetImage = {
+  _id: string;
+  url: string;
+};
 
 /** A pet as returned by the API (JSON: ids and dates are strings). */
 export type Pet = {
@@ -26,8 +37,13 @@ export type Pet = {
   age: number;
   description: string;
   status: PetStatus;
-  /** Public URL of the pet's photo, or `null` if it has none. */
+  /**
+   * Public URL of the pet's primary (first) photo, or `null` if it has none.
+   * Kept next to `images` so lists and older clients need only one field.
+   */
   imageUrl: string | null;
+  /** All photos in display order, the primary one first; may be empty. */
+  images: PetImage[];
   createdAt: string;
   updatedAt: string;
 };

@@ -1,15 +1,21 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type {
   ApplicationStatus,
   MyApplication,
   Paginated,
   Pet,
-  PetSpecies,
   User,
 } from '@pet-adoption/models';
 
 import { DEMO_API_URL } from './demo-config';
+import { PETS, USERS, type PetSpec, type UserKey } from './demo-data';
+import {
+  DEMO_IMAGE_DIR,
+  demoImagesToUpload,
+  demoImageType,
+  findDemoImages,
+} from './demo-images';
 
 /**
  * Creates the portfolio demo data through the HTTP API, so it passes the same
@@ -17,141 +23,13 @@ import { DEMO_API_URL } from './demo-config';
  * run again: each step first checks what already exists. It never deletes
  * anything (see reset-demo.ts).
  *
- * Optional photos: put `<pet name in lowercase>.jpg|.png|.webp` files in
- * apps/api/src/scripts/demo-images/ (own or CC0 photos, metadata removed).
+ * Photos: up to 5 per pet from apps/api/src/scripts/demo-images/, named
+ * `max.jpg`, `max-2.webp` … (see demo-images.ts and pnpm demo:images).
+ * They are uploaded only to pets that have no photos yet.
  */
 
 /** Demo-only password for every demo account (documented in the README). */
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? 'demo-password';
-
-const IMAGE_DIR = path.resolve('apps/api/src/scripts/demo-images');
-const IMAGE_TYPES = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-} as const;
-
-// `example.com` is reserved for examples, so these can't be real addresses.
-const USERS = {
-  ana: { name: 'Ana Petrović', email: 'ana@demo.example.com' },
-  marko: { name: 'Marko Jovanović', email: 'marko@demo.example.com' },
-  jelena: { name: 'Jelena Nikolić', email: 'jelena@demo.example.com' },
-  luka: { name: 'Luka Ilić', email: 'luka@demo.example.com' },
-} as const;
-
-type UserKey = keyof typeof USERS;
-
-type PetSpec = {
-  owner: UserKey;
-  name: string;
-  species: PetSpecies;
-  age: number;
-  description: string;
-};
-
-// 14 pets: more than one page of the pet list (12 per page). Similar names
-// (Max/Maxi, Bella/Bello) make search easy to show.
-const PETS: PetSpec[] = [
-  {
-    owner: 'ana',
-    name: 'Max',
-    species: 'dog',
-    age: 3,
-    description: 'Energetic Labrador mix who loves fetch and long walks.',
-  },
-  {
-    owner: 'ana',
-    name: 'Maxi',
-    species: 'dog',
-    age: 1,
-    description: 'Playful terrier puppy, learning to walk on a leash.',
-  },
-  {
-    owner: 'ana',
-    name: 'Bella',
-    species: 'cat',
-    age: 2,
-    description: 'Calm tabby who enjoys sunny windowsills.',
-  },
-  {
-    owner: 'ana',
-    name: 'Luna',
-    species: 'cat',
-    age: 5,
-    description: 'Shy at first, very affectionate once she knows you.',
-  },
-  {
-    owner: 'ana',
-    name: 'Rex',
-    species: 'dog',
-    age: 7,
-    description: 'Gentle German Shepherd, good with children.',
-  },
-  {
-    owner: 'ana',
-    name: 'Mila',
-    species: 'cat',
-    age: 0,
-    description: 'Curious kitten, litter-trained.',
-  },
-  {
-    owner: 'ana',
-    name: 'Kiki',
-    species: 'other',
-    age: 2,
-    description: 'Talkative budgie who whistles in the morning.',
-  },
-  {
-    owner: 'ana',
-    name: 'Toby',
-    species: 'dog',
-    age: 10,
-    description: 'Senior beagle looking for a quiet home.',
-  },
-  {
-    owner: 'ana',
-    name: 'Nala',
-    species: 'cat',
-    age: 4,
-    description: 'Independent cat, happy as the only pet.',
-  },
-  {
-    owner: 'marko',
-    name: 'Bello',
-    species: 'dog',
-    age: 6,
-    description: 'Friendly mixed breed, house-trained.',
-  },
-  {
-    owner: 'marko',
-    name: 'Coco',
-    species: 'other',
-    age: 1,
-    description: 'Gentle rabbit who likes fresh greens.',
-  },
-  {
-    owner: 'marko',
-    name: 'Oscar',
-    species: 'cat',
-    age: 12,
-    description: 'Relaxed senior cat who loves naps.',
-  },
-  {
-    owner: 'marko',
-    name: 'Daisy',
-    species: 'dog',
-    age: 2,
-    description: 'Small poodle mix with lots of energy.',
-  },
-  {
-    owner: 'marko',
-    name: 'Pip',
-    species: 'other',
-    age: 0,
-    description: 'Young hamster, active in the evenings.',
-  },
-];
 
 /** `autoRejected`: ends rejected because another application was accepted. */
 type Outcome = ApplicationStatus | 'autoRejected';
@@ -295,14 +173,7 @@ const signIn = async (key: UserKey): Promise<Session> => {
   return { user, cookie: sessionCookie(registered.cookies) };
 };
 
-const findImage = (petName: string): string | undefined =>
-  Object.keys(IMAGE_TYPES)
-    .map((extension) =>
-      path.join(IMAGE_DIR, `${petName.toLowerCase()}${extension}`),
-    )
-    .find((file) => existsSync(file));
-
-/** Finds the owner's pet by exact name, or creates it; adds a photo if one exists. */
+/** Finds the owner's pet by exact name, or creates it; adds its demo photos. */
 const ensurePet = async (spec: PetSpec, owner: Session): Promise<Pet> => {
   const page = expectStatus(
     await call<Paginated<Pet>>(
@@ -335,28 +206,36 @@ const ensurePet = async (spec: PetSpec, owner: Session): Promise<Pet> => {
     console.log(`  + pet ${spec.name}`);
   }
 
-  const imageFile = pet.imageUrl ? undefined : findImage(spec.name);
+  // All of a pet's photos in one request: they are stored all together or
+  // not at all. Pets that already have photos are left alone.
+  const imageFiles = demoImagesToUpload(
+    pet,
+    findDemoImages(DEMO_IMAGE_DIR, spec.name),
+  );
 
-  if (imageFile) {
-    const type =
-      IMAGE_TYPES[path.extname(imageFile) as keyof typeof IMAGE_TYPES];
+  if (imageFiles.length > 0) {
     const form = new FormData();
-    form.append(
-      'image',
-      new Blob([readFileSync(imageFile)], { type }),
-      path.basename(imageFile),
-    );
+
+    for (const fileName of imageFiles) {
+      form.append(
+        'images',
+        new Blob([readFileSync(path.join(DEMO_IMAGE_DIR, fileName))], {
+          type: demoImageType(fileName),
+        }),
+        fileName,
+      );
+    }
 
     pet = expectStatus(
-      await call<Pet>(`/pets/${pet._id}/image`, {
-        method: 'PUT',
+      await call<Pet>(`/pets/${pet._id}/images`, {
+        method: 'POST',
         session: owner,
         form,
       }),
       [200],
-      `Uploading the photo of ${spec.name}`,
+      `Uploading the photos of ${spec.name}`,
     );
-    console.log(`    + photo ${path.basename(imageFile)}`);
+    console.log(`    + photos ${imageFiles.join(', ')}`);
   }
 
   return pet;
