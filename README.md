@@ -104,7 +104,7 @@ The first build takes a few minutes. Compose starts MongoDB, waits until it is h
 | API: public pet list (JSON)                  | http://localhost:3333/api/pets                                 |
 | MongoDB, for tools such as MongoDB Compass   | `mongodb://localhost:27018/pet-adoption?directConnection=true` |
 
-There are no demo accounts or seed data: the database starts empty. Register a user in the web app and add pets. To try the adoption flow, register a second user (for example in a private browser window) and apply for the first user's pet.
+The database starts empty. Register a user in the web app and add pets. To try the adoption flow, register a second user (for example in a private browser window) and apply for the first user's pet. For ready-made data, see [Demo data](#demo-data-optional).
 
 **Check status and logs:**
 
@@ -176,6 +176,32 @@ pnpm nx dev @pet-adoption/web            # web app: http://localhost:4200 (in a 
 - Option B uses `apps/api/.env` and `apps/web/.env`; the root `.env` is only for option A.
 - Stop the dev servers with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data; `docker compose up -d` starts it again.
 - Before switching to option A, stop the dev servers (same ports).
+
+### Demo data (optional)
+
+A ready-made demo with 4 users, 14 pets and 13 adoption applications in every status. It covers both list pages, all statuses, an auto-rejected application and a withdrawn one. It runs on its own database (`pet-adoption-demo`), photo folder (`tmp/demo-uploads`) and ports (web 4202, API 3335), so it never touches your development data.
+
+**Prerequisites:** those of option B, including `apps/api/.env` with `SESSION_SECRET`, and MongoDB running (`docker compose up -d`).
+
+```sh
+pnpm demo:start   # terminal 1: web app http://localhost:4202, API http://localhost:3335/api (Ctrl+C stops both)
+pnpm demo:seed    # terminal 2: creates the demo data; safe to run again
+```
+
+Sign in at http://localhost:4202 as `ana@demo.example.com` (owner with the most pets and applications), `marko@demo.example.com`, `jelena@demo.example.com` or `luka@demo.example.com`. All four use the demo-only password `demo-password`.
+
+- **Rerunning** `pnpm demo:seed` only adds what is missing. If demo data was changed by hand (decisions are final), it reports the difference instead of guessing.
+- **Starting over:** `pnpm demo:reset` shows what it would delete. `pnpm demo:reset --yes` empties the demo database and deletes the demo photos. It refuses any database whose name doesn't end in `-demo`.
+- **Photos:** add your own to [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) before seeding (for example `max.jpg`).
+- **Seeding a fresh Docker stack** (option A, e.g. for someone reviewing the project) works through its API. Run this only when that stack has no data of your own:
+
+  ```sh
+  DEMO_API_URL=http://localhost:3333/api pnpm demo:seed --allow-port-3333
+  ```
+
+  In PowerShell, set the variable first: `$env:DEMO_API_URL = 'http://localhost:3333/api'`.
+
+- **Rate limit:** sign-in and registration allow 20 attempts per 15 minutes. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart `pnpm demo:start`.
 
 ## Tests
 

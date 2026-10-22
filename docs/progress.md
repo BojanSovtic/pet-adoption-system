@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Branch `develop` at `060eb5d` (CI, paginated application lists, language selector, edit-form errors, docs), pushed to `origin/develop`. `master` not updated yet. Uncommitted: README run instructions (Docker/local) and the testing policy in `CLAUDE.md`._
+_Last updated: 2026-10-21. Branch `develop` at `cf556c2`. Uncommitted: demo data scripts (`pnpm demo:start|seed|reset`) and the manual QA checklist + test-case CSV._
 
 ## Status
 
@@ -162,6 +162,22 @@ Verified by passing tests or by reading the code.
 
 **Also:** deleted the stale `apps/api/dist` (gitignored build output from an earlier `prune`), which made `vite-tsconfig-paths` print parse warnings.
 
+## Demo data
+
+- **Scripts** in `apps/api/src/scripts/`, run with `pnpm demo:start`, `pnpm demo:seed` and `pnpm demo:reset [--yes]` (README, "Demo data").
+- **Isolated:** its own database `pet-adoption-demo` on the dev MongoDB, photos in `tmp/demo-uploads`, ports 3335/4202. The seed creates 4 users, 14 pets and 13 applications **through the HTTP API**, and can be rerun safely: it checks what exists first and reports data changed by hand.
+- **Safety guards:**
+  - reset only touches databases ending in `-demo`, and only deletes after `--yes`
+  - neither script touches `apps/api/uploads`
+  - the seed refuses port 3333 without `--allow-port-3333`
+- **Verified 2026-10-21** against a throwaway in-memory MongoDB, never the dev database:
+  - first seed: 31 items; two reruns: 0 new
+  - recovery after a partial seed reports the drift
+  - all three guards work, and the reset dry run deletes nothing
+  - the API shows 14 pets on 2 pages, Ana with 11 received applications on 2 pages, and statuses as designed
+  - a test photo was uploaded and served
+- **Not verified:** `pnpm demo:start` against the real MongoDB on 27018, and seeding a Docker stack. Stopping `demo:start` other than with Ctrl+C (e.g. killing the parent process) can leave the two child processes running.
+
 ## Deployment
 
 Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `trust proxy`, env vars, CORS/CSRF, photo storage, shared rate-limit storage) are in [deployment.md](deployment.md). In development, photos go to `apps/api/uploads/` (gitignored) and need no configuration.
@@ -213,6 +229,6 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-1. **Manual QA in the browser** (checklist still to be written): register, post a pet with a photo (this also verifies photo upload through Axios), browse/search/page, apply, accept/reject/withdraw, page both application lists, switch language and reload.
+1. **Manual QA in the browser** ([manual-qa-checklist.md](manual-qa-checklist.md)): register, post a pet with a photo (this also verifies photo upload through Axios), browse/search/page, apply, accept/reject/withdraw, page both application lists, switch language and reload.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

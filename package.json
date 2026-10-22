@@ -2,7 +2,11 @@
   "name": "pet-adoption-system",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "demo:start": "tsx apps/api/src/scripts/start-demo.ts",
+    "demo:seed": "tsx apps/api/src/scripts/seed-demo.ts",
+    "demo:reset": "tsx apps/api/src/scripts/reset-demo.ts"
+  },
   "private": true,
   "dependencies": {
     "@radix-ui/react-slot": "^1.3.3",
