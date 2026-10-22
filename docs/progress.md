@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21. Branch `develop` at `cf556c2`. Uncommitted: demo data scripts (`pnpm demo:start|seed|reset`) and the manual QA checklist + test-case CSV._
+_Last updated: 2026-10-22. Branch `develop` at `8d9b854` (demo data scripts, QA docs). Uncommitted: risk-based QA workflow (checklist, catalog CSV, new execution log `docs/manual-qa-log.csv`)._
 
 ## Status
 
@@ -229,6 +229,6 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-1. **Manual QA in the browser** ([manual-qa-checklist.md](manual-qa-checklist.md)): register, post a pet with a photo (this also verifies photo upload through Axios), browse/search/page, apply, accept/reject/withdraw, page both application lists, switch language and reload.
+1. **Manual QA on the demo environment** ([manual-qa-checklist.md](manual-qa-checklist.md)): the smoke suite first (it includes the photo upload through Axios, UPL-001), then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).
