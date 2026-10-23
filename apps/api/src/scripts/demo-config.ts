@@ -26,9 +26,66 @@ export const DEV_UPLOADS_DIR = path.resolve('apps/api/uploads');
 export const DEMO_API_PORT = 3335;
 export const DEMO_WEB_PORT = 4202;
 
-/** Where seed-demo sends its requests. Override to seed another stack. */
-export const DEMO_API_URL =
-  process.env.DEMO_API_URL ?? `http://localhost:${DEMO_API_PORT}/api`;
+/** Where `pnpm demo:seed` sends its requests unless DEMO_API_URL is set. */
+export const DEFAULT_DEMO_API_URL = `http://localhost:${DEMO_API_PORT}/api`;
+
+/** The development/Docker API port, which may hold your own data. */
+const DEV_API_PORT = '3333';
+/** The Docker QA API port (docker-compose.qa.yml), seeded only with --qa. */
+const QA_API_PORT = '3336';
+
+/**
+ * Where seed-demo sends its requests.
+ * - `--qa` (pnpm qa:seed): always exactly `qaApiUrl`; refused if DEMO_API_URL
+ *   says something else, so the target can't silently change.
+ * - Otherwise (pnpm demo:seed): DEMO_API_URL or the demo API. The dev/Docker
+ *   port 3333 needs --allow-port-3333, and the QA port is refused (use --qa).
+ */
+export const resolveSeedTarget = (
+  argv: readonly string[],
+  env: Readonly<Record<string, string | undefined>>,
+  qaApiUrl: string,
+): string => {
+  const override = env.DEMO_API_URL;
+
+  if (argv.includes('--qa')) {
+    if (argv.includes('--allow-port-3333')) {
+      throw new Error('--qa and --allow-port-3333 cannot be combined.');
+    }
+
+    if (override && override !== qaApiUrl) {
+      throw new Error(
+        `--qa always seeds the Docker QA stack (${qaApiUrl}), but DEMO_API_URL is "${override}". Unset DEMO_API_URL.`,
+      );
+    }
+
+    return qaApiUrl;
+  }
+
+  const target = override ?? DEFAULT_DEMO_API_URL;
+  let port: string;
+
+  try {
+    port = new URL(target).port;
+  } catch {
+    throw new Error(`DEMO_API_URL "${target}" is not a valid URL.`);
+  }
+
+  if (port === QA_API_PORT) {
+    throw new Error(
+      `${target} is the Docker QA API. Seed it with "pnpm qa:seed" instead.`,
+    );
+  }
+
+  if (port === DEV_API_PORT && !argv.includes('--allow-port-3333')) {
+    throw new Error(
+      `${target} is the development/Docker API, which may hold your own data. ` +
+        'Only seed it if that stack contains nothing but demo data, and pass --allow-port-3333.',
+    );
+  }
+
+  return target;
+};
 
 /** The database name in a MongoDB connection string. */
 export const getDatabaseName = (uri: string): string =>

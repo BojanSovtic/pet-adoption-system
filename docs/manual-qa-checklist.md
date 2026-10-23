@@ -12,24 +12,38 @@ Commands run in PowerShell in the repository root. UI text is quoted in English.
 
 ## 1. Environments
 
-| Environment | Web                   | API health                       | Data                                                                               | Use for                               |
-| ----------- | --------------------- | -------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- |
-| **Demo**    | http://localhost:4202 | http://localhost:3335/api/health | Its own database `pet-adoption-demo` and `tmp/demo-uploads`; kept between restarts | All manual QA except the Docker suite |
-| **Docker**  | http://localhost:4200 | http://localhost:3333/api/health | **Your development database** and the Docker photo volume                          | Only the Docker suite                 |
+| Environment           | Web                       | API health                       | Data                                                                                         | Use for                                   |
+| --------------------- | ------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **Docker QA**         | **http://127.0.0.1:4203** | http://127.0.0.1:3336/api/health | Its own MongoDB server (database `pet-adoption-qa`) and photo volume; kept between restarts  | All manual QA, including the Docker suite |
+| Demo                  | http://localhost:4202     | http://localhost:3335/api/health | Database `pet-adoption-demo` on the development MongoDB server, photos in `tmp/demo-uploads` | Demos (not for QA)                        |
+| Docker app (option A) | http://localhost:4200     | http://localhost:3333/api/health | **Your development database** and the main photo volume                                      | Not for QA                                |
 
-> **Never delete Docker volumes as part of QA.** `docker compose --profile app down -v`, `docker volume prune` and Docker Desktop's _Clean / Purge data_ delete your development data.
+> **Never delete Docker volumes as part of QA.**
+>
+> - `docker compose --profile app down -v` on the main project deletes `pet-adoption-system_mongodb_data`: the development **and** the demo database.
+> - `docker volume prune` and Docker Desktop's _Clean / Purge data_ can delete any of them.
+>
+> To empty the QA data, use `pnpm qa:reset --yes`.
 
-### 1.1 Demo
+### 1.1 Docker QA
 
-**Needs:** Node.js 22, pnpm 12, `pnpm install`, `apps/api/.env` with `SESSION_SECRET`, and MongoDB running.
+The built web app (nginx) and API in Docker, fully separate from development and the demo. The full reference is in the README, "Docker QA environment".
+
+**Needs:** Docker Desktop running, Node.js 22, pnpm 12, `pnpm install`, and `QA_SESSION_SECRET` (32+ random characters) in the root `.env`.
 
 ```powershell
-docker compose up -d   # MongoDB only (skip if it is already running)
-pnpm demo:start        # terminal 1: web :4202 and API :3335; Ctrl+C stops both
-pnpm demo:seed         # terminal 2: creates the demo data; safe to run again
+pnpm qa:up              # build and start (first build: a few minutes)
+pnpm qa:ps              # wait until mongodb, api and web are "healthy"
+pnpm qa:seed            # demo data; safe to run again
+pnpm qa:reset           # dry run: what a reset would delete
+pnpm qa:reset --yes     # delete all QA data (volumes stay), then run pnpm qa:seed
+pnpm qa:logs api        # follow the API log
+pnpm qa:down            # stop; the data stays
 ```
 
-| Role in the cases | Demo account (password `demo-password`)                  |
+Open **http://127.0.0.1:4203**, not `localhost:4203`: the API only accepts `127.0.0.1`, and this keeps the QA sign-in separate from the other environments.
+
+| Role in the cases | Seeded account (password `demo-password`)                |
 | ----------------- | -------------------------------------------------------- |
 | Owner             | `ana@demo.example.com`: 9 pets, 11 received applications |
 | Adopter           | `jelena@demo.example.com`                                |
@@ -37,35 +51,27 @@ pnpm demo:seed         # terminal 2: creates the demo data; safe to run again
 | Another user      | `marko@demo.example.com`: owns 5 pets                    |
 | Visitor           | signed out                                               |
 
+- **"Seed data:" hints** in the cases refer to these seeded records.
 - **Several users at once:** a browser window holds one session, and its tabs share it. Use a normal window, a private window and a second browser to be three users at once.
-- **Data that gets used up:** APP-004, OWN-002, OWN-003 and OWN-006 change seeded applications for good, and decisions are final. Smoke cases create their own pet each time, so they repeat without a reset.
-- **Reset:** before a release pass, or when `pnpm demo:seed` reports differences, run `pnpm demo:reset --yes` and then `pnpm demo:seed`. This deletes only the demo database and demo photos; it refuses any database not ending in `-demo`.
-- **Sign-in limit:** sign-in and registration allow 20 attempts per 15 minutes. If "Too many attempts" appears, restart `pnpm demo:start`: the counters reset and the data stays. Run AUTH-010 last.
+- **Data that gets used up:** APP-004, OWN-002, OWN-003, OWN-006 and UPL-002 change seeded data for good (decisions are final). Smoke cases create their own pet each time, so they repeat without a reset.
+- **Reset:** before a release pass, or when `pnpm qa:seed` reports differences, run `pnpm qa:reset --yes` and then `pnpm qa:seed`. It refuses unless the containers, volumes and database are the QA ones.
+- **Sign-in limit:** sign-in and registration allow 20 attempts per 15 minutes. If "Too many attempts" appears, run `pnpm qa:down` and `pnpm qa:up`: the counters reset and the data stays. Run AUTH-010 last.
 
-### 1.2 Docker
+### 1.2 Other setups (not for manual QA)
 
-**Needs:** Docker Desktop and a root `.env` (from `.env.example`) with `SESSION_SECRET`. It uses your development database, so **back up first** (`mongodump`, see the README). Sign in with one of your own development accounts and don't seed it.
-
-```powershell
-docker compose --profile app up -d --build   # start (stop the local dev servers first: same ports)
-docker compose --profile app ps              # all services should be "healthy"
-docker compose --profile app down            # stop; keeps the data (never add -v)
-```
-
-### 1.3 Other setups (not for manual QA)
-
-- `pnpm nx e2e @pet-adoption/web-e2e` starts its own throwaway servers (web :4201, API :3334, in-memory database). They're for the Playwright tests only.
-- Local development (`pnpm nx serve` / `pnpm nx dev`, ports 4200/3333) uses your development database, so don't use it for QA.
+- **Demo** (`pnpm demo:start`, `pnpm demo:seed`; web :4202, API :3335) is for showing the app. It shares the development MongoDB server.
+- **Docker app stack and local development** (ports 4200/3333) use your development database.
+- **E2E:** `pnpm nx e2e @pet-adoption/web-e2e` starts its own throwaway servers (web :4201, API :3334, in-memory database) for the Playwright tests.
 
 ## 2. What to run when
 
-| Level                  | When                                                                                                     | What                                                                                                                                                                                                                                                                                                                                      | Time                       |
-| ---------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| 1. Automated checks    | Every code change                                                                                        | Per the testing policy in `CLAUDE.md`: the affected projects' lint, typecheck and tests before committing. CI runs lint, typecheck, test and build for everything on push. Run E2E (`pnpm nx e2e @pet-adoption/web-e2e`) when auth/session, the application workflow, routing, frontend–API integration or shared infrastructure changed. | Minutes, mostly unattended |
-| 2. Smoke               | After a change to anything a user sees or does                                                           | The 9 smoke cases below, on the demo                                                                                                                                                                                                                                                                                                      | 5–10 min                   |
-| 3. Targeted regression | When a change touches a feature area                                                                     | The cases tagged with that area that automation doesn't fully cover (section 3)                                                                                                                                                                                                                                                           | 5–15 min                   |
-| 4. Pre-release         | Before calling a version ready, merging to `master`, or a demo                                           | Reset the demo; run all automated checks and E2E; then smoke + the 15 release cases + the Docker suite                                                                                                                                                                                                                                    | About 1 hour               |
-| 5. Docker smoke        | After changing Dockerfiles, `docker-compose.yml`, `nginx.conf` or env handling, and in every pre-release | The Docker suite below                                                                                                                                                                                                                                                                                                                    | About 10 min               |
+| Level                  | When                                                                                                                              | What                                                                                                                                                                                                                                                                                                                                      | Time                       |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| 1. Automated checks    | Every code change                                                                                                                 | Per the testing policy in `CLAUDE.md`: the affected projects' lint, typecheck and tests before committing. CI runs lint, typecheck, test and build for everything on push. Run E2E (`pnpm nx e2e @pet-adoption/web-e2e`) when auth/session, the application workflow, routing, frontend–API integration or shared infrastructure changed. | Minutes, mostly unattended |
+| 2. Smoke               | After a change to anything a user sees or does                                                                                    | The 9 smoke cases below, on Docker QA                                                                                                                                                                                                                                                                                                     | 5–10 min                   |
+| 3. Targeted regression | When a change touches a feature area                                                                                              | The cases tagged with that area that automation doesn't fully cover (section 3)                                                                                                                                                                                                                                                           | 5–15 min                   |
+| 4. Pre-release         | Before calling a version ready, merging to `master`, or a demo                                                                    | Reset QA (`pnpm qa:reset --yes`, `pnpm qa:up`, `pnpm qa:seed`); run all automated checks and E2E; then smoke + the 15 release cases + the Docker suite                                                                                                                                                                                    | About 1 hour               |
+| 5. Docker smoke        | After changing Dockerfiles, `docker-compose.yml`, `docker-compose.qa.yml`, `nginx.conf` or env handling, and in every pre-release | The Docker suite below, on Docker QA (it runs the built images)                                                                                                                                                                                                                                                                           | About 10 min               |
 
 Docs-only and CI-only changes need no manual QA. The other 22 cases are targeted only: they run when their area changes.
 
@@ -73,7 +79,7 @@ Docs-only and CI-only changes need no manual QA. The other 22 cases are targeted
 
 Run in this order, signed in as one user per window. PETS-004 and UPL-001 are one action (create a pet with a photo), and APP-001 applies for that new pet.
 
-1. [ ] **ENV-001** The demo environment starts with its own data
+1. [ ] **ENV-001** The Docker QA environment starts with its own data
 2. [ ] **PETS-001** A visitor browses the pet list and opens a pet
 3. [ ] **AUTH-004** Sign in with valid credentials
 4. [ ] **AUTH-006** The session survives a refresh and a new tab
@@ -103,7 +109,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 
 ### Docker suite
 
-- [ ] **DOCKER-001** All containers are healthy and the app is reachable
+- [ ] **DOCKER-001** All QA containers are healthy and the app is reachable
 - [ ] **DOCKER-002** Sign-in works between the built web app and the API
 - [ ] **DOCKER-003** Deep links load directly (nginx)
 - [ ] **DOCKER-004** Photos are stored in the volume and survive a restart
@@ -126,7 +132,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 | `apps/web/src/i18n/**`, `apps/web/src/app/language-select.tsx`                                                                                                                                                                                 | `i18n`                                              |
 | `apps/web/src/lib/api-client.ts`, `get-error-message.ts`, `apps/web/src/app/query-client.ts`, `apps/api/src/middleware/error-handler.ts`, `validate.ts`                                                                                        | `http`                                              |
 | `apps/web/src/app/router.tsx`, `app-shell.tsx`                                                                                                                                                                                                 | `routing`                                           |
-| `apps/*/Dockerfile`, `docker-compose.yml`, `apps/web/nginx.conf`, `.env.example`, `apps/api/src/config/**`                                                                                                                                     | `docker` (Docker suite)                             |
+| `apps/*/Dockerfile`, `docker-compose.yml`, `docker-compose.qa.yml`, `apps/web/nginx.conf`, `.env.example`, `apps/api/src/config/**`, `apps/api/src/scripts/qa-*.ts`, `reset-qa.ts`                                                             | `docker` (Docker suite)                             |
 | `apps/api/src/scripts/**`                                                                                                                                                                                                                      | `demo-scripts`                                      |
 | Other files in `packages/shared/models`                                                                                                                                                                                                        | The tags of the features that use the changed types |
 | Styling only (Tailwind classes, `components/ui/**`, `index.css`)                                                                                                                                                                               | None: automated checks + smoke                      |
@@ -147,7 +153,7 @@ Append one row per case I actually ran to [manual-qa-log.csv](manual-qa-log.csv)
 | Run ID      | Date plus a label, e.g. `2026-10-22-smoke`, `2026-10-22-retest`, `2026-11-02-release`. It gives the date and groups the rows of one run; it also sorts by date. |
 | Test ID     | From the catalog.                                                                                                                                               |
 | Status      | `Pass`, `Fail` or `Blocked` (couldn't run, e.g. a broken environment or a failing precondition).                                                                |
-| Environment | `Demo` or `Docker`.                                                                                                                                             |
+| Environment | `Docker QA` (or `Demo` if you ever test there).                                                                                                                 |
 | Commit      | `git rev-parse --short HEAD`, so a regression can be narrowed down to the commits between two runs.                                                             |
 | Notes       | Only for Fail/Blocked: what happened instead.                                                                                                                   |
 | Issue       | For a Fail: a GitHub issue number, or `progress.md` if it is noted there under outstanding issues.                                                              |
@@ -163,16 +169,16 @@ Each case shows: priority · suite · automation coverage · tags.
 
 ### 5.1 Start
 
-#### ENV-001 · The demo environment starts with its own data
+#### ENV-001 · The Docker QA environment starts with its own data
 
-Critical · Smoke · Manual only · Run when changed: demo-scripts
+Critical · Smoke · Manual only · Run when changed: docker; demo-scripts
 
-- **Before:** MongoDB running (`docker compose up -d`). `pnpm demo:start` running and `pnpm demo:seed` done (section 1).
+- **Before:** Docker Desktop running, QA_SESSION_SECRET in the root .env. `pnpm qa:up` and `pnpm qa:seed` done (section 1).
 - **Steps:**
-  1. Check the `pnpm demo:start` output.
-  2. Open http://localhost:3335/api/health.
-  3. Open http://localhost:4202.
-- **Expect:** The output says "Database: pet-adoption-demo" and a photo folder under tmp/demo-uploads. Health returns {"status":"ok"}. The web app shows the 14 demo pets ("Pet Adoption" header), most of them with a photo, not your development pets.
+  1. Run `pnpm qa:ps`.
+  2. Run `pnpm qa:reset` (a dry run: it only shows what a reset would delete).
+  3. Open http://127.0.0.1:3336/api/health, then http://127.0.0.1:4203.
+- **Expect:** pet-adoption-qa-mongodb, -api and -web are "healthy". The dry run names database "pet-adoption-qa" and volume "pet-adoption-qa_uploads_data", and deletes nothing. Health returns {"status":"ok"}. The web app shows the 14 seeded pets, most with a photo, and none of your development or demo pets.
 
 ### 5.2 Visitor: browsing
 
@@ -180,7 +186,7 @@ Critical · Smoke · Manual only · Run when changed: demo-scripts
 
 Critical · Smoke · Partially covered · Run when changed: pet-list; pets
 
-- **Before:** Signed out. At least 2 pets exist. Demo: any pet.
+- **Before:** Signed out. At least 2 pets exist. Seed data: any pet.
 - **Steps:**
   1. Open /pets.
   2. Click "View details" on a pet.
@@ -191,7 +197,7 @@ Critical · Smoke · Partially covered · Run when changed: pet-list; pets
 
 High · Release · Partially covered · Run when changed: pet-list
 
-- **Before:** Pets with similar names and different species/status exist (e.g. demo data: Max, Maxi, Bella, Bello). Demo: search "max" (Max, Maxi) and "bel" (Bella, Bello).
+- **Before:** Pets with similar names and different species/status exist (e.g. demo data: Max, Maxi, Bella, Bello). Seed data: search "max" (Max, Maxi) and "bel" (Bella, Bello).
 - **Steps:**
   1. Type part of a name in "Search pets by name..." and wait a moment.
   2. Choose a species in "Filter by species".
@@ -203,7 +209,7 @@ High · Release · Partially covered · Run when changed: pet-list
 
 High · Release · Partially covered · Run when changed: pet-list
 
-- **Before:** More than 12 pets exist (demo data has 14). Demo: 14 pets.
+- **Before:** More than 12 pets exist (demo data has 14). Seed data: 14 pets.
 - **Steps:**
   1. On /pets click "Next".
   2. Open a pet on page 2, then use the browser Back button.
@@ -215,7 +221,7 @@ High · Release · Partially covered · Run when changed: pet-list
 
 High · Release · Partially covered · Run when changed: uploads; pets
 
-- **Before:** Signed out is fine. A pet with several photos, one with one photo, one with none. Demo: Max (5), Toby (1), Kiki (0).
+- **Before:** Signed out is fine. A pet with several photos, one with one photo, one with none. Seed data: Max (5), Toby (1), Kiki (0).
 - **Steps:**
   1. Open the pet with several photos; click the second thumbnail.
   2. Press Tab until a thumbnail is focused and press Enter.
@@ -299,7 +305,7 @@ High · Targeted · Covered by other automated tests · Run when changed: auth; 
 
 High · Release · Partially covered · Run when changed: auth
 
-- **Before:** An existing account (e.g. Owner). Demo: register ANA@DEMO.EXAMPLE.COM.
+- **Before:** An existing account (e.g. Owner). Seed data: register ANA@DEMO.EXAMPLE.COM.
 - **Steps:**
   1. Signed out, register again with the same email in different letter case (e.g. OWNER@...).
 - **Expect:** Inline error "An account with this email already exists." You stay signed out on /register.
@@ -318,7 +324,7 @@ Medium · Targeted · Partially covered · Run when changed: auth; http
 
 Medium · Targeted · Covered by other automated tests · Run when changed: auth
 
-- **Before:** An existing account. Run this last: it blocks that account from this IP for 15 minutes. Demo: use an address that has no account, e.g. ratelimit@qa.example.com, so no demo account gets blocked.
+- **Before:** An existing account. Run this last: it blocks that account from this IP for 15 minutes. Seed data: use an address that has no account, e.g. ratelimit@qa.example.com, so no demo account gets blocked.
 - **Steps:**
   1. Sign in with a wrong password 6 times for the same email.
 - **Expect:** Attempts 1-5 show "Incorrect email or password."; the 6th shows "Too many attempts. Please wait a few minutes and try again."
@@ -361,7 +367,7 @@ High · Release · Partially covered · Run when changed: pets
 
 Critical · Release · Partially covered · Run when changed: pets
 
-- **Before:** Signed in as Owner, on one of your pets. Demo: Ana edits Nala.
+- **Before:** Signed in as Owner, on one of your pets. Seed data: Ana edits Nala.
 - **Steps:**
   1. Click "Edit pet".
   2. Change name, age and description.
@@ -372,7 +378,7 @@ Critical · Release · Partially covered · Run when changed: pets
 
 High · Targeted · Covered by other automated tests · Run when changed: pets
 
-- **Before:** Signed in as Owner, a pet with no pending or accepted applications. Demo: create a pet just for this and delete it (demo pets have applications).
+- **Before:** Signed in as Owner, a pet with no pending or accepted applications. Seed data: create a pet just for this and delete it (demo pets have applications).
 - **Steps:**
   1. On the pet page click "Delete".
   2. Click "Cancel".
@@ -383,7 +389,7 @@ High · Targeted · Covered by other automated tests · Run when changed: pets
 
 High · Targeted · Covered by other automated tests · Run when changed: pets; auth
 
-- **Before:** Signed in as Adopter. A pet owned by Owner. Demo: Jelena opens Ana's Max.
+- **Before:** Signed in as Adopter. A pet owned by Owner. Seed data: Jelena opens Ana's Max.
 - **Steps:**
   1. Open the Owner's pet.
   2. Open /pets/<that pet id>/edit directly.
@@ -393,17 +399,17 @@ High · Targeted · Covered by other automated tests · Run when changed: pets; 
 
 Critical · Smoke · Partially covered · Run when changed: uploads; pets
 
-- **Before:** Signed in as Owner. 2–3 JPEG or PNG files under 5 MB each, without personal metadata. Demo: Ana creates a new pet.
+- **Before:** Signed in as Owner. 2–3 JPEG or PNG files under 5 MB each, without personal metadata. Seed data: Ana creates a new pet.
 - **Steps:**
   1. On "Add a pet" fill the fields, click "Add photos" and choose 2–3 files at once.
   2. Click "Create pet".
-- **Expect:** Before saving, each file shows as a preview tile ("Photo 1", "Photo 2"…), the first marked "Main photo", and the hint says "Photos: N of 5." After saving, the pet page shows the first photo large with a thumbnail per photo, and the card in the list shows the first photo. Opening a photo in a new tab works (demo: URL under http://localhost:3335/uploads/pets/).
+- **Expect:** Before saving, each file shows as a preview tile ("Photo 1", "Photo 2"…), the first marked "Main photo", and the hint says "Photos: N of 5." After saving, the pet page shows the first photo large with a thumbnail per photo, and the card in the list shows the first photo. Opening a photo in a new tab works (URL under http://127.0.0.1:3336/uploads/pets/).
 
 #### UPL-002 · Add and remove individual photos when editing
 
 High · Release · Partially covered · Run when changed: uploads
 
-- **Before:** Signed in as Owner, a pet with at least 2 photos. Demo: Ana edits Max (5 photos); this changes Max's demo photos (see the demo-images README to restore them).
+- **Before:** Signed in as Owner, a pet with at least 2 photos. Seed data: Ana edits Max (5 photos); this changes Max's seeded photos (pnpm qa:reset --yes, then pnpm qa:seed restores them).
 - **Steps:**
   1. Edit the pet and click "Remove photo 1".
   2. Click "Add photos" and choose one new file.
@@ -414,7 +420,7 @@ High · Release · Partially covered · Run when changed: uploads
 
 High · Release · Partially covered · Run when changed: pets; applications
 
-- **Before:** Signed in as Owner, a pet with a pending (or accepted) application. Demo: Ana deletes Max (Jelena's application is pending).
+- **Before:** Signed in as Owner, a pet with a pending (or accepted) application. Seed data: Ana deletes Max (Jelena's application is pending).
 - **Steps:**
   1. On the pet page click "Delete", then "Yes, delete".
 - **Expect:** Error toast "This pet has open or accepted adoption applications and cannot be deleted." The pet stays.
@@ -451,7 +457,7 @@ Medium · Targeted · Partially covered · Run when changed: uploads; http
 
 High · Targeted · Covered by other automated tests · Run when changed: uploads
 
-- **Before:** Signed in as Owner, a pet with 3 photos. Demo: Ana edits Rex.
+- **Before:** Signed in as Owner, a pet with 3 photos. Seed data: Ana edits Rex.
 - **Steps:**
   1. Click "Add photos" and choose 3 files at once.
   2. Click "Save changes".
@@ -461,7 +467,7 @@ High · Targeted · Covered by other automated tests · Run when changed: upload
 
 Medium · Targeted · Partially covered · Run when changed: applications; http
 
-- **Before:** Signed in as Owner. Two pending applications for one pet; /applications open in two tabs. Demo: needs Rex untouched, so run it instead of OWN-002 or after a demo reset.
+- **Before:** Signed in as Owner. Two pending applications for one pet; /applications open in two tabs. Seed data: needs Rex untouched, so run it instead of OWN-002 or after a QA reset.
 - **Steps:**
   1. Tab 1: accept application 1.
   2. Tab 2 (not refreshed): click "Reject" on application 1, then "Accept" on application 2.
@@ -471,7 +477,7 @@ Medium · Targeted · Partially covered · Run when changed: applications; http
 
 Medium · Targeted · Covered by other automated tests · Run when changed: applications
 
-- **Before:** Signed in as a user with no applications. Demo: register a new account for the empty lists; Ana for page 9.
+- **Before:** Signed in as a user with no applications. Seed data: register a new account for the empty lists; Ana for page 9.
 - **Steps:**
   1. Open /applications.
   2. Open /applications?receivedPage=9 as a user with some received applications.
@@ -483,7 +489,7 @@ Medium · Targeted · Covered by other automated tests · Run when changed: appl
 
 Critical · Smoke · Covered by Playwright · Run when changed: applications
 
-- **Before:** Signed in as Adopter. An available pet owned by Owner. Demo: Jelena applies for the pet Ana created in PETS-004, so it repeats without a reset (or Bella).
+- **Before:** Signed in as Adopter. An available pet owned by Owner. Seed data: Jelena applies for the pet Ana created in PETS-004, so it repeats without a reset (or Bella).
 - **Steps:**
   1. Open the pet.
   2. Write a message in "Why would you like to adopt <name>?".
@@ -494,7 +500,7 @@ Critical · Smoke · Covered by Playwright · Run when changed: applications
 
 High · Targeted · Covered by other automated tests · Run when changed: applications; auth
 
-- **Before:** Signed in as Owner. Demo: Ana opens Max.
+- **Before:** Signed in as Owner. Seed data: Ana opens Max.
 - **Steps:**
   1. Open one of your own pets.
 - **Expect:** No application form. A "Review applications" button links to /applications instead.
@@ -503,7 +509,7 @@ High · Targeted · Covered by other automated tests · Run when changed: applic
 
 High · Release · Partially covered · Run when changed: applications
 
-- **Before:** Signed in as Adopter with a pending application that is the only one for that pet. Demo: Jelena withdraws her application for Kiki (consumes it: reset the demo to repeat).
+- **Before:** Signed in as Adopter with a pending application that is the only one for that pet. Seed data: Jelena withdraws her application for Kiki (consumes it: reset QA to repeat).
 - **Steps:**
   1. On /applications under "My applications" click "Withdraw".
   2. Open the pet.
@@ -513,7 +519,7 @@ High · Release · Partially covered · Run when changed: applications
 
 Medium · Targeted · Covered by other automated tests · Run when changed: applications
 
-- **Before:** Signed in as a user who did not apply for the adopted pet. Demo: Marko opens Maxi (adopted by Jelena).
+- **Before:** Signed in as a user who did not apply for the adopted pet. Seed data: Marko opens Maxi (adopted by Jelena).
 - **Steps:**
   1. Open the adopted pet.
 - **Expect:** Status badge "Adopted" and no application form.
@@ -532,7 +538,7 @@ Medium · Targeted · Covered by other automated tests · Run when changed: appl
 
 Medium · Targeted · Partially covered · Run when changed: applications; http
 
-- **Before:** Signed in as Adopter. The same available pet open in two tabs. Demo: Jelena applies for Coco in two tabs.
+- **Before:** Signed in as Adopter. The same available pet open in two tabs. Seed data: Jelena applies for Coco in two tabs.
 - **Steps:**
   1. Send an application in tab 1.
   2. In tab 2 (still showing the form) send another one.
@@ -544,7 +550,7 @@ Medium · Targeted · Partially covered · Run when changed: applications; http
 
 Critical · Smoke · Covered by Playwright · Run when changed: applications
 
-- **Before:** Signed in as Owner. Adopter has applied for one of your pets. Demo: Ana sees Jelena's application from APP-001 (or the one for Max).
+- **Before:** Signed in as Owner. Adopter has applied for one of your pets. Seed data: Ana sees Jelena's application from APP-001 (or the one for Max).
 - **Steps:**
   1. Click "Applications" in the header.
 - **Expect:** Under "Applications for my pets" the application shows the pet name (link), "Submitted <date>", "Applicant: <name> (<email>)", the message, "Pending", and "Accept" and "Reject".
@@ -553,7 +559,7 @@ Critical · Smoke · Covered by Playwright · Run when changed: applications
 
 Critical · Release · Partially covered · Run when changed: applications
 
-- **Before:** Signed in as Owner. Two pending applications for the same pet (Adopter and Adopter 2). Demo: Rex has pending applications from Luka and Marko: accept Luka's (consumes Rex).
+- **Before:** Signed in as Owner. Two pending applications for the same pet (Adopter and Adopter 2). Seed data: Rex has pending applications from Luka and Marko: accept Luka's (consumes Rex).
 - **Steps:**
   1. Click "Accept" on Adopter's application.
   2. Look at Adopter 2's application and at the pet.
@@ -563,7 +569,7 @@ Critical · Release · Partially covered · Run when changed: applications
 
 High · Release · Partially covered · Run when changed: applications
 
-- **Before:** Signed in as Owner. A pet with exactly one pending application. Demo: reject Luka's application for Toby (consumes it).
+- **Before:** Signed in as Owner. A pet with exactly one pending application. Seed data: reject Luka's application for Toby (consumes it).
 - **Steps:**
   1. Click "Reject" on it.
   2. Open the pet.
@@ -573,7 +579,7 @@ High · Release · Partially covered · Run when changed: applications
 
 High · Release · Partially covered · Run when changed: applications
 
-- **Before:** Owner with more than 10 received applications (demo data: Ana has 11). Demo: Ana (11 received applications).
+- **Before:** Owner with more than 10 received applications (demo data: Ana has 11). Seed data: Ana (11 received applications).
 - **Steps:**
   1. Open /applications.
   2. Click "Next" in "Applications for my pets".
@@ -584,7 +590,7 @@ High · Release · Partially covered · Run when changed: applications
 
 High · Targeted · Covered by other automated tests · Run when changed: applications; auth
 
-- **Before:** Adopter applied for an Owner pet. Signed in as Adopter 2 (not involved). Demo: Marko does not see Jelena's application for Max.
+- **Before:** Adopter applied for an Owner pet. Signed in as Adopter 2 (not involved). Seed data: Marko does not see Jelena's application for Max.
 - **Steps:**
   1. Open /applications.
 - **Expect:** Neither list shows that application or the Adopter's email.
@@ -645,33 +651,33 @@ Medium · Targeted · Covered by other automated tests · Run when changed: pet-
 
 ### 5.8 Docker
 
-#### DOCKER-001 · All containers are healthy and the app is reachable
+#### DOCKER-001 · All QA containers are healthy and the app is reachable
 
 High · Docker · Manual only · Run when changed: docker
 
-- **Before:** Docker stack started with `docker compose --profile app up -d --build`.
+- **Before:** QA stack started with `pnpm qa:up`.
 - **Steps:**
-  1. Run `docker compose --profile app ps`.
-  2. Open http://localhost:3333/api/health.
-  3. Open http://localhost:4200.
-- **Expect:** mongodb, api and web are "healthy". Health returns {"status":"ok"}. The web app loads and shows your development pets (or an empty list).
+  1. Run `pnpm qa:ps`.
+  2. Open http://127.0.0.1:3336/api/health.
+  3. Open http://127.0.0.1:4203.
+- **Expect:** mongodb, api and web are "healthy" and published on 127.0.0.1 only (ports 27019, 3336, 4203). Health returns {"status":"ok"}. The web app loads and shows the QA pets.
 
 #### DOCKER-002 · Sign-in works between the built web app and the API
 
 High · Docker · Manual only · Run when changed: docker; auth
 
-- **Before:** Docker stack running (section 1.2). It uses your development database: sign in with one of your own development accounts; do not seed.
+- **Before:** QA stack running and seeded (`pnpm qa:seed`).
 - **Steps:**
-  1. Sign in at http://localhost:4200.
+  1. Sign in at http://127.0.0.1:4203 as ana@demo.example.com.
   2. Refresh the page.
   3. Open /applications.
-- **Expect:** You are signed in, still signed in after the refresh, and /applications loads. (This checks CORS, the session cookie and the API address built into the web image.)
+- **Expect:** You are signed in, still signed in after the refresh, and /applications loads. (This checks CORS, the session cookie on 127.0.0.1 and the API address built into the web image.) The same at http://localhost:4203 does not keep you signed in: that is expected, use 127.0.0.1.
 
 #### DOCKER-003 · Deep links load directly (nginx)
 
 Medium · Docker · Manual only · Run when changed: docker; routing
 
-- **Before:** Docker stack running.
+- **Before:** QA stack running.
 - **Steps:**
   1. Open a pet page, copy its URL, and open it in a new tab.
   2. Refresh /applications and /does-not-exist.
@@ -681,13 +687,13 @@ Medium · Docker · Manual only · Run when changed: docker; routing
 
 High · Docker · Manual only · Run when changed: docker; uploads
 
-- **Before:** Docker stack running (section 1.2). It uses your development database: sign in with one of your own development accounts; do not seed. A small photo without personal metadata.
+- **Before:** QA stack running and seeded. A small photo without personal metadata.
 - **Steps:**
-  1. Create a pet named "QA Docker <date>" with the photo.
-  2. Run `docker compose --profile app restart`.
+  1. Signed in as Ana, create a pet named "QA Docker <date>" with the photo.
+  2. Run `pnpm qa:down`, then `pnpm qa:up`.
   3. Reload the pet page.
-- **Expect:** The photo shows before and after the restart (URL under http://localhost:3333/uploads/pets/).
-- **Cleanup:** Delete the "QA Docker" pet (it has no applications). Never use `down -v` on this stack.
+- **Expect:** The photo shows before and after the restart (URL under http://127.0.0.1:3336/uploads/pets/): stopping the QA stack keeps its data.
+- **Cleanup:** Delete the "QA Docker" pet, or run `pnpm qa:reset --yes` and `pnpm qa:seed`.
 
 ## 6. What the automated tests cover
 

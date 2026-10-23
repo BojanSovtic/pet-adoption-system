@@ -8,7 +8,7 @@ import type {
   User,
 } from '@pet-adoption/models';
 
-import { DEMO_API_URL } from './demo-config';
+import { resolveSeedTarget } from './demo-config';
 import { PETS, USERS, type PetSpec, type UserKey } from './demo-data';
 import {
   DEMO_IMAGE_DIR,
@@ -16,6 +16,7 @@ import {
   demoImageType,
   findDemoImages,
 } from './demo-images';
+import { QA_API_URL } from './qa-config';
 
 /**
  * Creates the portfolio demo data through the HTTP API, so it passes the same
@@ -61,6 +62,12 @@ const APPLICATIONS: ApplicationSpec[] = [
 const messageFor = (petName: string) =>
   `Hello! I would love to give ${petName} a loving home. I have experience with pets and time to care for them.`;
 
+/** The API this run seeds; set once at the start (see resolveSeedTarget). */
+let apiUrl = '';
+
+const resetCommand = () =>
+  apiUrl === QA_API_URL ? 'pnpm qa:reset --yes' : 'pnpm demo:reset --yes';
+
 type Session = { user: User; cookie: string };
 
 type ApiResult<T> = { status: number; data: T; cookies: string[] };
@@ -88,7 +95,7 @@ const call = async <T = unknown>(
     body = options.form;
   }
 
-  const response = await fetch(`${DEMO_API_URL}${apiPath}`, {
+  const response = await fetch(`${apiUrl}${apiPath}`, {
     method: options.method ?? 'GET',
     headers,
     body,
@@ -126,9 +133,9 @@ const sessionCookie = (cookies: string[]): string => {
   return sid.split(';')[0];
 };
 
-const rateLimitHint =
+const rateLimitHint = () =>
   'Sign-in and registration are limited to 20 attempts per 15 minutes. ' +
-  'Wait, or restart the demo API (the counters are kept in memory).';
+  `Wait, or restart the API (${apiUrl === QA_API_URL ? 'pnpm qa:down, then pnpm qa:up' : 'restart pnpm demo:start'}); the counters are kept in memory and the data stays.`;
 
 /**
  * Signs in, or registers the account if it doesn't exist yet. Signing in
@@ -142,7 +149,7 @@ const signIn = async (key: UserKey): Promise<Session> => {
   });
 
   if (loggedIn.status === 429) {
-    throw new Error(rateLimitHint);
+    throw new Error(rateLimitHint());
   }
 
   if (loggedIn.status === 200) {
@@ -158,12 +165,12 @@ const signIn = async (key: UserKey): Promise<Session> => {
   });
 
   if (registered.status === 429) {
-    throw new Error(rateLimitHint);
+    throw new Error(rateLimitHint());
   }
 
   if (registered.data?.code === 'EMAIL_ALREADY_REGISTERED') {
     throw new Error(
-      `${email} exists with a different password. Reset the demo (pnpm demo:reset --yes) or set DEMO_PASSWORD.`,
+      `${email} exists with a different password. Reset it (${resetCommand()}) or set DEMO_PASSWORD.`,
     );
   }
 
@@ -336,22 +343,18 @@ const ensureDecided = async (
 };
 
 const main = async () => {
-  const allowDevPort = process.argv.includes('--allow-port-3333');
+  const isQa = process.argv.includes('--qa');
+  apiUrl = resolveSeedTarget(process.argv, process.env, QA_API_URL);
 
-  if (new URL(DEMO_API_URL).port === '3333' && !allowDevPort) {
-    throw new Error(
-      `${DEMO_API_URL} is the development/Docker API, which may hold your own data. ` +
-        'Only seed it if that stack contains nothing but demo data, and pass --allow-port-3333.',
-    );
-  }
-
-  console.log(`Seeding demo data through ${DEMO_API_URL}`);
+  console.log(
+    `Seeding demo data through ${apiUrl}${isQa ? ' (Docker QA stack)' : ''}`,
+  );
 
   try {
-    await fetch(`${DEMO_API_URL}/health`);
+    await fetch(`${apiUrl}/health`);
   } catch {
     throw new Error(
-      `The API at ${DEMO_API_URL} is not reachable. Start it with "pnpm demo:start".`,
+      `The API at ${apiUrl} is not reachable. Start it with "${isQa ? 'pnpm qa:up' : 'pnpm demo:start'}".`,
     );
   }
 
@@ -413,7 +416,7 @@ const main = async () => {
   if (mismatches.length > 0) {
     console.warn(
       `\nSome demo data differs from the intended state (changed by hand?):\n  ${mismatches.join('\n  ')}\n` +
-        'Run "pnpm demo:reset --yes" and seed again to restore it.',
+        `Run "${resetCommand()}" and seed again to restore it.`,
     );
     process.exitCode = 1;
     return;

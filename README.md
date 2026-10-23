@@ -58,7 +58,7 @@ docs/                 Requirements, architecture, deployment notes, progress
 
 ## Running the app
 
-There are two ways to run it locally:
+There are two ways to run it locally (for manual QA there is a third, isolated stack: see [Docker QA environment](#docker-qa-environment)):
 
 |                      | Option A: everything in Docker | Option B: local development              |
 | -------------------- | ------------------------------ | ---------------------------------------- |
@@ -202,6 +202,102 @@ Sign in at http://localhost:4202 as `ana@demo.example.com` (owner with the most 
   In PowerShell, set the variable first: `$env:DEMO_API_URL = 'http://localhost:3333/api'`.
 
 - **Rate limit:** sign-in and registration allow 20 attempts per 15 minutes. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart `pnpm demo:start`.
+
+## Docker QA environment
+
+A separate Docker stack for manual QA. It runs the built web app (nginx) and API like option A, but with **its own MongoDB server, database, network and photo storage**, so testing never touches your development data or the demo.
+
+|                                    | Docker QA                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Web app (open this)                | **http://127.0.0.1:4203**                                                                        |
+| API health check                   | http://127.0.0.1:3336/api/health                                                                 |
+| MongoDB, for tools such as Compass | `mongodb://127.0.0.1:27019/pet-adoption-qa?directConnection=true`                                |
+| Compose file / project             | `docker-compose.qa.yml` / `pet-adoption-qa`                                                      |
+| Containers                         | `pet-adoption-qa-mongodb`, `pet-adoption-qa-api`, `pet-adoption-qa-web`                          |
+| Database                           | `pet-adoption-qa` on its own MongoDB server                                                      |
+| Volumes                            | `pet-adoption-qa_mongodb_data`, `pet-adoption-qa_mongodb_config`, `pet-adoption-qa_uploads_data` |
+
+Use `127.0.0.1`, **not** `localhost`. The API only accepts the web app from `http://127.0.0.1:4203`. Browsers also keep cookies per host name, not per port, so this keeps your QA sign-in separate from development and the demo on `localhost`.
+
+### Setup (once)
+
+**Prerequisites:** Docker Desktop (running), Node.js 22, pnpm 12, and `pnpm install` (the `qa:*` commands are pnpm scripts).
+
+Add `QA_SESSION_SECRET` to the root `.env` (see `.env.example`). Use at least 32 random characters, different from `SESSION_SECRET`:
+
+```sh
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+The QA stack refuses to start without it. `.env` is not committed.
+
+### Commands
+
+| Command               | What it does                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm qa:up`          | Builds the images and starts the QA stack in the background (`up -d --build`). Run it again after code changes.                    |
+| `pnpm qa:ps`          | Shows the QA containers and their health; "healthy" is good.                                                                       |
+| `pnpm qa:logs`        | Follows the logs of all QA containers (Ctrl+C stops following, not the stack). `pnpm qa:logs api` (or `web`, `mongodb`) shows one. |
+| `pnpm qa:seed`        | Loads the demo data (4 users, 14 pets, 11 of them with photos, 13 applications) through the QA API. Safe to run again.             |
+| `pnpm qa:reset`       | Dry run: shows what a reset would delete. Changes nothing.                                                                         |
+| `pnpm qa:reset --yes` | Deletes all QA data: every document in `pet-adoption-qa` and every photo in the QA volume.                                         |
+| `pnpm qa:down`        | Stops the stack and removes its containers. **Data and volumes are kept.**                                                         |
+
+All of them run `docker compose -f docker-compose.qa.yml -p pet-adoption-qa`; the README's other `docker compose` commands are for the main project. `qa:up`, `qa:ps`, `qa:logs` and `qa:down` accept only the service names `mongodb`, `api` and `web` as extra arguments, so options like `-v` are refused.
+
+### A typical QA run
+
+```sh
+pnpm qa:up        # build and start (first build: a few minutes)
+pnpm qa:ps        # wait until all three are "healthy"
+pnpm qa:seed      # demo data; accounts below
+# test in the browser at http://127.0.0.1:4203
+pnpm qa:reset     # see what a reset would delete
+pnpm qa:reset --yes && pnpm qa:seed   # start the next run from fresh demo data
+pnpm qa:down      # stop; data stays for next time
+```
+
+The seeded accounts are `ana@demo.example.com` (owner of most pets), `marko@demo.example.com`, `jelena@demo.example.com` and `luka@demo.example.com`. All use the demo-only password `demo-password`.
+
+### What persists, and what a reset deletes
+
+- **Stopping keeps everything.** `pnpm qa:down`, restarting Docker Desktop and `pnpm qa:up` (also after rebuilding) all keep the QA data, which lives in the QA volumes.
+- **`pnpm qa:reset --yes`** empties the QA database (collections and indexes stay) and deletes the QA photos. It **doesn't delete volumes or containers**, and touches nothing outside the QA stack.
+- **Before deleting anything, it checks** that both QA containers are running, belong to the `pet-adoption-qa` project, have the QA volumes mounted, and that the API is configured for the QA database. Inside MongoDB it confirms the database name once more. If anything doesn't match, it changes nothing.
+
+### How it differs from the other environments
+
+|           | Docker QA                             | Local development (option B) | Demo (`pnpm demo:start`)                 | Docker app (option A)                     | E2E (`pnpm nx e2e`)     |
+| --------- | ------------------------------------- | ---------------------------- | ---------------------------------------- | ----------------------------------------- | ----------------------- |
+| Runs      | Built images (nginx + API bundle)     | Dev servers from source      | Dev servers from source                  | Built images                              | Dev servers from source |
+| Web / API | 127.0.0.1:4203 / 3336                 | localhost:4200 / 3333        | localhost:4202 / 3335                    | localhost:4200 / 3333                     | localhost:4201 / 3334   |
+| Database  | `pet-adoption-qa`, own MongoDB server | `pet-adoption`               | `pet-adoption-demo` (same server as dev) | `pet-adoption` (same as dev)              | In memory, thrown away  |
+| Photos    | Volume `pet-adoption-qa_uploads_data` | `apps/api/uploads/`          | `tmp/demo-uploads/`                      | Volume `pet-adoption-system_uploads_data` | Temporary folder        |
+| Use for   | Manual QA                             | Development                  | Demos                                    | Trying the app                            | Automated tests         |
+
+All of them can run at the same time; they use different ports. Option A and local development can't run together, because they share 4200/3333.
+
+### Warnings
+
+> **Never run `docker compose down -v` on the main project casually.** Without `-f docker-compose.qa.yml` it targets the main project, and `-v` deletes `pet-adoption-system_mongodb_data`. That volume holds the development **and** the demo database. To empty QA data, always use `pnpm qa:reset`.
+
+> **Never point the QA scripts at the development or demo database.**
+>
+> - `pnpm qa:seed` always targets `http://127.0.0.1:3336/api`, and refuses to run if `DEMO_API_URL` says otherwise.
+> - `pnpm demo:seed` refuses the QA port.
+> - Don't edit the connection string in `docker-compose.qa.yml`. It must stay `mongodb://mongodb:27017/pet-adoption-qa`; `pnpm qa:reset` refuses anything else.
+
+### Troubleshooting
+
+| Problem                                                                | What to do                                                                                                                                                                                |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `required variable QA_SESSION_SECRET is missing a value`               | Add `QA_SESSION_SECRET` to the root `.env` (see Setup).                                                                                                                                   |
+| `port is already allocated` for 4203, 3336 or 27019                    | Something else uses the port. Find it with `netstat -ano \| findstr ":4203 :3336 :27019"` (Windows) or `lsof -i :4203` (macOS/Linux). The QA ports are fixed in `docker-compose.qa.yml`.  |
+| A container stays "starting" or "unhealthy" in `pnpm qa:ps`            | Check `pnpm qa:logs api` (or `mongodb`). On the first start MongoDB initialises its replica set, which takes a few seconds. The API waits for MongoDB, and the web app waits for the API. |
+| Signing in seems to work but you're signed out again, or requests fail | Open **http://127.0.0.1:4203**, not `localhost:4203`. If it still happens, clear the cookies for `127.0.0.1`, or use a private window.                                                    |
+| "The server could not be reached" in the web app                       | The QA API isn't healthy yet, or isn't running: `pnpm qa:ps`.                                                                                                                             |
+| `pnpm qa:seed` reports differences from the intended state             | QA data was changed by hand. Run `pnpm qa:reset --yes`, then `pnpm qa:seed`.                                                                                                              |
+| `pnpm qa:reset` refuses                                                | It names the container or setting that doesn't match. Usually the stack isn't running (`pnpm qa:up`). Don't work around it.                                                               |
 
 ## Tests
 

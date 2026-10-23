@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-22. Branch `develop` at `bed569b`. Uncommitted: multiple photos per pet and demo photo preparation (see "Multiple photos")._
+_Last updated: 2026-10-23. Branch `develop` at `e02c2a4` (multiple photos). Uncommitted: the isolated Docker QA environment (see "Docker QA environment")._
 
 ## Status
 
@@ -112,7 +112,31 @@ Verified by passing tests or by reading the code.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
 
-## Multiple photos (2026-10-22, uncommitted)
+## Docker QA environment (2026-10-23, uncommitted)
+
+- **What:** `docker-compose.qa.yml`, a separate Compose project `pet-adoption-qa` for manual QA. It has its own MongoDB server (database `pet-adoption-qa`), network and volumes (`pet-adoption-qa_mongodb_data`, `_mongodb_config`, `_uploads_data`), and runs the same Dockerfiles. Ports are bound to 127.0.0.1: web 4203, API 3336, MongoDB 27019. It needs `QA_SESSION_SECRET` in the root `.env` and refuses to start without it.
+- **Scripts:**
+  - `pnpm qa:up|ps|logs|down` go through `qa-compose.ts`, which always passes `-f docker-compose.qa.yml -p pet-adoption-qa` and refuses options such as `-v`.
+  - `pnpm qa:seed` (`seed-demo.ts --qa`) seeds exactly `http://127.0.0.1:3336/api`. `pnpm demo:seed` keeps its old behaviour but refuses the QA port.
+  - `pnpm qa:reset` is a dry run by default. With `--yes` it empties the QA database and photo volume after checking the project, container names, running state, mounted volumes and configured database. It never deletes volumes.
+- **Why 127.0.0.1:** browsers keep cookies per host name, not per port, so on `localhost` every environment's `sid` cookie collided. On `127.0.0.1` the QA sign-in stays separate.
+- **Verified 2026-10-23** (with a temporary QA secret passed only to my commands; your `.env` was not changed):
+  - the resolved config was checked before starting
+  - `docker inspect`: the QA containers mount only QA volumes, are only on the QA network, and the API's database is `mongodb:27017/pet-adoption-qa`
+  - the QA server holds only `pet-adoption-qa` besides MongoDB's system databases
+  - seeding: 14 pets, 23 photos; a rerun added nothing
+  - a user upload of 2 photos stored and served
+  - a write from `localhost:4203` is refused (403 `UNTRUSTED_ORIGIN`)
+  - nginx deep links (`/pets/<id>`, `/applications`) are served
+  - reset: the dry run deleted nothing; `--yes` emptied the QA data, kept indexes and volumes; reseeding works
+  - data survives `qa:down` + `qa:up`
+  - the guards refuse `qa:down -v`, extra Compose options, a reset without QA containers, `qa:seed` with a foreign `DEMO_API_URL`, and `demo:seed` against the QA port
+- **Other environments unchanged:** a read-only snapshot before and after showed dev `pet-adoption` empty, demo `pet-adoption-demo` with 4 users / 14 pets / 13 applications / 4 sessions, no photos in the main volume, `tmp/demo-uploads` or `apps/api/uploads`, and the same main volumes. No `pet-adoption-qa` database exists on the dev server.
+- **Limitations:**
+  - `host.docker.internal` and `gateway.docker.internal` are mapped to the QA containers' own loopback (blocked). The dev MongoDB's published port 27018 is still reachable from QA containers by raw IP (the QA network gateway 172.19.0.1 and Docker Desktop's host IP 192.168.65.254). Isolation relies on the fixed QA connection string, the guarded scripts and these checks, not on network blocking. Closing it would need the main stack to stop publishing 27018 on all interfaces.
+  - Before the config volume was named, three empty, unused, unnamed volumes were left from today's QA test runs. They were not deleted: `201a1e8b717e…`, `7ddb7bdc08e4…`, `d8796b411109…` (full names in the session report).
+
+## Multiple photos (2026-10-22)
 
 - **Data and API:**
   - A pet has up to 5 photos (`images: [{ _id, key }]`, `PET_IMAGE_MAX_COUNT`). Responses have `images: [{ _id, url }]` plus `imageUrl` (the first photo), so cards and older clients keep working.
@@ -259,6 +283,6 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-1. **Manual QA on the demo environment** ([manual-qa-checklist.md](manual-qa-checklist.md)): restart `pnpm demo:start`, run `pnpm demo:seed`, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
+1. **Manual QA on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): add `QA_SESSION_SECRET` to the root `.env`, `pnpm qa:up`, `pnpm qa:seed`, open http://127.0.0.1:4203, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

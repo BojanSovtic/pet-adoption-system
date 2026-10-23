@@ -366,6 +366,39 @@ flowchart LR
 - **Browser-facing addresses:** the browser calls the API at `localhost`, not through the Compose network, so `VITE_API_URL`, `CORS_ORIGIN` and `UPLOADS_BASE_URL` use host ports (`API_PORT`, `WEB_PORT` in the root `.env`).
 - **Plain HTTP:** the API runs with `NODE_ENV=development` in Compose, so session cookies are not marked `Secure`.
 
+### Docker QA stack
+
+`docker-compose.qa.yml` (project `pet-adoption-qa`) runs the same Dockerfiles for manual QA. It shares nothing with the main stack above: different containers, network and volumes.
+
+```mermaid
+flowchart LR
+  browser(["Browser<br/>http://127.0.0.1:4203"])
+
+  subgraph qa["docker-compose.qa.yml (project pet-adoption-qa, network pet-adoption-qa)"]
+    direction TB
+    qweb["web: nginx + Vite build<br/>127.0.0.1:4203 → 80"]
+    qapi["api<br/>127.0.0.1:3336 → 3333"]
+    qmongo[("mongodb: own server<br/>database pet-adoption-qa<br/>127.0.0.1:27019 → 27017")]
+    qdb[("volumes pet-adoption-qa_mongodb_data,<br/>pet-adoption-qa_mongodb_config")]
+    qup[("volume pet-adoption-qa_uploads_data")]
+  end
+
+  browser -- "loads SPA" --> qweb
+  browser -- "/api/* + /uploads/*" --> qapi
+  qapi -- "mongodb://mongodb:27017/pet-adoption-qa" --> qmongo
+  qmongo --- qdb
+  qapi --- qup
+```
+
+- **Isolation by storage:** a separate MongoDB server and separate volumes, not just a different database name.
+  - **Fixed connection:** the API's connection string is fixed in the QA file.
+  - **Host names blocked:** `host.docker.internal` and `gateway.docker.internal` resolve to the container itself.
+  - **Still reachable by raw IP:** the development MongoDB's published port 27018 can still be reached at the Docker host's IP addresses. Nothing in the QA configuration uses them.
+- **Bound to `127.0.0.1`:** all three ports. The API's CORS origin is `http://127.0.0.1:4203`, so the QA session cookie (on `127.0.0.1`) never collides with the other environments' cookies on `localhost`.
+- **Scripts:** `pnpm qa:up|ps|logs|down` always pass the QA file and project and refuse options such as `-v`.
+  - **`pnpm qa:seed`** seeds exactly `http://127.0.0.1:3336/api`.
+  - **`pnpm qa:reset`** checks the containers' project, volumes and database before emptying the QA data; it never deletes volumes. See `apps/api/src/scripts/qa-config.ts`.
+
 ### E2E tests
 
 ```mermaid
