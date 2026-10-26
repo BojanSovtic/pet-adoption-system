@@ -105,12 +105,36 @@ Verified by passing tests or by reading the code.
 ## Local MongoDB
 
 **Set up 2026-10-20 (Docker option).**
+
 - **Container:** `docker compose up -d` runs the single-node replica set `rs0` (container `pet-adoption-mongodb`, host port **27018**). The existing `pet-adoption-system_mongodb_data` volume was reused.
 - **Configuration:** `apps/api/.env` now has `MONGODB_URI=mongodb://localhost:27018/pet-adoption?directConnection=true`.
 - **Verified:** `rs.status()` reports PRIMARY, and the API's `connectDatabase`, including its replica-set check, connects.
 - **The container's database starts empty.** The old local install on 27017, including its 2 ownerless pets, is untouched and no longer used. `MONGODB_TEST_URI` in `.env` is ignored.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
+
+## Design system foundation (2026-10-26, uncommitted)
+
+- **Decision:** kept Tailwind 4 + shadcn/ui and did not add SCSS (Tailwind 4 isn't designed to run with Sass). Details, tokens and conventions are in [design-system.md](design-system.md).
+- **Tokens:** a warm palette with a terracotta brand colour and success/warning/destructive tints, all checked for WCAG AA. Also radius, shadow and layout tokens (`max-w-page`, `page-container`). Files: `apps/web/src/styles/tokens.css`, `styles/base.css`.
+- **Font:** Figtree, self-hosted through the new dependency `@fontsource-variable/figtree`. The old CSS referenced Inter but never loaded it.
+- **Primitives:**
+  - Updated: `Button` (40px default height, no `outline-none`), `Badge` (status variants), `Card` (new surface).
+  - New: `Input`, `NativeSelect`, `Skeleton`, `PageHeader`, `StateMessage`, `PetStatusBadge`.
+  - Global: a `:focus-visible` outline, reduced-motion support, and a skip link in the app shell.
+- **Applied to:** the app shell (header and layout) and the pet list `/pets`:
+  - a filter panel;
+  - whole-card links;
+  - skeleton loading, empty states, and an error state with retry.
+
+  Also small consistency changes: status colours in `ApplicationStatusBadge` and the details page, and icons in `Pagination`. Other pages only pick up the new tokens.
+
+- **Text:** new keys `pets.subtitle`, `pets.emptyHint`, `pets.noMatchingPetsHint`, `common.skipToContent` (en + sr). Removed `pets.viewDetails`, which the card no longer shows.
+- **Checks:**
+  - web lint, typecheck, test and build: ✅
+  - E2E: ✅ 6/6
+  - `/pets` screenshots at 375px and 1280px with a mocked API: no horizontal overflow, focus outline visible.
+- **Still to do:** migrate `FormField`, `pet-form-page` and `pet-application-section` to `Input`/`Textarea`/`Label`, then redesign the pet details page. Removed the unused `sass` devDependency.
 
 ## Docker QA environment (2026-10-23, uncommitted)
 
@@ -181,12 +205,12 @@ Verified by passing tests or by reading the code.
 
 **Check results:**
 
-| Check | Result |
-|---|---|
-| `nx run-many -t lint typecheck test build` (all 4 projects, no cache, `.env` loading disabled, CI variables only) | ✅ web 89/89 tests, API 151/151 tests, builds OK |
-| `nx e2e @pet-adoption/web-e2e` | ✅ 6/6 |
-| CI workflow on GitHub | ⏳ `develop` pushed; result not checked (the repository is private and `gh` isn't installed here, so the owner checks the Actions tab) |
-| Workflow YAML | Parsed locally with `js-yaml`; not validated by GitHub yet |
+| Check                                                                                                             | Result                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `nx run-many -t lint typecheck test build` (all 4 projects, no cache, `.env` loading disabled, CI variables only) | ✅ web 89/89 tests, API 151/151 tests, builds OK                                                                                       |
+| `nx e2e @pet-adoption/web-e2e`                                                                                    | ✅ 6/6                                                                                                                                 |
+| CI workflow on GitHub                                                                                             | ⏳ `develop` pushed; result not checked (the repository is private and `gh` isn't installed here, so the owner checks the Actions tab) |
+| Workflow YAML                                                                                                     | Parsed locally with `js-yaml`; not validated by GitHub yet                                                                             |
 
 **Not verified:** the new UI in a real browser by hand (pagination controls, language selector, edit-form errors); E2E covers only the original journeys.
 
@@ -204,13 +228,14 @@ Verified by passing tests or by reading the code.
 
 ## Check results (Axios switch)
 
-| Check | Result |
-|---|---|
-| Web lint, typecheck and tests | ✅ 75/75 (the client spec now has 9 tests, including cancellation) |
-| Web production build | ✅ main chunk 567 kB / 176 kB gzipped (size before the switch not measured in this session) |
+| Check                               | Result                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Web lint, typecheck and tests       | ✅ 75/75 (the client spec now has 9 tests, including cancellation)                                            |
+| Web production build                | ✅ main chunk 567 kB / 176 kB gzipped (size before the switch not measured in this session)                   |
 | `pnpm nx e2e @pet-adoption/web-e2e` | ✅ 6/6: register, login, wrong login (401), browse/search, apply, accept, all through Axios in a real browser |
 
 **Not run:**
+
 - A browser check of the **photo upload** (`FormData` through Axios). Unit tests mock that call, and E2E doesn't upload.
 - The API suites (no API code changed).
 
@@ -264,7 +289,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 - **Imports and dependencies:**
   - Imports mix `@/…` and relative paths.
-  - `sass` appears unused.
+  - ~~`sass` appears unused.~~ Removed 2026-10-26.
   - Peer-dependency warnings from `pnpm install` were not investigated.
 - `env.ts` resolves `.env` relative to the working directory. **Checked 2026-10-21 and left as is:** Nx loads `apps/api/.env` into its tasks itself, E2E starts the API from the repo root, and Docker passes the variables directly, so every documented workflow works. A file-relative path would differ between `src/` and the bundled `dist/main.js`.
 - React Router v6 future-flag warning.

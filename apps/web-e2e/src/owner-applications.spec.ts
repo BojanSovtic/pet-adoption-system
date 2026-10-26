@@ -29,6 +29,8 @@ test('a pet owner reviews and accepts an application', async ({
   await expect(page.getByText('Pending', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Accept' }).click();
+  // Accepting is final, so the app asks for confirmation.
+  await page.getByRole('button', { name: 'Yes, accept' }).click();
 
   await expect(
     page.getByText('Application accepted. The pet is now adopted.'),

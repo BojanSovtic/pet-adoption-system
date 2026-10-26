@@ -31,10 +31,10 @@ const UserMenu = () => {
   if (!currentUser) {
     return (
       <nav className="flex items-center gap-2">
-        <Button asChild variant="ghost">
+        <Button asChild variant="ghost" size="sm">
           <Link to="/login">{t('login.link')}</Link>
         </Button>
-        <Button asChild>
+        <Button asChild size="sm">
           <Link to="/register">{t('register.link')}</Link>
         </Button>
       </nav>
@@ -43,12 +43,15 @@ const UserMenu = () => {
 
   return (
     <div className="flex items-center gap-3">
-      <Button asChild variant="ghost">
+      <Button asChild variant="ghost" size="sm">
         <Link to="/applications">{t('applicationsLink')}</Link>
       </Button>
-      <span className="text-sm text-muted-foreground">{currentUser.name}</span>
+      <span className="hidden max-w-40 truncate text-sm font-medium text-muted-foreground sm:inline">
+        {currentUser.name}
+      </span>
       <Button
         variant="outline"
+        size="sm"
         onClick={() => logoutMutation.mutate()}
         disabled={logoutMutation.isPending}
       >

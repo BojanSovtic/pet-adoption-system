@@ -98,6 +98,7 @@ const renderSection = (
 describe('PetApplicationSection', () => {
   beforeEach(() => {
     vi.mocked(submitApplication).mockReset();
+    vi.mocked(getMyApplications).mockClear();
   });
 
   it('asks signed-out visitors to sign in', async () => {
@@ -105,6 +106,17 @@ describe('PetApplicationSection', () => {
 
     expect(
       await screen.findByRole('link', { name: 'Sign in to apply' }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Send application' }),
+    ).toBeNull();
+  });
+
+  it('tells visitors when the pet is already adopted, without a form', async () => {
+    renderSection(visitor, [], { ...pet, status: 'adopted' });
+
+    expect(
+      await screen.findByText('Milo has already found a new home.'),
     ).toBeTruthy();
     expect(
       screen.queryByRole('button', { name: 'Send application' }),

@@ -1,20 +1,86 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { ArrowLeft, PawPrint, SearchX, TriangleAlert } from 'lucide-react';
+import type { Pet } from '@pet-adoption/models';
 
-import { Badge } from '@/components/ui/badge';
+import { StateMessage } from '@/components/state-message';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { ApiError } from '../../../lib/api-client';
+import { formatDate } from '../../../lib/format-date';
 import { getErrorMessage } from '../../../lib/get-error-message';
 import { getPet } from '../api/get-pet';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { PetApplicationSection } from '../../applications/components/pet-application-section';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
+import { AdoptionSteps } from '../components/adoption-steps';
 import { DeletePetButton } from '../components/delete-pet-button';
 import { PetGallery } from '../components/pet-gallery';
+import { PetStatusBadge } from '../components/pet-status-badge';
 import { isPetOwner } from '../utils/is-pet-owner';
+
+const BackToPets = () => {
+  const { t } = useTranslation('pets');
+
+  return (
+    <Button asChild variant="ghost" size="sm" className="-ml-3">
+      <Link to="/pets">
+        <ArrowLeft aria-hidden="true" />
+        {t('backToPets')}
+      </Link>
+    </Button>
+  );
+};
+
+/** Short facts as label/value pairs, scannable before the long description. */
+const PetFacts = ({ pet }: { pet: Pet }) => {
+  const { t, i18n } = useTranslation('pets');
+
+  const facts = [
+    { label: t('facts.species'), value: t(`species.${pet.species}`) },
+    { label: t('facts.age'), value: t('age', { count: pet.age }) },
+    {
+      label: t('facts.listed'),
+      value: formatDate(pet.createdAt, i18n.language),
+    },
+  ];
+
+  return (
+    <dl className="grid grid-cols-3 gap-2">
+      {facts.map((fact) => (
+        <div key={fact.label} className="rounded-md bg-muted px-3 py-2">
+          <dt className="text-xs font-medium text-muted-foreground">
+            {fact.label}
+          </dt>
+          <dd className="text-sm font-semibold">{fact.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
+
+/** Same shape as the loaded page, so nothing jumps when the data arrives. */
+const PetDetailsSkeleton = () => {
+  const { t } = useTranslation('pets');
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <p role="status" className="sr-only">
+        {t('loadingPet')}
+      </p>
+      <Skeleton className="aspect-[4/3] rounded-lg" />
+      <Card className="gap-4 p-6">
+        <Skeleton className="h-5 w-24 rounded-full" />
+        <Skeleton className="h-9 w-2/3" />
+        <Skeleton className="h-14 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </Card>
+    </div>
+  );
+};
 
 const PetDetailsPage = () => {
   const { id } = useParams();
@@ -26,6 +92,7 @@ const PetDetailsPage = () => {
     isPending,
     isError,
     error,
+    refetch,
   } = useQuery({
     queryKey: petQueryKeys.detail(id ?? ''),
     queryFn: () => {
@@ -39,68 +106,108 @@ const PetDetailsPage = () => {
   });
 
   if (isPending) {
-    return <p>{t('loading')}</p>;
+    return (
+      <section className="space-y-6">
+        <BackToPets />
+        <PetDetailsSkeleton />
+      </section>
+    );
   }
 
   if (isError) {
-    if (error instanceof ApiError && error.code === 'PET_NOT_FOUND') {
-      return (
-        <section className="space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight">{t('notFound')}</h1>
+    const notFound =
+      error instanceof ApiError && error.code === 'PET_NOT_FOUND';
 
-          <Button asChild variant="outline">
-            <Link to="/pets">{t('backToPets')}</Link>
-          </Button>
-        </section>
-      );
-    }
-
-    return <p>{getErrorMessage(error, t('error'))}</p>;
+    return (
+      <section className="space-y-6">
+        <BackToPets />
+        {notFound ? (
+          <>
+            <h1 className="text-3xl sm:text-4xl">{t('notFound')}</h1>
+            <StateMessage
+              icon={SearchX}
+              title={t('notFoundHint')}
+              action={
+                <Button asChild variant="outline">
+                  <Link to="/pets">{t('browsePets')}</Link>
+                </Button>
+              }
+            />
+          </>
+        ) : (
+          <StateMessage
+            tone="error"
+            icon={TriangleAlert}
+            title={getErrorMessage(error, t('error'))}
+            action={
+              <Button variant="outline" onClick={() => void refetch()}>
+                {t('common:actions.retry')}
+              </Button>
+            }
+          />
+        )}
+      </section>
+    );
   }
+
+  const isOwner = isPetOwner(pet, currentUser);
 
   return (
     <section className="space-y-6">
-      <Button asChild variant="outline">
-        <Link to="/pets">{t('backToPets')}</Link>
-      </Button>
+      <BackToPets />
 
-      <Card className="overflow-hidden">
-        <PetGallery pet={pet} />
-
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{pet.name}</h1>
-
-              <p className="text-muted-foreground mt-1">
-                {t(`species.${pet.species}`)} · {t('age', { count: pet.age })}
-              </p>
+      {/*
+        DOM order is the mobile order: photo, then the adoption panel, then
+        the details. On wide screens the panel moves into a sticky right column.
+      */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="lg:col-start-1">
+          {pet.images.length > 0 ? (
+            <PetGallery pet={pet} />
+          ) : (
+            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border bg-muted text-muted-foreground">
+              <PawPrint aria-hidden="true" className="size-10" />
+              <span className="text-sm">{t('noImage')}</span>
             </div>
+          )}
+        </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge variant="secondary">{t(`status.${pet.status}`)}</Badge>
-
-              {isPetOwner(pet, currentUser) && (
-                <>
-                  <Button asChild variant="outline">
-                    <Link to={`/pets/${pet._id}/edit`}>
-                      {t('form.editTitle')}
-                    </Link>
-                  </Button>
-
-                  <DeletePetButton pet={pet} />
-                </>
-              )}
-            </div>
+        <Card className="gap-6 p-6 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+          <div className="space-y-3">
+            <PetStatusBadge status={pet.status} />
+            <h1 className="text-3xl sm:text-4xl">{pet.name}</h1>
+            <PetFacts pet={pet} />
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-6">
-          <p className="leading-7">{pet.description}</p>
+          {isOwner && (
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link to={`/pets/${pet._id}/edit`}>{t('form.editTitle')}</Link>
+              </Button>
+              <DeletePetButton pet={pet} />
+            </div>
+          )}
 
-          <PetApplicationSection pet={pet} />
-        </CardContent>
-      </Card>
+          <div className="border-t pt-6">
+            <PetApplicationSection pet={pet} />
+          </div>
+        </Card>
+
+        <div className="space-y-8 lg:col-start-1">
+          <section aria-labelledby="about-pet" className="space-y-3">
+            <h2 id="about-pet" className="text-2xl">
+              {t('about', { name: pet.name })}
+            </h2>
+            <p className="max-w-prose leading-7 whitespace-pre-line">
+              {pet.description}
+            </p>
+          </section>
+
+          {!isOwner && pet.status !== 'adopted' && (
+            <AdoptionSteps petName={pet.name} />
+          )}
+        </div>
+      </div>
     </section>
   );
 };

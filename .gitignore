@@ -52,6 +52,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Personal learning notes
+docs/learning/
+
 # Misc
 .sass-cache/
 *.sublime-workspace

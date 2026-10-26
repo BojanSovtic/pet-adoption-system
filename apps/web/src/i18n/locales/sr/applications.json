@@ -42,8 +42,19 @@
     "success": "Tvoj zahtev je poslat.",
     "error": "Zahtev nije moguće poslati. Pokušaj ponovo.",
     "messageRequired": "Napiši kratku poruku.",
-    "messageTooLong": "Poruka može imati najviše 2000 karaktera."
+    "messageTooLong": "Poruka može imati najviše 2000 karaktera.",
+    "hint": "Opiši svoj dom, dnevnu rutinu i iskustvo sa ljubimcima."
   },
   "pageOutOfRange": "Na ovoj strani nema zahteva.",
-  "firstPage": "Idi na prvu stranu"
+  "firstPage": "Idi na prvu stranu",
+  "adoptedNotice": "Ljubimac {{name}} je već pronašao novi dom.",
+  "noAccount": "Nemaš nalog?",
+  "createAccount": "Napravi ga",
+  "confirm": {
+    "accept": "Prihvatiti ovaj zahtev? Ljubimac će biti označen kao udomljen, a svi ostali zahtevi na čekanju biće odbijeni. Ovo se ne može poništiti.",
+    "acceptButton": "Da, prihvati",
+    "reject": "Odbiti ovaj zahtev? Podnosilac neće moći ponovo da pošalje zahtev za ovog ljubimca.",
+    "rejectButton": "Da, odbij",
+    "cancel": "Otkaži"
+  }
 }

@@ -7,7 +7,7 @@ import {
   within,
 } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   MyApplication,
   ReceivedApplication,
@@ -98,6 +98,10 @@ const renderPage = (currentUser: User | null, path = '/applications') => {
 };
 
 describe('ApplicationsPage', () => {
+  beforeEach(() => {
+    vi.mocked(runApplicationAction).mockClear();
+  });
+
   it('sends signed-out visitors to the login page', async () => {
     const router = renderPage(null);
 
@@ -137,9 +141,46 @@ describe('ApplicationsPage', () => {
     renderPage(user);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    // Accepting is final, so it asks first.
+    expect(runApplicationAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, accept' }));
 
     await waitFor(() => {
       expect(runApplicationAction).toHaveBeenCalledWith('received-1', 'accept');
+    });
+  });
+
+  it('cancels a final decision without calling the API', async () => {
+    vi.mocked(getReceivedApplications).mockResolvedValue(
+      pageOf([received('received-1', 'pending')]),
+    );
+    vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+    renderPage(user);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject' }));
+
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(document.activeElement).toBe(cancel);
+    expect(
+      screen.getByText(/The applicant will not be able to apply/),
+    ).toBeTruthy();
+
+    fireEvent.click(cancel);
+
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeTruthy();
+    expect(runApplicationAction).not.toHaveBeenCalled();
+  });
+
+  it('withdraws without asking, because the applicant can apply again', async () => {
+    vi.mocked(getReceivedApplications).mockResolvedValue(pageOf([]));
+    vi.mocked(getMyApplications).mockResolvedValue(pageOf([mine]));
+    vi.mocked(runApplicationAction).mockResolvedValue(mine);
+    renderPage(user);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw' }));
+
+    await waitFor(() => {
+      expect(runApplicationAction).toHaveBeenCalledWith(mine._id, 'withdraw');
     });
   });
 

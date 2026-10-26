@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { APPLICATION_MESSAGE_MAX_LENGTH, type Pet } from '@pet-adoption/models';
 
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 import {
   getErrorMessage,
@@ -76,24 +78,43 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   // Pets created before ownership existed cannot receive applications.
   const canReceiveApplications = Boolean(pet.owner) && pet.status !== 'adopted';
 
-  if (!currentUser) {
-    return canReceiveApplications ? (
+  // Shown instead of the form when nobody can apply any more.
+  const adoptedNotice =
+    pet.status === 'adopted' ? (
       <p className="text-sm text-muted-foreground">
-        {t('interested', { name: pet.name })}{' '}
-        <Link
-          to="/login"
-          state={{ from: location.pathname }}
-          className="font-medium text-foreground underline"
-        >
-          {t('signInToApply')}
-        </Link>
+        {t('adoptedNotice', { name: pet.name })}
       </p>
     ) : null;
+
+  if (!currentUser) {
+    if (!canReceiveApplications) {
+      return adoptedNotice;
+    }
+
+    return (
+      <div className="space-y-3">
+        <p className="font-medium">{t('interested', { name: pet.name })}</p>
+        <Button asChild className="w-full">
+          <Link to="/login" state={{ from: location.pathname }}>
+            {t('signInToApply')}
+          </Link>
+        </Button>
+        <p className="text-center text-sm text-muted-foreground">
+          {t('noAccount')}{' '}
+          <Link
+            to="/register"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {t('createAccount')}
+          </Link>
+        </p>
+      </div>
+    );
   }
 
   if (isOwner) {
     return (
-      <Button asChild variant="outline">
+      <Button asChild variant="outline" className="w-full">
         <Link to="/applications">{t('reviewApplications')}</Link>
       </Button>
     );
@@ -111,9 +132,11 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
 
   if (myApplication) {
     return (
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium">{t('yourApplication')}</span>
-        <ApplicationStatusBadge status={myApplication.status} />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">{t('yourApplication')}</span>
+          <ApplicationStatusBadge status={myApplication.status} />
+        </div>
         <ApplicationActions
           applicationId={myApplication._id}
           status={myApplication.status}
@@ -124,7 +147,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   }
 
   if (!canReceiveApplications) {
-    return null;
+    return adoptedNotice;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -151,16 +174,20 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
     : null;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-3">
-      <h2 className="text-lg font-semibold">
-        {t('form.title', { name: pet.name })}
-      </h2>
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      <h2 className="text-xl">{t('form.title', { name: pet.name })}</h2>
 
       <div className="space-y-2">
-        <label htmlFor="application-message" className="text-sm font-medium">
+        <Label htmlFor="application-message">
           {t('form.message', { name: pet.name })}
-        </label>
-        <textarea
+        </Label>
+        <p
+          id="application-message-hint"
+          className="text-sm text-muted-foreground"
+        >
+          {t('form.hint')}
+        </p>
+        <Textarea
           id="application-message"
           value={message}
           onChange={(event) => {
@@ -169,21 +196,32 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
             mutation.reset();
           }}
           maxLength={APPLICATION_MESSAGE_MAX_LENGTH}
-          rows={4}
+          rows={5}
           aria-invalid={Boolean(fieldError)}
           aria-describedby={
-            fieldError ? 'application-message-error' : undefined
+            fieldError
+              ? 'application-message-hint application-message-error'
+              : 'application-message-hint'
           }
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        {fieldError && (
-          <p
-            id="application-message-error"
-            className="text-sm text-destructive"
+        <div className="flex items-start justify-between gap-3">
+          {fieldError ? (
+            <p
+              id="application-message-error"
+              className="text-sm text-destructive"
+            >
+              {fieldError}
+            </p>
+          ) : (
+            <span />
+          )}
+          <span
+            aria-hidden="true"
+            className="shrink-0 text-xs tabular-nums text-muted-foreground"
           >
-            {fieldError}
-          </p>
-        )}
+            {message.length} / {APPLICATION_MESSAGE_MAX_LENGTH}
+          </span>
+        </div>
       </div>
 
       {errorMessage && (
@@ -192,7 +230,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
         </p>
       )}
 
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" className="w-full" disabled={mutation.isPending}>
         {mutation.isPending ? t('form.submitting') : t('form.submit')}
       </Button>
     </form>

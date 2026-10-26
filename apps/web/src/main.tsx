@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 
 import { App } from './app/app';
 import './i18n/config';
+import '@fontsource-variable/figtree';
 import './index.css';
 
 import { queryClient } from './app/query-client';

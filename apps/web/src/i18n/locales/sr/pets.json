@@ -1,9 +1,10 @@
 {
   "title": "Ljubimci",
+  "subtitle": "Upoznaj pse, mačke i druge životinje koje čekaju novi dom.",
   "loading": "Učitavanje ljubimaca...",
   "error": "Došlo je do greške pri učitavanju ljubimaca.",
   "empty": "Trenutno nema dostupnih ljubimaca.",
-  "viewDetails": "Pogledaj detalje",
+  "emptyHint": "Navrati uskoro ili objavi ljubimca kome je potreban dom.",
   "age_one": "{{count}} godina",
   "age_few": "{{count}} godine",
   "age_other": "{{count}} godina",
@@ -26,6 +27,7 @@
     "all": "Sve vrste"
   },
   "noMatchingPets": "Nema ljubimaca koji odgovaraju pretrazi.",
+  "noMatchingPetsHint": "Pokušaj sa drugim imenom ili ukloni neke filtere.",
   "filterByStatus": "Filtriraj po statusu",
   "statusFilter": {
     "all": "Svi statusi"
@@ -102,5 +104,30 @@
     "label": "Fotografije: {{name}}",
     "show": "Prikaži fotografiju {{number}} od {{total}}",
     "photoAlt": "{{name}}, fotografija {{number}} od {{total}}"
+  },
+  "loadingPet": "Učitavanje ljubimca...",
+  "notFoundHint": "Vlasnik je možda uklonio ovog ljubimca.",
+  "browsePets": "Pregledaj ljubimce",
+  "facts": {
+    "species": "Vrsta",
+    "age": "Starost",
+    "listed": "Objavljen"
+  },
+  "about": "O ljubimcu",
+  "steps": {
+    "title": "Kako funkcioniše udomljavanje",
+    "apply": {
+      "title": "Pošalji zahtev",
+      "text": "Napiši vlasniku nešto o sebi, svom domu i zašto bi bio dobar izbor za ljubimca {{name}}."
+    },
+    "review": {
+      "title": "Vlasnik razmatra zahteve",
+      "text": "Vlasnik čita svaki zahtev i prihvata jedan. Status pratiš u odeljku Zahtevi."
+    },
+    "home": {
+      "title": "Dogovor o preuzimanju",
+      "text": "Ako tvoj zahtev bude prihvaćen, ljubimac {{name}} biće označen kao udomljen, a vlasnik će te kontaktirati imejlom oko daljih koraka."
+    },
+    "withdraw": "Zahtev na čekanju možeš da povučeš u bilo kom trenutku."
   }
 }

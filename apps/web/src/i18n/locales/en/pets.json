@@ -1,9 +1,10 @@
 {
   "title": "Pets",
+  "subtitle": "Meet the dogs, cats and other animals waiting for a new home.",
   "loading": "Loading pets...",
   "error": "Something went wrong while loading the pets.",
   "empty": "No pets are currently available.",
-  "viewDetails": "View details",
+  "emptyHint": "Check back soon, or list a pet that needs a home.",
   "age_one": "{{count}} year",
   "age_other": "{{count}} years",
   "species": {
@@ -25,6 +26,7 @@
     "all": "All species"
   },
   "noMatchingPets": "No pets match your search.",
+  "noMatchingPetsHint": "Try a different name or remove some filters.",
   "filterByStatus": "Filter by status",
   "statusFilter": {
     "all": "All statuses"
@@ -100,5 +102,30 @@
     "label": "Photos of {{name}}",
     "show": "Show photo {{number}} of {{total}}",
     "photoAlt": "{{name}}, photo {{number}} of {{total}}"
+  },
+  "loadingPet": "Loading pet...",
+  "notFoundHint": "This pet may have been removed by its owner.",
+  "browsePets": "Browse pets",
+  "facts": {
+    "species": "Species",
+    "age": "Age",
+    "listed": "Listed"
+  },
+  "about": "About {{name}}",
+  "steps": {
+    "title": "How adoption works",
+    "apply": {
+      "title": "Send an application",
+      "text": "Tell the owner about yourself, your home and why you would be a good match for {{name}}."
+    },
+    "review": {
+      "title": "The owner reviews applications",
+      "text": "The owner reads each application and accepts one. You can follow the status under Applications."
+    },
+    "home": {
+      "title": "Arrange the handover",
+      "text": "If your application is accepted, {{name}} is marked as adopted and the owner contacts you by email about the next steps."
+    },
+    "withdraw": "You can withdraw a pending application at any time."
   }
 }

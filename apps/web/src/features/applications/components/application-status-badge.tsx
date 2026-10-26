@@ -4,10 +4,10 @@ import type { ApplicationStatus } from '@pet-adoption/models';
 import { Badge } from '@/components/ui/badge';
 
 const variants = {
-  pending: 'secondary',
-  accepted: 'default',
+  pending: 'warning',
+  accepted: 'success',
   rejected: 'destructive',
-  withdrawn: 'outline',
+  withdrawn: 'neutral',
 } as const satisfies Record<ApplicationStatus, string>;
 
 type ApplicationStatusBadgeProps = {

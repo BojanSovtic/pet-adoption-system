@@ -22,12 +22,9 @@ import {
   getMyApplications,
   getReceivedApplications,
 } from '../api/applications';
+import { formatDate } from '../../../lib/format-date';
 import { ApplicationActions } from '../components/application-actions';
 import { ApplicationStatusBadge } from '../components/application-status-badge';
-
-// Serbian texts use the Latin script; plain "sr" would format in Cyrillic.
-const toDateLocale = (language: string) =>
-  language === 'sr' ? 'sr-Latn' : language;
 
 type ApplicationCardProps = {
   application: MyApplication | ReceivedApplication;
@@ -36,9 +33,7 @@ type ApplicationCardProps = {
 
 const ApplicationCard = ({ application, actor }: ApplicationCardProps) => {
   const { t, i18n } = useTranslation('applications');
-  const submittedOn = new Date(application.createdAt).toLocaleDateString(
-    toDateLocale(i18n.language),
-  );
+  const submittedOn = formatDate(application.createdAt, i18n.language);
 
   return (
     <Card>

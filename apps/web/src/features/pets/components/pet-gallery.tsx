@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Pet } from '@pet-adoption/models';
 
+import { cn } from '@/lib/utils';
+
 type PetGalleryProps = {
   pet: Pick<Pet, 'name' | 'images'>;
 };
@@ -9,6 +11,7 @@ type PetGalleryProps = {
 /**
  * The pet's photos: one large photo, plus thumbnail buttons to switch between
  * them when there is more than one. Renders nothing for a pet without photos.
+ * Uses the same 4:3 ratio as the pet cards, so the photo isn't cropped differently.
  */
 const PetGallery = ({ pet }: PetGalleryProps) => {
   const { t } = useTranslation('pets');
@@ -24,21 +27,33 @@ const PetGallery = ({ pet }: PetGalleryProps) => {
   const total = images.length;
 
   return (
-    <div>
-      <img
-        src={images[current].url}
-        alt={t('gallery.photoAlt', {
-          name: pet.name,
-          number: current + 1,
-          total,
-        })}
-        className="aspect-[16/7] w-full object-cover"
-      />
+    <div className="space-y-3">
+      <div className="relative overflow-hidden rounded-lg border bg-muted shadow-card">
+        <img
+          src={images[current].url}
+          alt={t('gallery.photoAlt', {
+            name: pet.name,
+            number: current + 1,
+            total,
+          })}
+          className="aspect-[4/3] w-full object-cover"
+        />
+
+        {total > 1 && (
+          // Visual only: the photo's alt text already says "photo X of Y".
+          <span
+            aria-hidden="true"
+            className="absolute bottom-3 right-3 rounded-full bg-foreground/75 px-2.5 py-1 text-xs font-semibold tabular-nums text-background"
+          >
+            {current + 1} / {total}
+          </span>
+        )}
+      </div>
 
       {total > 1 && (
         <ul
           aria-label={t('gallery.label', { name: pet.name })}
-          className="flex flex-wrap gap-2 px-6 pt-4"
+          className="grid grid-cols-5 gap-2"
         >
           {images.map((image, index) => (
             <li key={image._id}>
@@ -47,16 +62,17 @@ const PetGallery = ({ pet }: PetGalleryProps) => {
                 onClick={() => setSelected(index)}
                 aria-label={t('gallery.show', { number: index + 1, total })}
                 aria-current={index === current ? 'true' : undefined}
-                className={`block overflow-hidden rounded-md border-2 outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={cn(
+                  'block w-full cursor-pointer overflow-hidden rounded-md border-2 transition-opacity',
                   index === current
                     ? 'border-primary'
-                    : 'border-transparent opacity-80 hover:opacity-100'
-                }`}
+                    : 'border-transparent opacity-75 hover:opacity-100',
+                )}
               >
                 <img
                   src={image.url}
                   alt=""
-                  className="h-16 w-20 object-cover sm:h-20 sm:w-28"
+                  className="aspect-[4/3] w-full object-cover"
                 />
               </button>
             </li>
