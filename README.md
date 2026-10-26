@@ -174,8 +174,17 @@ pnpm nx dev @pet-adoption/web            # web app: http://localhost:4200 (in a 
 ```
 
 - Option B uses `apps/api/.env` and `apps/web/.env`; the root `.env` is only for option A.
+- **The development database (`pet-adoption`) starts empty.** To fill it with the demo users, pets and applications, run this once while the dev API is running (safe to run again; it only adds what is missing):
+
+  ```sh
+  pnpm dev:seed   # seeds through http://localhost:3333/api into the database in apps/api/.env
+  ```
+
+  It refuses to run if the API on port 3333 is an older build, for example the Docker app stack (option A).
+
 - Stop the dev servers with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data; `docker compose up -d` starts it again.
-- Before switching to option A, stop the dev servers (same ports).
+- **Options A and B use the same ports (3333, 4200) and the same database**, so only one can run at a time. Before switching to option B, stop the app containers with `docker compose --profile app stop` (MongoDB keeps running). Otherwise the dev API stops with "Port 3333 … is already in use", and the web dev server refuses to start on a taken port 4200.
+- Photos are stored per stack: the dev API in `apps/api/uploads`, Docker in the `uploads_data` volume. Pets seeded through one stack show missing photos in the other.
 
 ### Demo data (optional)
 

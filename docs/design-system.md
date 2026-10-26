@@ -71,6 +71,8 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 - **Facts before the story:** short label/value tiles (`dl`) ahead of the description.
 - **Confirm final actions inline** (delete a pet, accept or reject an application): the button turns into a one-line warning with Confirm and Cancel, and focus moves to Cancel. Reversible actions (withdraw) don't ask.
 - **Set expectations before a commitment:** explain what happens next beside a form (see `adoption-steps.tsx`), using wording that matches the real business rules.
+- **Unknown answers:** profile facts can be "unknown". Cards and fact tiles leave unknown facts out (no "Unknown" noise); the "Home and lifestyle" list shows them as "Not known yet", so adopters see what still needs asking. Positive answers get a ✓ chip on cards.
+- **Long forms are grouped** into `fieldset`s with a `legend` (e.g. "Basics", "Home and lifestyle"), and related selects (children/dogs/cats) share an inner `fieldset`.
 - **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field, and a character counter when there's a limit.
 
 ## Responsive layout

@@ -10,6 +10,9 @@
   "species": {
     "dog": "Dog",
     "cat": "Cat",
+    "rabbit": "Rabbit",
+    "bird": "Bird",
+    "rodent": "Rodent",
     "other": "Other"
   },
   "status": {
@@ -39,7 +42,11 @@
       "species": "Species",
       "age": "Age (years)",
       "description": "Description",
-      "images": "Photos (optional)"
+      "images": "Photos (optional)",
+      "sex": "Sex",
+      "breed": "Breed or type (optional)",
+      "goodWith": "Gets along with",
+      "aloneTime": "Comfortable alone for"
     },
     "placeholders": {
       "name": "e.g. Buddy",
@@ -59,7 +66,8 @@
       "descriptionTooLong": "Description must be at most 2000 characters.",
       "imageType": "Choose a JPEG, PNG or WebP image.",
       "imageTooLarge": "The photo must be at most 5 MB.",
-      "tooManyImages": "Not added: a pet can have at most {{max}} photos."
+      "tooManyImages": "Not added: a pet can have at most {{max}} photos.",
+      "breedTooLong": "Breed must be at most 60 characters."
     },
     "editTitle": "Edit pet",
     "saveChanges": "Save changes",
@@ -76,7 +84,20 @@
     "imageCount": "Photos: {{current}} of {{max}}.",
     "imageAlt": "Photo {{number}}",
     "primaryImage": "Main photo",
-    "removeImageNumber": "Remove photo {{number}}"
+    "removeImageNumber": "Remove photo {{number}}",
+    "sections": {
+      "basics": "Basics",
+      "lifestyle": "Home and lifestyle"
+    },
+    "hints": {
+      "breed": "For example \"Labrador mix\" or \"Syrian hamster\".",
+      "lifestyle": "Choose \"Not sure\" if you don't know. Adopters use these answers to find a pet that suits their home."
+    },
+    "compatibilityOptions": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
   },
   "delete": {
     "button": "Delete",
@@ -109,7 +130,9 @@
   "facts": {
     "species": "Species",
     "age": "Age",
-    "listed": "Listed"
+    "listed": "Listed",
+    "sex": "Sex",
+    "breed": "Breed"
   },
   "about": "About {{name}}",
   "steps": {
@@ -127,5 +150,34 @@
       "text": "If your application is accepted, {{name}} is marked as adopted and the owner contacts you by email about the next steps."
     },
     "withdraw": "You can withdraw a pending application at any time."
+  },
+  "sex": {
+    "male": "Male",
+    "female": "Female",
+    "unknown": "Unknown"
+  },
+  "lifestyle": {
+    "title": "Home and lifestyle",
+    "subtitle": "Is {{name}} a good match for your home?",
+    "children": "Children",
+    "dogs": "Dogs",
+    "cats": "Cats",
+    "aloneTime": "Time alone"
+  },
+  "compatibilityValue": {
+    "yes": "Gets along well",
+    "no": "Better without",
+    "unknown": "Not known yet"
+  },
+  "aloneTime": {
+    "short": "Up to about 2 hours",
+    "part-day": "Up to about 5 hours",
+    "full-day": "A full working day",
+    "unknown": "Not known yet"
+  },
+  "goodWith": {
+    "children": "Good with children",
+    "dogs": "Good with dogs",
+    "cats": "Good with cats"
   }
 }

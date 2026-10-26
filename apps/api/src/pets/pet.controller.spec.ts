@@ -390,6 +390,108 @@ describe('POST /api/pets', () => {
   });
 });
 
+describe('pet profile facts', () => {
+  const profile = {
+    sex: 'female',
+    breed: 'Lop-eared mix',
+    compatibility: { children: 'yes', dogs: 'no', cats: 'unknown' },
+    aloneTime: 'part-day',
+  };
+
+  const defaults = {
+    sex: 'unknown',
+    breed: '',
+    compatibility: { children: 'unknown', dogs: 'unknown', cats: 'unknown' },
+    aloneTime: 'unknown',
+  };
+
+  it('stores and returns the facts, for any species', async () => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, species: 'rabbit', ...profile });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ species: 'rabbit', ...profile });
+
+    const details = await request(app).get(`/api/pets/${response.body._id}`);
+    expect(details.body).toMatchObject(profile);
+  });
+
+  it('accepts a pet without facts and fills in "unknown"', async () => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent.post('/api/pets').send(validPet);
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject(defaults);
+  });
+
+  it('fills in a partly given compatibility', async () => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, compatibility: { cats: 'yes' } });
+
+    expect(response.body.compatibility).toEqual({
+      children: 'unknown',
+      dogs: 'unknown',
+      cats: 'yes',
+    });
+  });
+
+  it('reads pets stored before the facts existed as "unknown"', async () => {
+    // Inserted directly, without the new fields, like an old document.
+    await seedPets([{ name: 'Old timer' }]);
+
+    const list = await request(app).get('/api/pets');
+    expect(list.body.items[0]).toMatchObject({
+      name: 'Old timer',
+      ...defaults,
+    });
+
+    const details = await request(app).get(
+      `/api/pets/${list.body.items[0]._id}`,
+    );
+    expect(details.body).toMatchObject(defaults);
+  });
+
+  it('rejects invalid facts', async () => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent.post('/api/pets').send({
+      ...validPet,
+      sex: 'robot',
+      breed: 'x'.repeat(61),
+      compatibility: { children: 'maybe' },
+      aloneTime: 'week',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.details).toEqual([
+      { field: 'sex', code: 'invalid_value' },
+      { field: 'breed', code: 'too_big' },
+      { field: 'compatibility.children', code: 'invalid_value' },
+      { field: 'aloneTime', code: 'invalid_value' },
+    ]);
+    expect(await PetModel.countDocuments()).toBe(0);
+  });
+
+  it('resets omitted facts on PUT, which replaces the whole pet', async () => {
+    const owner = await createSignedInAgent();
+    const petId = await createPetAs(owner, { ...validPet, ...profile });
+
+    const response = await owner.agent
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, sex: 'male' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ ...defaults, sex: 'male' });
+  });
+});
+
 describe('PUT /api/pets/:id', () => {
   it('requires authentication', async () => {
     const owner = await createSignedInAgent();

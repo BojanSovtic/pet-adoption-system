@@ -148,6 +148,60 @@ Verified by passing tests or by reading the code.
 - **Checks:** web lint, typecheck and 98/98 tests ✅, build ✅, E2E 6/6 ✅ (owner flow updated to confirm), details-page screenshots at 375/1280 px.
 - **Next:** Batch 2 (applications dashboard), then Batch 3 (forms: `FormField`, `pet-form-page`), as listed in the roadmap.
 
+## Empty pet list in development (2026-10-26, uncommitted)
+
+**Cause:** the API returned 200 with no pets, for two separate reasons, neither of them a regression.
+
+1. **The development database `pet-adoption` was never seeded.** It had 0 pets and 0 users. The MongoDB oplog, which covers the container's whole life since 2026-10-20, shows only collection and index creation there, no document writes. The 14 demo pets live in `pet-adoption-demo` (`pnpm demo:start`, ports 3335/4202). The only way to seed dev was a buried README line.
+2. **The Docker app stack was running** (`pet-adoption-api` on 3333, `pet-adoption-web` on 4200, images from 2026-10-21).
+   - `nx serve @pet-adoption/api` crashed with an unhandled `EADDRINUSE` on 3333.
+   - Vite silently moved to 4201, which the API's CORS (`http://localhost:4200`) rejects.
+   - Requests to `localhost:3333` reached the stale Docker API, which reads the same empty database. Proof: it rejects `species=rabbit`.
+
+Batch A and the list filters were ruled out: the pet list applies no default filter.
+
+**Fixes:**
+- `listen.ts` makes a taken port a clear startup error;
+- `strictPort` on the Vite dev and preview servers;
+- `pnpm dev:seed` (`seed-demo.ts --dev`, a fixed target `http://localhost:3333/api`) refuses an API that rejects the seed's species (i.e. an older build);
+- the README documents the empty dev database, `dev:seed`, and that options A and B share ports, database and (not) photos.
+- Tests: `listen.spec.ts` (+2), `demo-config.spec.ts` (+4).
+
+**Verified against the real environment:**
+- with the owner's approval, the Docker `api` and `web` containers were stopped (MongoDB kept running);
+- the owner's `nx serve` restarted on a rebuild, and `pnpm dev:seed` added 4 users, 14 pets (5 species, 11 with photos) and 13 applications to `pet-adoption`;
+- `GET /api/pets` returns 14;
+- a browser on http://localhost:4200 (current Vite, strict port) shows "14 pets found" with no broken images;
+- `pet-adoption-demo` is unchanged.
+- Restart the Docker stack later with `docker compose --profile app start` (after stopping the dev servers).
+
+**Production readiness:** assessed in [production-readiness.md](production-readiness.md) (P0 launch blockers, P1, decisions D1–D4).
+
+## Batch A: more species and richer pet profiles (2026-10-26, uncommitted)
+
+Plan for the rest of the pre-admin work: [ux-benchmark.md §6](ux-benchmark.md#6-pre-admin-plan-2026-10-26) (B lifestyle filters → C applications dashboard → D forms/apply polish).
+
+- **Species:** `dog, cat, rabbit, bird, rodent, other` (shared `PET_SPECIES`, so the API enum, filters and form follow).
+- **Profile facts** (shared `PetProfile`): `sex` (male/female/unknown), `breed` (optional text, ≤ 60), `compatibility.{children,dogs,cats}` (yes/no/unknown), `aloneTime` (short/part-day/full-day/unknown).
+  - API: optional in `createPetSchema` with defaults (zod `default`/`prefault`), so existing clients still work; PUT resets omitted facts to their defaults (it replaces the whole pet). Mongoose fields have the same defaults.
+  - Old documents: no migration; `withProfileDefaults` (`pet.model.ts`) fills missing facts in every pet response.
+- **Web:**
+  - the pet form is grouped into "Basics" and "Home and lifestyle" fieldsets and uses `Input`/`NativeSelect`/`Textarea`/`Label`;
+  - the details page has sex/breed fact tiles (only when known) and a "Home and lifestyle" list (`pet-lifestyle.tsx`);
+  - cards show sex and "Good with …" chips for confirmed answers;
+  - en + sr texts.
+- **Demo data:** Kiki is a bird, Coco a rabbit, Pip a rodent; every demo pet has facts. Existing demo databases keep their old pets (the seed doesn't update existing ones); run `pnpm demo:reset` to re-seed.
+- **Tests:** API +6 (facts stored and returned, defaults, partial compatibility, old documents, validation, PUT reset); web +4 (details facts and lifestyle, unknown facts hidden, edit form loads and sends facts, card sex and chips).
+- **Checks:**
+  - lint + typecheck, all 4 projects: ✅
+  - web tests: ✅ 102/102
+  - build (web + API): ✅
+  - API tests: 236/238 in the full run. The 2 failures were a 5 s timeout in an existing PUT test plus a 409 caused by it (the timed-out sign-up finished late). The pet spec then passed 58/58 with `--testTimeout=30000`. Cause: the owner's dev servers were rebuilding on every save, which slows Argon2 hashing.
+  - E2E: 5/6 in the full run, then the failed spec (`adoption-application`) passed on its own. The first failure's cause wasn't captured; load is likely.
+  - E2E ran on temporary ports 4211/3344, because the owner's `nx dev` web server sat on 4201 (Docker web uses 4200). The port change was reverted.
+  - Screenshots: list, details and form at 375/1280 px, no horizontal overflow.
+- **Not verified:** a real browser against the real API and a re-seeded demo database.
+
 ## Docker QA environment (2026-10-23, uncommitted)
 
 - **What:** `docker-compose.qa.yml`, a separate Compose project `pet-adoption-qa` for manual QA. It has its own MongoDB server (database `pet-adoption-qa`), network and volumes (`pet-adoption-qa_mongodb_data`, `_mongodb_config`, `_uploads_data`), and runs the same Dockerfiles. Ports are bound to 127.0.0.1: web 4203, API 3336, MongoDB 27019. It needs `QA_SESSION_SECRET` in the root `.env` and refuses to start without it.
@@ -320,6 +374,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
+0. **Production readiness first** ([production-readiness.md](production-readiness.md)): start with P0-10 (reliable tests), then P0-1 (vulnerable dependencies), P0-3 (API error/header gaps) and P0-9 (error boundary). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
 1. **Manual QA on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): add `QA_SESSION_SECRET` to the root `.env`, `pnpm qa:up`, `pnpm qa:seed`, open http://127.0.0.1:4203, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

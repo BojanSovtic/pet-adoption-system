@@ -2,7 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Paginated, Pet } from '@pet-adoption/models';
+import {
+  DEFAULT_PET_PROFILE,
+  type Paginated,
+  type Pet,
+} from '@pet-adoption/models';
 
 import '../../../i18n/config';
 import { getPets } from '../api/get-pets';
@@ -18,6 +22,7 @@ const makePet = (index: number): Pet => ({
   age: 2,
   description: 'A pet.',
   status: 'available',
+  ...DEFAULT_PET_PROFILE,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -85,6 +90,28 @@ describe('PetsPage', () => {
     expect(await screen.findByText('Pet 1')).toBeTruthy();
     expect(screen.getByText('2 pets found')).toBeTruthy();
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+  });
+
+  it('shows sex and only the confirmed "good with" answers on cards', async () => {
+    vi.mocked(getPets).mockResolvedValue(
+      page({
+        items: [
+          {
+            ...makePet(1),
+            species: 'rabbit',
+            sex: 'female',
+            compatibility: { children: 'yes', dogs: 'no', cats: 'unknown' },
+          },
+        ],
+        totalItems: 1,
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByText('Rabbit · Female · 2 years')).toBeTruthy();
+    expect(screen.getByText('Good with children')).toBeTruthy();
+    expect(screen.queryByText('Good with dogs')).toBeNull();
+    expect(screen.queryByText('Good with cats')).toBeNull();
   });
 
   it('resets to page 1 when a filter changes', async () => {

@@ -19,6 +19,7 @@ import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { AdoptionSteps } from '../components/adoption-steps';
 import { DeletePetButton } from '../components/delete-pet-button';
 import { PetGallery } from '../components/pet-gallery';
+import { PetLifestyle } from '../components/pet-lifestyle';
 import { PetStatusBadge } from '../components/pet-status-badge';
 import { isPetOwner } from '../utils/is-pet-owner';
 
@@ -39,9 +40,14 @@ const BackToPets = () => {
 const PetFacts = ({ pet }: { pet: Pet }) => {
   const { t, i18n } = useTranslation('pets');
 
+  // Sex and breed only when known: "Unknown" tiles would add noise.
   const facts = [
     { label: t('facts.species'), value: t(`species.${pet.species}`) },
+    ...(pet.sex === 'unknown'
+      ? []
+      : [{ label: t('facts.sex'), value: t(`sex.${pet.sex}`) }]),
     { label: t('facts.age'), value: t('age', { count: pet.age }) },
+    ...(pet.breed ? [{ label: t('facts.breed'), value: pet.breed }] : []),
     {
       label: t('facts.listed'),
       value: formatDate(pet.createdAt, i18n.language),
@@ -49,13 +55,13 @@ const PetFacts = ({ pet }: { pet: Pet }) => {
   ];
 
   return (
-    <dl className="grid grid-cols-3 gap-2">
+    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {facts.map((fact) => (
         <div key={fact.label} className="rounded-md bg-muted px-3 py-2">
           <dt className="text-xs font-medium text-muted-foreground">
             {fact.label}
           </dt>
-          <dd className="text-sm font-semibold">{fact.value}</dd>
+          <dd className="text-sm font-semibold break-words">{fact.value}</dd>
         </div>
       ))}
     </dl>
@@ -202,6 +208,8 @@ const PetDetailsPage = () => {
               {pet.description}
             </p>
           </section>
+
+          <PetLifestyle pet={pet} />
 
           {!isOwner && pet.status !== 'adopted' && (
             <AdoptionSteps petName={pet.name} />

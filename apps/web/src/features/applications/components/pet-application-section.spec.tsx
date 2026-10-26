@@ -2,7 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MyApplication, Pet, User } from '@pet-adoption/models';
+import {
+  DEFAULT_PET_PROFILE,
+  type MyApplication,
+  type Pet,
+  type User,
+} from '@pet-adoption/models';
 
 import '../../../i18n/config';
 import { getCurrentUser } from '../../auth/api/get-current-user';
@@ -41,6 +46,7 @@ const pet: Pet = {
   age: 3,
   description: 'A friendly dog.',
   status: 'available',
+  ...DEFAULT_PET_PROFILE,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',

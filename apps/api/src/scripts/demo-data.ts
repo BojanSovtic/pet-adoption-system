@@ -1,4 +1,4 @@
-import type { PetSpecies } from '@pet-adoption/models';
+import type { CreatePetInput, PetSpecies } from '@pet-adoption/models';
 
 /** The demo users and pets, shared by seed-demo and prepare-demo-images. */
 
@@ -12,12 +12,10 @@ export const USERS = {
 
 export type UserKey = keyof typeof USERS;
 
-export type PetSpec = {
+/** A demo pet: the create input (profile facts included) plus its owner. */
+export type PetSpec = CreatePetInput & {
   owner: UserKey;
-  name: string;
   species: PetSpecies;
-  age: number;
-  description: string;
 };
 
 // 14 pets: more than one page of the pet list (12 per page). Similar names
@@ -29,6 +27,10 @@ export const PETS: PetSpec[] = [
     species: 'dog',
     age: 3,
     description: 'Energetic Labrador mix who loves fetch and long walks.',
+    sex: 'male',
+    breed: 'Labrador mix',
+    compatibility: { children: 'yes', dogs: 'yes', cats: 'unknown' },
+    aloneTime: 'part-day',
   },
   {
     owner: 'ana',
@@ -36,6 +38,10 @@ export const PETS: PetSpec[] = [
     species: 'dog',
     age: 1,
     description: 'Playful terrier puppy, learning to walk on a leash.',
+    sex: 'male',
+    breed: 'Jack Russell terrier',
+    compatibility: { children: 'yes', dogs: 'yes', cats: 'no' },
+    aloneTime: 'short',
   },
   {
     owner: 'ana',
@@ -43,6 +49,10 @@ export const PETS: PetSpec[] = [
     species: 'cat',
     age: 2,
     description: 'Calm tabby who enjoys sunny windowsills.',
+    sex: 'female',
+    breed: 'Tabby',
+    compatibility: { children: 'yes', dogs: 'unknown', cats: 'yes' },
+    aloneTime: 'full-day',
   },
   {
     owner: 'ana',
@@ -50,6 +60,9 @@ export const PETS: PetSpec[] = [
     species: 'cat',
     age: 5,
     description: 'Shy at first, very affectionate once she knows you.',
+    sex: 'female',
+    compatibility: { children: 'no', dogs: 'no', cats: 'yes' },
+    aloneTime: 'full-day',
   },
   {
     owner: 'ana',
@@ -57,6 +70,10 @@ export const PETS: PetSpec[] = [
     species: 'dog',
     age: 7,
     description: 'Gentle German Shepherd, good with children.',
+    sex: 'male',
+    breed: 'German Shepherd',
+    compatibility: { children: 'yes', dogs: 'yes', cats: 'no' },
+    aloneTime: 'part-day',
   },
   {
     owner: 'ana',
@@ -64,13 +81,20 @@ export const PETS: PetSpec[] = [
     species: 'cat',
     age: 0,
     description: 'Curious kitten, litter-trained.',
+    sex: 'female',
+    compatibility: { children: 'yes', dogs: 'unknown', cats: 'yes' },
+    aloneTime: 'short',
   },
   {
     owner: 'ana',
     name: 'Kiki',
-    species: 'other',
+    species: 'bird',
     age: 2,
     description: 'Talkative budgie who whistles in the morning.',
+    sex: 'male',
+    breed: 'Budgie',
+    compatibility: { children: 'yes', dogs: 'unknown', cats: 'no' },
+    aloneTime: 'full-day',
   },
   {
     owner: 'ana',
@@ -78,6 +102,10 @@ export const PETS: PetSpec[] = [
     species: 'dog',
     age: 10,
     description: 'Senior beagle looking for a quiet home.',
+    sex: 'male',
+    breed: 'Beagle',
+    compatibility: { children: 'yes', dogs: 'yes', cats: 'yes' },
+    aloneTime: 'part-day',
   },
   {
     owner: 'ana',
@@ -85,6 +113,9 @@ export const PETS: PetSpec[] = [
     species: 'cat',
     age: 4,
     description: 'Independent cat, happy as the only pet.',
+    sex: 'female',
+    compatibility: { children: 'no', dogs: 'no', cats: 'no' },
+    aloneTime: 'full-day',
   },
   {
     owner: 'marko',
@@ -92,13 +123,21 @@ export const PETS: PetSpec[] = [
     species: 'dog',
     age: 6,
     description: 'Friendly mixed breed, house-trained.',
+    sex: 'male',
+    breed: 'Mixed breed',
+    compatibility: { children: 'yes', dogs: 'yes', cats: 'unknown' },
+    aloneTime: 'part-day',
   },
   {
     owner: 'marko',
     name: 'Coco',
-    species: 'other',
+    species: 'rabbit',
     age: 1,
     description: 'Gentle rabbit who likes fresh greens.',
+    sex: 'female',
+    breed: 'Netherland Dwarf',
+    compatibility: { children: 'yes', dogs: 'no', cats: 'unknown' },
+    aloneTime: 'part-day',
   },
   {
     owner: 'marko',
@@ -106,6 +145,9 @@ export const PETS: PetSpec[] = [
     species: 'cat',
     age: 12,
     description: 'Relaxed senior cat who loves naps.',
+    sex: 'male',
+    compatibility: { children: 'yes', dogs: 'unknown', cats: 'yes' },
+    aloneTime: 'full-day',
   },
   {
     owner: 'marko',
@@ -113,12 +155,20 @@ export const PETS: PetSpec[] = [
     species: 'dog',
     age: 2,
     description: 'Small poodle mix with lots of energy.',
+    sex: 'female',
+    breed: 'Poodle mix',
+    compatibility: { children: 'unknown', dogs: 'yes', cats: 'unknown' },
+    aloneTime: 'short',
   },
   {
     owner: 'marko',
     name: 'Pip',
-    species: 'other',
+    species: 'rodent',
     age: 0,
     description: 'Young hamster, active in the evenings.',
+    sex: 'unknown',
+    breed: 'Syrian hamster',
+    compatibility: { children: 'no', dogs: 'no', cats: 'no' },
+    aloneTime: 'full-day',
   },
 ];

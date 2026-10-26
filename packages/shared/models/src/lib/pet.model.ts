@@ -1,5 +1,62 @@
-export const PET_SPECIES = ['dog', 'cat', 'other'] as const;
+/** `rodent` covers hamsters, guinea pigs, rats, mice and similar. */
+export const PET_SPECIES = [
+  'dog',
+  'cat',
+  'rabbit',
+  'bird',
+  'rodent',
+  'other',
+] as const;
 export type PetSpecies = (typeof PET_SPECIES)[number];
+
+export const PET_SEXES = ['male', 'female', 'unknown'] as const;
+export type PetSex = (typeof PET_SEXES)[number];
+
+export const PET_BREED_MAX_LENGTH = 60;
+
+/**
+ * Lifestyle facts that help adopters judge whether a pet suits their home.
+ * Each one has an explicit "unknown": owners often don't know, and an honest
+ * "not sure" is better than a guess. Old records without these read as unknown.
+ */
+export const PET_COMPATIBILITY_TARGETS = ['children', 'dogs', 'cats'] as const;
+export type PetCompatibilityTarget = (typeof PET_COMPATIBILITY_TARGETS)[number];
+
+export const PET_COMPATIBILITY_VALUES = ['yes', 'no', 'unknown'] as const;
+export type PetCompatibilityValue = (typeof PET_COMPATIBILITY_VALUES)[number];
+
+/** Whether the pet gets along with children, dogs and cats. */
+export type PetCompatibility = Record<
+  PetCompatibilityTarget,
+  PetCompatibilityValue
+>;
+
+/**
+ * How long the pet is comfortable being left alone, shortest first:
+ * `short` = up to about 2 hours, `part-day` = up to about 5 hours,
+ * `full-day` = a working day. The order matters for filtering.
+ */
+export const PET_ALONE_TIMES = ['short', 'part-day', 'full-day'] as const;
+export type PetAloneTimeKnown = (typeof PET_ALONE_TIMES)[number];
+export type PetAloneTime = PetAloneTimeKnown | 'unknown';
+export const PET_ALONE_TIME_VALUES = [...PET_ALONE_TIMES, 'unknown'] as const;
+
+/** What a pet without the profile facts reads as. */
+export const DEFAULT_PET_PROFILE = {
+  sex: 'unknown',
+  breed: '',
+  compatibility: { children: 'unknown', dogs: 'unknown', cats: 'unknown' },
+  aloneTime: 'unknown',
+} as const satisfies PetProfile;
+
+/** The profile facts of a pet (see DEFAULT_PET_PROFILE). */
+export type PetProfile = {
+  sex: PetSex;
+  /** Free text such as "Labrador mix"; empty when not given. */
+  breed: string;
+  compatibility: PetCompatibility;
+  aloneTime: PetAloneTime;
+};
 
 export const PET_STATUSES = ['available', 'pending', 'adopted'] as const;
 export type PetStatus = (typeof PET_STATUSES)[number];
@@ -28,7 +85,7 @@ export type PetImage = {
 };
 
 /** A pet as returned by the API (JSON: ids and dates are strings). */
-export type Pet = {
+export type Pet = PetProfile & {
   _id: string;
   /** Id of the user who posted the pet; always set by the server. */
   owner: string;
@@ -48,18 +105,26 @@ export type Pet = {
   updatedAt: string;
 };
 
-/** The photo is not part of this input; it has its own endpoint. */
+/**
+ * The photo is not part of this input; it has its own endpoint. Profile facts
+ * are optional (older clients don't send them); omitted ones are stored as
+ * their DEFAULT_PET_PROFILE value.
+ */
 export type CreatePetInput = {
   name: string;
   species: PetSpecies;
   age: number;
   description: string;
+  sex?: PetSex;
+  breed?: string;
+  compatibility?: Partial<PetCompatibility>;
+  aloneTime?: PetAloneTime;
 };
 
 /**
  * `PUT` replaces every client-editable field, so it takes the same input as
- * create. Omitted `imageUrls` means "no images". `status` and timestamps are
- * server-managed and never part of the input.
+ * create: an omitted profile fact is reset to its default. Photos, `status`
+ * and timestamps are server-managed and never part of the input.
  */
 export type UpdatePetInput = CreatePetInput;
 

@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { PawPrint } from 'lucide-react';
+import { Check, PawPrint } from 'lucide-react';
+import { PET_COMPATIBILITY_TARGETS, type Pet } from '@pet-adoption/models';
 
+import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-
-import type { Pet } from '@pet-adoption/models';
 
 import { PetStatusBadge } from './pet-status-badge';
 
@@ -20,6 +20,15 @@ type PetCardProps = {
  */
 const PetCard = ({ pet }: PetCardProps) => {
   const { t } = useTranslation('pets');
+  // Only confirmed matches become chips; "no" and "not known" are on the details page.
+  const goodWith = PET_COMPATIBILITY_TARGETS.filter(
+    (target) => pet.compatibility[target] === 'yes',
+  );
+  const meta = [
+    t(`species.${pet.species}`),
+    pet.sex === 'unknown' ? null : t(`sex.${pet.sex}`),
+    t('age', { count: pet.age }),
+  ].filter(Boolean);
 
   return (
     <Card className="group relative h-full gap-0 overflow-hidden py-0 transition-shadow hover:shadow-raised has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-ring">
@@ -57,12 +66,25 @@ const PetCard = ({ pet }: PetCardProps) => {
         </h2>
 
         <p className="text-sm font-medium text-muted-foreground">
-          {t(`species.${pet.species}`)} · {t('age', { count: pet.age })}
+          {meta.join(' · ')}
         </p>
 
         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
           {pet.description}
         </p>
+
+        {goodWith.length > 0 && (
+          <ul className="mt-auto flex flex-wrap gap-1.5 pt-2">
+            {goodWith.map((target) => (
+              <li key={target}>
+                <Badge variant="outline" className="font-medium">
+                  <Check aria-hidden="true" className="text-success" />
+                  {t(`goodWith.${target}`)}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </Card>
   );

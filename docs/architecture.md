@@ -227,10 +227,14 @@ erDiagram
     ObjectId _id PK
     ObjectId owner FK "ref User, required, indexed, set from the session"
     string name "max 100"
-    string species "dog | cat | other"
+    string species "dog | cat | rabbit | bird | rodent | other"
     number age "integer >= 0"
     string description "max 2000"
     string status "available | pending | adopted, default available"
+    string sex "male | female | unknown, default unknown"
+    string breed "optional, max 60, default empty"
+    object compatibility "children, dogs, cats: yes | no | unknown, default unknown"
+    string aloneTime "short | part-day | full-day | unknown, default unknown"
     array images "0-5 x { _id, key }, e.g. key pets/uuid.jpg; the first is the main photo"
     date createdAt
     date updatedAt
@@ -259,6 +263,7 @@ erDiagram
 
 - **Mongoose models:** `USER`, `PET` and `ADOPTION_APPLICATION` (`users/`, `pets/`, `applications/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
 - **`owner` and `applicant` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
+- **Pet profile facts** (`sex`, `breed`, `compatibility`, `aloneTime`) are optional in the API input. Pets stored before they existed lack them; `withProfileDefaults` fills `unknown`/empty in every response, so no migration is needed.
 - **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
 - **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.
 - **Pet list index:** `{ createdAt: -1, _id: -1 }` serves the default "newest" order (and "oldest", read backwards) without an in-memory sort. Name search (a case-insensitive "contains" match) and species/status filters are not indexed: a contains-regex can't use an index efficiently, and the filters have only three values each.

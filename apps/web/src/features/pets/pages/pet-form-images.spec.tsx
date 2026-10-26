@@ -12,6 +12,7 @@ import {
 } from 'vitest';
 import {
   PET_IMAGE_MAX_BYTES,
+  DEFAULT_PET_PROFILE,
   type Pet,
   type PetImage,
   type User,
@@ -59,6 +60,7 @@ const pet: Pet = {
   age: 3,
   description: 'A friendly dog.',
   status: 'available',
+  ...DEFAULT_PET_PROFILE,
   imageUrl: image('img-1').url,
   images: [image('img-1'), image('img-2')],
   createdAt: '2026-01-01T00:00:00.000Z',

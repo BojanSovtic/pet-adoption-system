@@ -1,4 +1,8 @@
-import { DEFAULT_DEMO_API_URL, resolveSeedTarget } from './demo-config';
+import {
+  DEFAULT_DEMO_API_URL,
+  DEV_API_URL,
+  resolveSeedTarget,
+} from './demo-config';
 import { QA_API_URL } from './qa-config';
 
 describe('resolveSeedTarget', () => {
@@ -67,6 +71,31 @@ describe('resolveSeedTarget', () => {
     it('cannot be combined with --allow-port-3333', () => {
       expect(() =>
         resolveSeedTarget(['--qa', '--allow-port-3333'], {}, QA_API_URL),
+      ).toThrow('cannot be combined');
+    });
+  });
+
+  describe('pnpm dev:seed (--dev)', () => {
+    it('always targets exactly the development API', () => {
+      expect(DEV_API_URL).toBe('http://localhost:3333/api');
+      expect(resolveSeedTarget(['--dev'], {}, QA_API_URL)).toBe(DEV_API_URL);
+      expect(
+        resolveSeedTarget(['--dev'], { DEMO_API_URL: DEV_API_URL }, QA_API_URL),
+      ).toBe(DEV_API_URL);
+    });
+
+    it.each(['http://localhost:3335/api', 'http://127.0.0.1:3336/api'])(
+      'refuses when DEMO_API_URL points elsewhere (%s)',
+      (url) => {
+        expect(() =>
+          resolveSeedTarget(['--dev'], { DEMO_API_URL: url }, QA_API_URL),
+        ).toThrow('Unset DEMO_API_URL');
+      },
+    );
+
+    it('cannot be combined with --qa', () => {
+      expect(() =>
+        resolveSeedTarget(['--dev', '--qa'], {}, QA_API_URL),
       ).toThrow('cannot be combined');
     });
   });

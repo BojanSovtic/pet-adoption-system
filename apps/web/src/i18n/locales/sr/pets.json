@@ -11,6 +11,9 @@
   "species": {
     "dog": "Pas",
     "cat": "Mačka",
+    "rabbit": "Kunić",
+    "bird": "Ptica",
+    "rodent": "Glodar",
     "other": "Drugo"
   },
   "status": {
@@ -40,7 +43,11 @@
       "species": "Vrsta",
       "age": "Starost (godine)",
       "description": "Opis",
-      "images": "Fotografije (opciono)"
+      "images": "Fotografije (opciono)",
+      "sex": "Pol",
+      "breed": "Rasa ili vrsta (nije obavezno)",
+      "goodWith": "Slaže se sa",
+      "aloneTime": "Može da ostane sam"
     },
     "placeholders": {
       "name": "npr. Bubi",
@@ -60,7 +67,8 @@
       "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
       "imageType": "Izaberi JPEG, PNG ili WebP sliku.",
       "imageTooLarge": "Fotografija može imati najviše 5 MB.",
-      "tooManyImages": "Nije dodato: ljubimac može imati najviše {{max}} fotografija."
+      "tooManyImages": "Nije dodato: ljubimac može imati najviše {{max}} fotografija.",
+      "breedTooLong": "Rasa može imati najviše 60 znakova."
     },
     "editTitle": "Izmeni ljubimca",
     "saveChanges": "Sačuvaj izmene",
@@ -77,7 +85,20 @@
     "imageCount": "Fotografije: {{current}} od {{max}}.",
     "imageAlt": "Fotografija {{number}}",
     "primaryImage": "Glavna fotografija",
-    "removeImageNumber": "Ukloni fotografiju {{number}}"
+    "removeImageNumber": "Ukloni fotografiju {{number}}",
+    "sections": {
+      "basics": "Osnovno",
+      "lifestyle": "Dom i način života"
+    },
+    "hints": {
+      "breed": "Na primer „labrador mešanac“ ili „sirijski hrčak“.",
+      "lifestyle": "Izaberi „Ne znam“ ako nisi siguran. Udomitelji pomoću ovih odgovora traže ljubimca koji odgovara njihovom domu."
+    },
+    "compatibilityOptions": {
+      "yes": "Da",
+      "no": "Ne",
+      "unknown": "Ne znam"
+    }
   },
   "delete": {
     "button": "Obriši",
@@ -111,7 +132,9 @@
   "facts": {
     "species": "Vrsta",
     "age": "Starost",
-    "listed": "Objavljen"
+    "listed": "Objavljen",
+    "sex": "Pol",
+    "breed": "Rasa"
   },
   "about": "O ljubimcu",
   "steps": {
@@ -129,5 +152,34 @@
       "text": "Ako tvoj zahtev bude prihvaćen, ljubimac {{name}} biće označen kao udomljen, a vlasnik će te kontaktirati imejlom oko daljih koraka."
     },
     "withdraw": "Zahtev na čekanju možeš da povučeš u bilo kom trenutku."
+  },
+  "sex": {
+    "male": "Mužjak",
+    "female": "Ženka",
+    "unknown": "Nepoznato"
+  },
+  "lifestyle": {
+    "title": "Dom i način života",
+    "subtitle": "Da li je {{name}} dobar izbor za tvoj dom?",
+    "children": "Deca",
+    "dogs": "Psi",
+    "cats": "Mačke",
+    "aloneTime": "Sam kod kuće"
+  },
+  "compatibilityValue": {
+    "yes": "Dobro se slaže",
+    "no": "Bolje bez njih",
+    "unknown": "Još nije poznato"
+  },
+  "aloneTime": {
+    "short": "Do oko 2 sata",
+    "part-day": "Do oko 5 sati",
+    "full-day": "Ceo radni dan",
+    "unknown": "Još nije poznato"
+  },
+  "goodWith": {
+    "children": "Dobar sa decom",
+    "dogs": "Dobar sa psima",
+    "cats": "Dobar sa mačkama"
   }
 }

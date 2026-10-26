@@ -3,6 +3,7 @@ import { backfillApplicationPetOwners } from './applications/application.service
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { backfillPetImages } from './pets/pet.service';
 import { env } from './config/env';
+import { listen } from './listen';
 
 const bootstrap = async () => {
   await connectDatabase(env.mongodbUri);
@@ -21,9 +22,9 @@ const bootstrap = async () => {
     console.log(`[ database ] Moved ${convertedPets} pet photo(s) into images`);
   }
 
-  const server = app.listen(env.port, env.host, () => {
-    console.log(`[ ready ] http://${env.host}:${env.port}`);
-  });
+  // Rejects (e.g. port in use) into the startup error handler below.
+  const server = await listen(app, env.port, env.host);
+  console.log(`[ ready ] http://${env.host}:${env.port}`);
 
   const shutdown = async (signal: string) => {
     console.log(`[ shutdown ] Received ${signal}`);

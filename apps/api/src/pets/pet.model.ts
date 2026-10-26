@@ -1,11 +1,24 @@
 import { Schema, model, type Types } from 'mongoose';
 import {
+  DEFAULT_PET_PROFILE,
+  PET_ALONE_TIME_VALUES,
+  PET_BREED_MAX_LENGTH,
+  PET_COMPATIBILITY_VALUES,
   PET_DESCRIPTION_MAX_LENGTH,
   PET_NAME_MAX_LENGTH,
+  PET_SEXES,
   PET_SPECIES,
   PET_STATUSES,
   type Pet,
+  type PetCompatibility,
+  type PetProfile,
 } from '@pet-adoption/models';
+
+const compatibilityField = {
+  type: String,
+  enum: [...PET_COMPATIBILITY_VALUES],
+  default: 'unknown',
+};
 
 /** One stored photo: a storage key such as "pets/3f2a….jpg". */
 export type PetImageRecord = {
@@ -21,14 +34,25 @@ export type PetImageRecord = {
  */
 export type PetRecord = Omit<
   Pet,
-  '_id' | 'owner' | 'imageUrl' | 'images' | 'createdAt' | 'updatedAt'
-> & {
-  owner: Types.ObjectId;
-  /** At most PET_IMAGE_MAX_COUNT; the first is the primary photo. */
-  images?: PetImageRecord[];
-  createdAt: Date;
-  updatedAt: Date;
-};
+  | '_id'
+  | 'owner'
+  | 'imageUrl'
+  | 'images'
+  | 'createdAt'
+  | 'updatedAt'
+  | keyof PetProfile
+> &
+  // Pets saved before profile facts existed don't have them; the API reads
+  // missing ones as DEFAULT_PET_PROFILE (see `withProfileDefaults`).
+  Partial<Omit<PetProfile, 'compatibility'>> & {
+    compatibility?: Partial<PetCompatibility>;
+  } & {
+    owner: Types.ObjectId;
+    /** At most PET_IMAGE_MAX_COUNT; the first is the primary photo. */
+    images?: PetImageRecord[];
+    createdAt: Date;
+    updatedAt: Date;
+  };
 
 const petSchema = new Schema<PetRecord>(
   {
@@ -67,6 +91,27 @@ const petSchema = new Schema<PetRecord>(
       default: 'available',
       required: true,
     },
+    sex: {
+      type: String,
+      enum: [...PET_SEXES],
+      default: DEFAULT_PET_PROFILE.sex,
+    },
+    breed: {
+      type: String,
+      trim: true,
+      maxlength: PET_BREED_MAX_LENGTH,
+      default: DEFAULT_PET_PROFILE.breed,
+    },
+    compatibility: {
+      children: compatibilityField,
+      dogs: compatibilityField,
+      cats: compatibilityField,
+    },
+    aloneTime: {
+      type: String,
+      enum: [...PET_ALONE_TIME_VALUES],
+      default: DEFAULT_PET_PROFILE.aloneTime,
+    },
     // Never accepted from clients; only the photo endpoints change it. The
     // count limit is enforced by the photo update queries themselves.
     images: {
@@ -87,3 +132,19 @@ const petSchema = new Schema<PetRecord>(
 petSchema.index({ createdAt: -1, _id: -1 });
 
 export const PetModel = model<PetRecord>('Pet', petSchema);
+
+/**
+ * The profile facts of a stored pet, with DEFAULT_PET_PROFILE for any that
+ * are missing (pets saved before these fields existed). No migration needed.
+ */
+export const withProfileDefaults = ({
+  sex,
+  breed,
+  compatibility,
+  aloneTime,
+}: PetRecord): PetProfile => ({
+  sex: sex ?? DEFAULT_PET_PROFILE.sex,
+  breed: breed ?? DEFAULT_PET_PROFILE.breed,
+  compatibility: { ...DEFAULT_PET_PROFILE.compatibility, ...compatibility },
+  aloneTime: aloneTime ?? DEFAULT_PET_PROFILE.aloneTime,
+});

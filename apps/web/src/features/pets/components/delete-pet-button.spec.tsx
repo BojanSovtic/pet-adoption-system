@@ -2,7 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Paginated, Pet } from '@pet-adoption/models';
+import {
+  DEFAULT_PET_PROFILE,
+  type Paginated,
+  type Pet,
+} from '@pet-adoption/models';
 
 import '../../../i18n/config';
 import { deletePet } from '../api/delete-pet';
@@ -21,6 +25,7 @@ const pet: Pet = {
   age: 3,
   description: 'A friendly dog.',
   status: 'available',
+  ...DEFAULT_PET_PROFILE,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',

@@ -8,13 +8,18 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/web',
+  // strictPort: fail if the port is taken instead of silently moving to the
+  // next one. The API only allows CORS_ORIGIN (http://localhost:4200), so a
+  // dev server on another port would load but every API request would fail.
   server: {
     port: 4200,
     host: 'localhost',
+    strictPort: true,
   },
   preview: {
     port: 4300,
     host: 'localhost',
+    strictPort: true,
   },
   plugins: [react(), tailwindcss(), tsconfigPaths()],
   resolve: {

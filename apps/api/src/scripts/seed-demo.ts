@@ -8,7 +8,7 @@ import type {
   User,
 } from '@pet-adoption/models';
 
-import { resolveSeedTarget } from './demo-config';
+import { DEV_API_URL, resolveSeedTarget } from './demo-config';
 import { PETS, USERS, type PetSpec, type UserKey } from './demo-data';
 import {
   DEMO_IMAGE_DIR,
@@ -65,8 +65,21 @@ const messageFor = (petName: string) =>
 /** The API this run seeds; set once at the start (see resolveSeedTarget). */
 let apiUrl = '';
 
+// The development database has no reset command on purpose: it may hold
+// the developer's own data.
 const resetCommand = () =>
-  apiUrl === QA_API_URL ? 'pnpm qa:reset --yes' : 'pnpm demo:reset --yes';
+  apiUrl === QA_API_URL
+    ? 'pnpm qa:reset --yes'
+    : apiUrl === DEV_API_URL
+      ? 'remove the conflicting data by hand; the development database has no reset command'
+      : 'pnpm demo:reset --yes';
+
+const restartCommand = () =>
+  apiUrl === QA_API_URL
+    ? 'pnpm qa:down, then pnpm qa:up'
+    : apiUrl === DEV_API_URL
+      ? 'restart pnpm nx serve @pet-adoption/api'
+      : 'restart pnpm demo:start';
 
 type Session = { user: User; cookie: string };
 
@@ -135,7 +148,7 @@ const sessionCookie = (cookies: string[]): string => {
 
 const rateLimitHint = () =>
   'Sign-in and registration are limited to 20 attempts per 15 minutes. ' +
-  `Wait, or restart the API (${apiUrl === QA_API_URL ? 'pnpm qa:down, then pnpm qa:up' : 'restart pnpm demo:start'}); the counters are kept in memory and the data stays.`;
+  `Wait, or restart the API (${restartCommand()}); the counters are kept in memory and the data stays.`;
 
 /**
  * Signs in, or registers the account if it doesn't exist yet. Signing in
@@ -205,6 +218,10 @@ const ensurePet = async (spec: PetSpec, owner: Session): Promise<Pet> => {
           species: spec.species,
           age: spec.age,
           description: spec.description,
+          sex: spec.sex,
+          breed: spec.breed,
+          compatibility: spec.compatibility,
+          aloneTime: spec.aloneTime,
         },
       }),
       [201],
@@ -342,21 +359,56 @@ const ensureDecided = async (
   }
 };
 
+/**
+ * Refuses to seed an API that runs older code than this script: it would
+ * reject part of the data halfway through (e.g. a species added later). On
+ * port 3333 that usually means the Docker app stack, built from an older
+ * commit, is answering instead of the development API.
+ */
+const checkApiSupportsDemoData = async (isDev: boolean) => {
+  const species = [...new Set(PETS.map((pet) => pet.species))];
+
+  for (const value of species) {
+    const response = await fetch(`${apiUrl}/pets?species=${value}&pageSize=1`);
+
+    if (response.status === 400) {
+      throw new Error(
+        `The API at ${apiUrl} rejects the species "${value}", so it runs older code than this seed. ` +
+          (isDev
+            ? 'Port 3333 is probably the Docker app stack: check with "docker compose --profile app ps", stop it with "docker compose --profile app stop", then start "pnpm nx serve @pet-adoption/api".'
+            : 'Rebuild or restart that API.'),
+      );
+    }
+  }
+};
+
 const main = async () => {
   const isQa = process.argv.includes('--qa');
+  const isDev = process.argv.includes('--dev');
   apiUrl = resolveSeedTarget(process.argv, process.env, QA_API_URL);
 
-  console.log(
-    `Seeding demo data through ${apiUrl}${isQa ? ' (Docker QA stack)' : ''}`,
-  );
+  const label = isQa
+    ? ' (Docker QA stack)'
+    : isDev
+      ? ' (development API: the database in apps/api/.env)'
+      : '';
+  console.log(`Seeding demo data through ${apiUrl}${label}`);
+
+  const startCommand = isQa
+    ? 'pnpm qa:up'
+    : isDev
+      ? 'pnpm nx serve @pet-adoption/api'
+      : 'pnpm demo:start';
 
   try {
     await fetch(`${apiUrl}/health`);
   } catch {
     throw new Error(
-      `The API at ${apiUrl} is not reachable. Start it with "${isQa ? 'pnpm qa:up' : 'pnpm demo:start'}".`,
+      `The API at ${apiUrl} is not reachable. Start it with "${startCommand}".`,
     );
   }
+
+  await checkApiSupportsDemoData(isDev);
 
   const sessions = {} as Record<UserKey, Session>;
 

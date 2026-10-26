@@ -41,7 +41,7 @@ export const registerUser = async (
 /** Creates a pet as the signed-in user of `request`. */
 export const createPet = async (
   request: APIRequestContext,
-  pet: { name: string; species?: 'dog' | 'cat' | 'other' },
+  pet: { name: string; species?: string },
 ): Promise<TestPet> => {
   const response = await request.post(`${E2E_API_URL}/pets`, {
     data: {

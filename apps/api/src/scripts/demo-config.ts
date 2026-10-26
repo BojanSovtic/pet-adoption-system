@@ -31,6 +31,13 @@ export const DEFAULT_DEMO_API_URL = `http://localhost:${DEMO_API_PORT}/api`;
 
 /** The development/Docker API port, which may hold your own data. */
 const DEV_API_PORT = '3333';
+
+/**
+ * `pnpm dev:seed` target: the local development API (apps/api/.env, database
+ * `pet-adoption`). The Docker app stack uses the same port and database, so
+ * seed-demo also checks that the API answering here runs the current code.
+ */
+export const DEV_API_URL = `http://localhost:${DEV_API_PORT}/api`;
 /** The Docker QA API port (docker-compose.qa.yml), seeded only with --qa. */
 const QA_API_PORT = '3336';
 
@@ -38,6 +45,7 @@ const QA_API_PORT = '3336';
  * Where seed-demo sends its requests.
  * - `--qa` (pnpm qa:seed): always exactly `qaApiUrl`; refused if DEMO_API_URL
  *   says something else, so the target can't silently change.
+ * - `--dev` (pnpm dev:seed): always exactly DEV_API_URL, with the same rule.
  * - Otherwise (pnpm demo:seed): DEMO_API_URL or the demo API. The dev/Docker
  *   port 3333 needs --allow-port-3333, and the QA port is refused (use --qa).
  */
@@ -47,6 +55,20 @@ export const resolveSeedTarget = (
   qaApiUrl: string,
 ): string => {
   const override = env.DEMO_API_URL;
+
+  if (argv.includes('--dev')) {
+    if (argv.includes('--qa')) {
+      throw new Error('--dev and --qa cannot be combined.');
+    }
+
+    if (override && override !== DEV_API_URL) {
+      throw new Error(
+        `--dev always seeds the development API (${DEV_API_URL}), but DEMO_API_URL is "${override}". Unset DEMO_API_URL.`,
+      );
+    }
+
+    return DEV_API_URL;
+  }
 
   if (argv.includes('--qa')) {
     if (argv.includes('--allow-port-3333')) {

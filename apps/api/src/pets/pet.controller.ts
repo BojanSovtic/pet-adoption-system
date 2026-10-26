@@ -19,7 +19,7 @@ import {
 } from './pet.service';
 import { petListQuerySchema } from './pet.schema';
 import { detectImageType, tooManyImagesError } from './pet-image';
-import { PetModel, type PetRecord } from './pet.model';
+import { PetModel, withProfileDefaults, type PetRecord } from './pet.model';
 import { getAuthenticatedUserId } from '../auth/require-auth';
 import { parseInput } from '../middleware/validate';
 import { deleteStoredFileQuietly, storage } from '../storage';
@@ -52,7 +52,8 @@ const throwNotOwnedError = async (petId: string): Promise<never> => {
 
 /**
  * The API shape of a pet: storage keys become public URLs. `imageUrl` is the
- * primary (first) photo, so single-photo clients keep working.
+ * primary (first) photo, so single-photo clients keep working. Missing profile
+ * facts (older pets) are filled with their defaults.
  */
 const toPetView = ({ images = [], ...pet }: PetRecord) => {
   const views = images.map(({ _id, key }) => ({
@@ -60,7 +61,12 @@ const toPetView = ({ images = [], ...pet }: PetRecord) => {
     url: storage.publicUrl(key),
   }));
 
-  return { ...pet, imageUrl: views[0]?.url ?? null, images: views };
+  return {
+    ...pet,
+    ...withProfileDefaults(pet),
+    imageUrl: views[0]?.url ?? null,
+    images: views,
+  };
 };
 
 export const getPetsController = async (

@@ -1,18 +1,26 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Pet, User } from '@pet-adoption/models';
+import { DEFAULT_PET_PROFILE, type Pet, type User } from '@pet-adoption/models';
 
 import '../../../i18n/config';
 import { ApiError } from '../../../lib/api-client';
 import { pageOf } from '../../../lib/testing/page-of';
 import { getCurrentUser } from '../../auth/api/get-current-user';
 import { getPet } from '../api/get-pet';
+import { updatePet } from '../api/update-pet';
 import { PetDetailsPage } from './pet-details-page';
 import { PetFormPage } from './pet-form-page';
 
 vi.mock('../api/get-pet', () => ({ getPet: vi.fn() }));
+vi.mock('../api/update-pet', () => ({ updatePet: vi.fn() }));
 
 // The details page includes the adoption section, which loads applications.
 vi.mock('../../applications/api/applications', async (importOriginal) => ({
@@ -46,10 +54,20 @@ const pet: Pet = {
   age: 3,
   description: 'A friendly dog.',
   status: 'available',
+  ...DEFAULT_PET_PROFILE,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+// A pet with every profile fact filled in.
+const profiledPet: Pet = {
+  ...pet,
+  sex: 'female',
+  breed: 'Collie mix',
+  compatibility: { children: 'yes', dogs: 'no', cats: 'unknown' },
+  aloneTime: 'part-day',
 };
 
 const renderAt = (path: string, user: User | null) => {
@@ -101,6 +119,35 @@ describe('PetDetailsPage', () => {
     await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
     expect(screen.queryByRole('link', { name: 'Edit pet' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  it('shows the profile facts and the home and lifestyle answers', async () => {
+    vi.mocked(getPet).mockResolvedValue(profiledPet);
+    renderAt('/pets/pet-1', null);
+
+    expect(await screen.findByText('Female')).toBeTruthy();
+    expect(screen.getByText('Collie mix')).toBeTruthy();
+
+    const lifestyle = screen.getByRole('region', {
+      name: 'Home and lifestyle',
+    });
+    const rows = within(lifestyle)
+      .getAllByRole('term')
+      .map((term) => [term.textContent, term.nextElementSibling?.textContent]);
+    expect(rows).toEqual([
+      ['Children', 'Gets along well'],
+      ['Dogs', 'Better without'],
+      ['Cats', 'Not known yet'],
+      ['Time alone', 'Up to about 5 hours'],
+    ]);
+  });
+
+  it('leaves out sex and breed when they are not known', async () => {
+    renderAt('/pets/pet-1', null);
+
+    await screen.findByRole('heading', { name: 'Milo' });
+    expect(screen.queryByText('Sex')).toBeNull();
+    expect(screen.queryByText('Breed')).toBeNull();
   });
 });
 
@@ -173,5 +220,33 @@ describe('PetFormPage', () => {
     expect(
       await screen.findByRole('button', { name: 'Save changes' }),
     ).toBeTruthy();
+  });
+
+  it('loads the profile facts into the form and sends them on save', async () => {
+    vi.mocked(getPet).mockResolvedValue(profiledPet);
+    vi.mocked(updatePet).mockResolvedValue(profiledPet);
+    renderAt('/pets/pet-1/edit', owner);
+
+    const dogs = (await screen.findByLabelText('Dogs')) as HTMLSelectElement;
+    expect(dogs.value).toBe('no');
+    expect((screen.getByLabelText('Sex') as HTMLSelectElement).value).toBe(
+      'female',
+    );
+
+    fireEvent.change(dogs, { target: { value: 'yes' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(updatePet).toHaveBeenCalledWith('pet-1', {
+        name: 'Milo',
+        species: 'dog',
+        age: 3,
+        description: 'A friendly dog.',
+        sex: 'female',
+        breed: 'Collie mix',
+        compatibility: { children: 'yes', dogs: 'yes', cats: 'unknown' },
+        aloneTime: 'part-day',
+      });
+    });
   });
 });
