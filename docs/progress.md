@@ -134,7 +134,19 @@ Verified by passing tests or by reading the code.
   - web lint, typecheck, test and build: ✅
   - E2E: ✅ 6/6
   - `/pets` screenshots at 375px and 1280px with a mocked API: no horizontal overflow, focus outline visible.
-- **Still to do:** migrate `FormField`, `pet-form-page` and `pet-application-section` to `Input`/`Textarea`/`Label`, then redesign the pet details page. Removed the unused `sass` devDependency.
+- Removed the unused `sass` devDependency.
+
+## UX benchmark and Batch 1 (2026-10-26)
+
+- **Research and roadmap:** [ux-benchmark.md](ux-benchmark.md) covers Battersea, Dogs Trust, RSPCA and Best Friends (observed) plus Petfinder (secondary; blocked).
+- **Batch 1 (pet details and adoption decision), committed in `716adec`:**
+  - details page: gallery + sticky adoption panel, 4:3 photos with a counter, fact tiles, "About" section, "How adoption works" steps, skeleton/not-found/error states;
+  - application form: `Textarea` + `Label`, hint and character counter;
+  - a sign-in button for visitors, and a notice when the pet is already adopted;
+  - **Accept and Reject now ask for confirmation** (Withdraw doesn't);
+  - shared `lib/format-date.ts`.
+- **Checks:** web lint, typecheck and 98/98 tests ✅, build ✅, E2E 6/6 ✅ (owner flow updated to confirm), details-page screenshots at 375/1280 px.
+- **Next:** Batch 2 (applications dashboard), then Batch 3 (forms: `FormField`, `pet-form-page`), as listed in the roadmap.
 
 ## Docker QA environment (2026-10-23, uncommitted)
 

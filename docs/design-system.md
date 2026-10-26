@@ -28,7 +28,7 @@ The app already used Tailwind CSS 4 + shadcn/ui, with tokens as CSS custom prope
 | `apps/web/src/styles/tokens.css`      | All design tokens (`:root`) and their mapping to Tailwind utilities (`@theme`).                                                |
 | `apps/web/src/styles/base.css`        | Document defaults: font, heading weight, global focus outline, selection colour, reduced motion.                               |
 | `apps/web/src/main.tsx`               | Imports the font, then `index.css`.                                                                                            |
-| `apps/web/src/components/ui/`         | Primitives: `button`, `badge`, `card`, `input`, `native-select`, `skeleton`, `field-control.ts` (shared form-control classes). |
+| `apps/web/src/components/ui/`         | Primitives: `button`, `badge`, `card`, `input`, `textarea`, `native-select`, `label`, `skeleton`, `field-control.ts` (shared form-control classes). |
 | `apps/web/src/components/`            | App-level building blocks: `page-header`, `state-message`, `pagination`.                                                       |
 | `apps/web/src/features/*/components/` | Feature components (`pet-card`, `pet-status-badge`…).                                                                          |
 
@@ -55,7 +55,7 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 ## Primitives
 
 - **Button**: variants `default` (one main action per area), `outline` (secondary), `secondary`, `ghost` (toolbars, header), `destructive`, `link`. Sizes: `sm` 32px (header, dense lists), `default` 40px, `lg` 44px, `icon`. Use `asChild` to style a router `Link` as a button. Put icons before the text and mark them `aria-hidden`.
-- **Input / NativeSelect**: same height, border, hover, focus and `aria-invalid` styles through `fieldControlClassName`. `NativeSelect` is a real `<select>` with a custom arrow. Its `className` styles the select and `containerClassName` styles the wrapper (width, grid span). Every control needs a label: a visible `<label>`, or `aria-label` when the context is clear (search, filters).
+- **Input / Textarea / NativeSelect / Label**: same height, border, hover, focus and `aria-invalid` styles through `fieldControlClassName`. `NativeSelect` is a real `<select>` with a custom arrow. Its `className` styles the select and `containerClassName` styles the wrapper (width, grid span). Every control needs a label: a visible `<label>`, or `aria-label` when the context is clear (search, filters).
 - **Card**: the one surface style (white, border, `rounded-lg`, `shadow-card`). Override padding/gap with `className` instead of creating a new surface.
 - **Badge**: `success`, `warning`, `neutral`, `destructive` for statuses, mapped per domain in `PetStatusBadge` and `ApplicationStatusBadge`. Don't pick colours ad hoc.
 - **PageHeader**: the page `<h1>`, an optional description, and the main actions. Every page starts with it.
@@ -63,6 +63,15 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 - **Skeleton**: loading placeholders shaped like the real content. Pair them with a visually hidden `role="status"` text (see `PetsPage`).
 - **Focus**: one global `:focus-visible` outline (2px `ring`, 2px offset). Don't add `outline-none` to focusable elements. The one exception is the card pattern below, where the card draws the outline instead.
 - **Whole-card links**: one real link (the title), with `after:absolute after:inset-0` so it covers the card, and `has-[a:focus-visible]:outline-*` on the card. This avoids duplicate "View details" links (see `pet-card.tsx`).
+
+## UX conventions (from the [UX benchmark](ux-benchmark.md))
+
+- **Photos are 4:3 everywhere** (cards, gallery, thumbnails), so a pet looks the same on the list and on its page. With several photos, show a "1 / N" counter.
+- **One primary action per page, near the top.** On detail pages it sits in a panel beside the photo on desktop (sticky) and right after the photo on mobile, before long text.
+- **Facts before the story:** short label/value tiles (`dl`) ahead of the description.
+- **Confirm final actions inline** (delete a pet, accept or reject an application): the button turns into a one-line warning with Confirm and Cancel, and focus moves to Cancel. Reversible actions (withdraw) don't ask.
+- **Set expectations before a commitment:** explain what happens next beside a form (see `adoption-steps.tsx`), using wording that matches the real business rules.
+- **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field, and a character counter when there's a limit.
 
 ## Responsive layout
 
