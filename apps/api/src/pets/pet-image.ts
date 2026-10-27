@@ -115,6 +115,58 @@ const PROCESSING_TIMEOUT_SECONDS = 15;
 // keep decoded data in memory for nothing.
 sharp.cache(false);
 
+/**
+ * At most this many images are decoded/encoded at once in this process; more
+ * wait their turn (in memory, already received and size-limited by multer).
+ * sharp runs on Node's libuv thread pool (4 threads by default), which
+ * Argon2 password hashing and file I/O also use: without a cap, a burst of
+ * uploads from several users could occupy every thread and stall sign-ins.
+ * Per-user request limits (middleware/rate-limit.ts) bound how much each
+ * account can submit; this bounds how much runs at the same time.
+ */
+export const MAX_CONCURRENT_IMAGE_JOBS = 2;
+
+/**
+ * Runs at most `max` tasks at once; the rest start in arrival order as
+ * running ones finish (successfully or not).
+ */
+export const createConcurrencyLimit = (max: number) => {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+
+  const acquire = async (): Promise<void> => {
+    if (running < max) {
+      running += 1;
+      return;
+    }
+
+    // The finishing task hands its slot over directly (see release).
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  };
+
+  const release = (): void => {
+    const next = waiting.shift();
+
+    if (next) {
+      next();
+    } else {
+      running -= 1;
+    }
+  };
+
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    await acquire();
+
+    try {
+      return await task();
+    } finally {
+      release();
+    }
+  };
+};
+
+const runImageJob = createConcurrencyLimit(MAX_CONCURRENT_IMAGE_JOBS);
+
 /** sharp's name for each accepted type (as reported by `metadata().format`). */
 const SHARP_FORMATS: Record<PetImageType, string> = {
   'image/jpeg': 'jpeg',
@@ -128,24 +180,7 @@ const invalidImageError = (): AppError => new AppError('INVALID_IMAGE', 400);
 const unsupportedImageError = (): AppError =>
   new AppError('UNSUPPORTED_IMAGE_TYPE', 415);
 
-/**
- * Turns an untrusted upload into the bytes that are actually published:
- *
- * 1. The magic bytes must be JPEG, PNG or WebP, so other formats libvips can
- *    read (SVG, TIFF, GIF, HEIF, PDF, ...) never reach the decoder.
- * 2. The decoder must agree on the format; truncated or corrupt files and
- *    animations are rejected; the pixel count is limited.
- * 3. The image is decoded and encoded again in the same format: EXIF
- *    orientation is applied to the pixels, the size is capped, and sharp
- *    writes no metadata (no EXIF/GPS, XMP, IPTC or ICC profile; colours are
- *    converted to sRGB). Transparency in PNG and WebP is kept.
- *
- * The original bytes are never stored. Errors are client errors (4xx) and
- * carry no file content.
- */
-export const processPetImage = async (
-  upload: Buffer,
-): Promise<ProcessedImage> => {
+const reencodeImage = async (upload: Buffer): Promise<ProcessedImage> => {
   const type = detectImageType(upload);
 
   if (!type) {
@@ -210,3 +245,21 @@ export const processPetImage = async (
     throw invalidImageError();
   }
 };
+
+/**
+ * Turns an untrusted upload into the bytes that are actually published:
+ *
+ * 1. The magic bytes must be JPEG, PNG or WebP, so other formats libvips can
+ *    read (SVG, TIFF, GIF, HEIF, PDF, ...) never reach the decoder.
+ * 2. The decoder must agree on the format; truncated or corrupt files and
+ *    animations are rejected; the pixel count is limited.
+ * 3. The image is decoded and encoded again in the same format: EXIF
+ *    orientation is applied to the pixels, the size is capped, and sharp
+ *    writes no metadata (no EXIF/GPS, XMP, IPTC or ICC profile; colours are
+ *    converted to sRGB). Transparency in PNG and WebP is kept.
+ *
+ * The original bytes are never stored. Errors are client errors (4xx) and
+ * carry no file content. At most MAX_CONCURRENT_IMAGE_JOBS run at once.
+ */
+export const processPetImage = (upload: Buffer): Promise<ProcessedImage> =>
+  runImageJob(() => reencodeImage(upload));

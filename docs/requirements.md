@@ -120,6 +120,7 @@ The same user can be an owner of some pets and an applicant for others.
 
 - The interface is available in English and Serbian. A language selector in the header switches it, and the browser remembers the choice. English is the default.
 - The server sends error codes, not text; the app turns them into translated messages.
+- **Rate limits** (per account; refused with "too many requests", `RATE_LIMITED`, and a `Retry-After` time): adoption applications 10 per 10 minutes and 30 per day; new pets 10 per 10 minutes and 30 per day; photo uploads 20 requests (up to 5 photos each) per 10 minutes and 100 per day; other changes (editing or deleting pets and photos, accepting, rejecting or withdrawing applications) 60 per 10 minutes and 500 per day. All changes from one IP address: 500 per 10 minutes. Sign-in, registration and the admin area have their own limits. Refused attempts count too.
 
 ## Known limitations
 

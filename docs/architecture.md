@@ -104,19 +104,22 @@ flowchart TB
   req --> headers["helmet<br/>CSP default-src 'none', DENY framing,<br/>nosniff, CORP same-origin; no X-Powered-By"]
   headers --> cors["cors<br/>origin = CORS_ORIGIN, credentials"]
   cors --> origin["requireTrustedOrigin<br/>unsafe method + foreign Origin → 403"]
-  origin --> json["express.json (100 kB)<br/>bad JSON → 400 INVALID_JSON<br/>too large → 413 PAYLOAD_TOO_LARGE<br/>bad encoding/charset → 415"]
+  origin --> ipwrite["writeIpRateLimit (/api, not GET, not /api/auth)<br/>500 per 10 min per IP → 429 RATE_LIMITED"]
+  ipwrite --> json["express.json (100 kB)<br/>bad JSON → 400 INVALID_JSON<br/>too large → 413 PAYLOAD_TOO_LARGE<br/>bad encoding/charset → 415"]
   json --> session["sessionMiddleware<br/>loads req.session from the sid cookie"]
   session --> router{"router"}
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
   router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
+  auth -- "changes" --> userrate["per-user write limits (user id from the session)<br/>applications / new pets / photo uploads / other changes<br/>burst + daily window → 429 RATE_LIMITED"]
   router -- "/api/admin/* (every path,<br/>router-level)" --> admin["requireAdmin<br/>requireAuth, then role = admin<br/>→ 401 / 403 ADMIN_REQUIRED<br/>+ per-admin rate limits<br/>→ 429 RATE_LIMITED"]
   router -- "GET /api/pets, /api/pets/:id (public)<br/>/api/auth/me, /logout" --> controller
   router -- "any other /api path" --> notfound["404 ROUTE_NOT_FOUND"]
 
   rate --> validate["validateBody(zod)<br/>(POST/PUT with a body only)<br/>→ 400 VALIDATION_FAILED"]
-  auth --> validate
+  auth -- "reads" --> validate
+  userrate --> validate
   admin --> validate
   validate --> controller["asyncHandler(controller)<br/>checks ids, throws AppError<br/>no owned pet matched → 403 / 404"]
   controller --> service["service<br/>pet.service (owner-scoped queries)<br/>application.service (transactions)<br/>auth.service / user.service<br/>admin.service / user-role.service<br/>pet-moderation / admin-audit.service"]
@@ -124,7 +127,7 @@ flowchart TB
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
-  cors & origin & json & rate & auth & admin & validate & controller & notfound -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
+  cors & origin & ipwrite & json & rate & auth & userrate & admin & validate & controller & notfound -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
 ```
 
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
@@ -133,8 +136,8 @@ flowchart TB
   - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /auth/register`, `POST /auth/login`, `PUT /admin/users/:id/role`).
   - `requireAuth` runs on pet create, update, delete and photo routes and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
   - `requireAdmin` is mounted on the whole `/api/admin` router (`router.use`), so it also runs for admin paths that match no route: access is denied by default. The admin rate limits run right after it (§5b).
-  - Rate limiting runs on `register`/`login` (per IP and per IP+email) and on every admin request (per admin account).
-  - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check ownership (and free slots) before `multer` reads the multipart body. The controller then runs `processPetImage` (magic bytes → `sharp` header check, ≤ 40 MP → re-encode without metadata, EXIF rotation applied, ≤ 2000 px) before anything is stored; the uploaded bytes are never saved.
+  - Rate limiting runs on `register`/`login` (per IP and per IP+email), on every admin request (per admin account), on every other change after `requireAuth` (per user, four kinds with a burst and a daily window), and on all changes outside `/api/auth` per IP before the body is read. Values: `USER_WRITE_LIMITS` / `WRITES_PER_IP` in `middleware/rate-limit.ts`.
+  - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check the upload rate limit, then ownership (and free slots), before `multer` reads the multipart body. At most 2 images are processed at once per API process. The controller then runs `processPetImage` (magic bytes → `sharp` header check, ≤ 40 MP → re-encode without metadata, EXIF rotation applied, ≤ 2000 px) before anything is stored; the uploaded bytes are never saved.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
   - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).

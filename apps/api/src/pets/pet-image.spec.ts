@@ -20,6 +20,7 @@ import {
   METADATA_MARKER,
 } from '../test/image-fixtures';
 import { listStoredFiles } from '../test/upload-test-helpers';
+import { createConcurrencyLimit } from './pet-image';
 import { PetModel } from './pet.model';
 
 // Real images: uploads are decoded and re-encoded, so magic bytes alone are
@@ -704,6 +705,42 @@ describe('pet photos', { timeout: 20_000 }, () => {
         415,
         'UNSUPPORTED_IMAGE_TYPE',
       );
+    });
+  });
+
+  describe('createConcurrencyLimit (image processing slots)', () => {
+    it('runs at most the given number of tasks at once, in order', async () => {
+      const limit = createConcurrencyLimit(2);
+      let running = 0;
+      let peak = 0;
+      const started: number[] = [];
+      const task = (id: number) =>
+        limit(async () => {
+          started.push(id);
+          running += 1;
+          peak = Math.max(peak, running);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          running -= 1;
+
+          if (id === 1) {
+            throw new Error('failed task');
+          }
+
+          return id;
+        });
+
+      const results = await Promise.allSettled([1, 2, 3, 4, 5].map(task));
+
+      expect(peak).toBe(2);
+      expect(started).toEqual([1, 2, 3, 4, 5]);
+      // A failing task gives its slot back like a successful one.
+      expect(results.map((result) => result.status)).toEqual([
+        'rejected',
+        'fulfilled',
+        'fulfilled',
+        'fulfilled',
+        'fulfilled',
+      ]);
     });
   });
 

@@ -400,11 +400,11 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 - **Pet photos:**
   - ~~Metadata is kept~~ / ~~polyglot files~~: since 2026-10-27 every upload is decoded and re-encoded with `sharp` (no metadata, EXIF rotation applied, ≤ 40 MP in, ≤ 2000 px out); see production-readiness.md §6, Batch 2. The Docker dev/QA volumes may still hold originals from before; don't carry them into a deployment.
   - **Memory:** uploads are buffered in memory (5 MB each).
-  - **No per-user upload rate limit.**
+  - Per-user upload rate limit since 2026-10-27 (P0-8); at most 2 images processed at once per process.
   - **Possible orphans:** a crash between writing a file and updating the database could leave an orphaned file; there's no cleanup job.
 
 - **Rate limiting:**
-  - The counters are in memory, so they reset on restart and aren't shared between instances.
+  - Per-user and per-IP write limits since 2026-10-27 (P0-8). The counters are in memory, so they reset on restart and aren't shared between instances.
   - Distributed credential stuffing is only slowed, not stopped.
   - Users behind one shared IP share the per-IP budget.
   - `trust proxy` must be correct in production.
@@ -441,7 +441,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1 and P0-3 (committed) and P0-2 (2026-10-27, uncommitted) are done; details in its §6. Next: P0-8 (per-user write limits), then P0-9 and P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
+0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1, P0-3, P0-2 (committed) and P0-8 (2026-10-27, uncommitted; one API instance) are done; details in its §6. Next: P0-9 (React error boundary), then P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
 1. **Manual QA on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): add `QA_SESSION_SECRET` to the root `.env`, `pnpm qa:up`, `pnpm qa:seed`, open http://127.0.0.1:4203, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

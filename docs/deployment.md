@@ -49,7 +49,7 @@ Web (`apps/web`): `VITE_API_URL` is baked into the bundle **at build time** and 
 
 ## Rate limiting with several API instances
 
-The sign-in and registration rate limits (per IP) and the admin limits (per admin account) keep their counters in the API process's memory. That's correct for one instance. The IP-based limits also depend on `trust proxy` matching the real number of proxies; the admin limits don't (they key on the session's user id). With several instances behind a load balancer, each would count separately (and counters reset on restart), so the limits would need a shared store such as Redis or MongoDB.
+All rate limits (sign-in and registration per IP, admin per admin account, writes per user, writes per IP; see `middleware/rate-limit.ts`) keep their counters in the API process's memory. That's correct for one instance; a restart clears them. The IP-based limits also depend on `trust proxy` matching the real number of proxies; the per-user and admin limits don't (they key on the session's user id). The cap of 2 concurrent image jobs is per process too. With several instances behind a load balancer, each would count separately (and counters reset on restart), so the limits would need a shared store such as Redis or MongoDB.
 
 ## Not covered yet
 

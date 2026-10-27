@@ -9,6 +9,7 @@ import { sessionMiddleware } from './auth/session';
 import { petRouter } from './pets/pet.routes';
 import { NotFoundError } from './errors/app-error';
 import { errorHandler } from './middleware/error-handler';
+import { writeIpRateLimit } from './middleware/rate-limit';
 import { requireTrustedOrigin } from './middleware/require-trusted-origin';
 import { serveLocalFiles } from './storage/local-file-storage';
 import { env } from './config/env';
@@ -63,6 +64,11 @@ app.use(
 );
 
 app.use(requireTrustedOrigin(env.corsOrigin));
+
+// Per-IP backstop for every change outside /api/auth, before the body and the
+// session are read. Per-user limits are on the routes. The client IP comes
+// from `trust proxy` (above), so it is only as reliable as that setting.
+app.use('/api', writeIpRateLimit);
 
 app.use(express.json());
 
