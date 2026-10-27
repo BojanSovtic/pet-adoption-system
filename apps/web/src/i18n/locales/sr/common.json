@@ -37,7 +37,17 @@
     "UNSUPPORTED_IMAGE_TYPE": "Podržane su samo JPEG, PNG i WebP fotografije.",
     "INVALID_IMAGE_UPLOAD": "Fotografiju nije moguće otpremiti.",
     "TOO_MANY_IMAGES": "Ljubimac može imati najviše 5 fotografija.",
-    "IMAGE_NOT_FOUND": "Fotografija nije pronađena."
+    "IMAGE_NOT_FOUND": "Fotografija nije pronađena.",
+    "ADMIN_REQUIRED": "Ovo mogu samo administratori.",
+    "CANNOT_CHANGE_OWN_ROLE": "Ne možeš da promeniš svoju ulogu.",
+    "LAST_ADMIN": "Ovo je poslednji administrator. Prvo postavi nekog drugog za administratora.",
+    "USER_NOT_FOUND": "Korisnik nije pronađen.",
+    "INVALID_USER_ID": "ID korisnika nije ispravan.",
+    "ACCOUNT_SUSPENDED": "Ovaj nalog je suspendovan. Obrati se administratorima ako misliš da je u pitanju greška.",
+    "APPLICANT_SUSPENDED": "Nalog podnosioca je suspendovan, pa se zahtev ne može prihvatiti. Možeš da ga odbiješ.",
+    "CANNOT_SUSPEND_ADMIN": "Administratori ne mogu biti suspendovani. Prvo ukloni administratorsku ulogu.",
+    "CANNOT_SUSPEND_SELF": "Ne možeš da suspenduješ svoj nalog.",
+    "USER_SUSPENDED": "Nalog je suspendovan. Prvo vrati pristup."
   },
   "validation": {
     "invalid": "Vrednost nije ispravna.",

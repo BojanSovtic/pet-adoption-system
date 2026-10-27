@@ -36,6 +36,9 @@ API (validated at startup in `apps/api/src/config/env.ts`):
 | `HOST`, `PORT`     | Where the API listens (default `localhost:3333`; use `0.0.0.0` in a container).           |
 | `UPLOADS_DIR`      | Where photos are stored on disk.                                                          |
 | `UPLOADS_BASE_URL` | Public URL of `/uploads`, e.g. behind a proxy or CDN.                                     |
+| `AUDIT_HMAC_KEY`   | Optional, recommended: at least 32 random characters, a secret kept **outside** the database (e.g. the platform's secret store). Signs the admin audit log. Must stay the same: entries signed with an old key can't be verified without it. |
+
+The command-line tools (`pnpm admin:grant|revoke`, `pnpm audit:verify`) need only `MONGODB_URI` (+ `AUDIT_HMAC_KEY` if set), not the web server's variables. Run them where the database is reachable, with the production values only when that is intended (the dry run prints the target database).
 
 Web (`apps/web`): `VITE_API_URL` is baked into the bundle **at build time** and must be the API address as the browser sees it. Changing it means rebuilding the web app.
 
@@ -46,8 +49,10 @@ Web (`apps/web`): `VITE_API_URL` is baked into the bundle **at build time** and 
 
 ## Rate limiting with several API instances
 
-The sign-in and registration rate limits keep their counters in the API process's memory. That's correct for one instance. With several instances behind a load balancer, each would count separately (and counters reset on restart), so the limits would need a shared store such as Redis or MongoDB.
+The sign-in and registration rate limits (per IP) and the admin limits (per admin account) keep their counters in the API process's memory. That's correct for one instance. The IP-based limits also depend on `trust proxy` matching the real number of proxies; the admin limits don't (they key on the session's user id). With several instances behind a load balancer, each would count separately (and counters reset on restart), so the limits would need a shared store such as Redis or MongoDB.
 
 ## Not covered yet
 
 Logging and monitoring, backups, health-check-based restarts on the host, and a CI deployment step.
+
+**Admin audit log anchoring:** to detect someone with database access deleting the newest audit entries, run `pnpm audit:verify` on a schedule and keep a copy of the chain head (`auditchainheads`: last `seq` and `hash`) outside the database, for example in the platform's logs. See production-readiness.md (A3).

@@ -148,6 +148,74 @@ Verified by passing tests or by reading the code.
 - **Checks:** web lint, typecheck and 98/98 tests ✅, build ✅, E2E 6/6 ✅ (owner flow updated to confirm), details-page screenshots at 375/1280 px.
 - **Next:** Batch 2 (applications dashboard), then Batch 3 (forms: `FormField`, `pet-form-page`), as listed in the roadmap.
 
+## Admin hardening: moderation, audit, rate limits (2026-10-27, uncommitted)
+
+Closes the findings recorded after the admin feature; status per finding (A1–A6) is in [production-readiness.md](production-readiness.md).
+
+- **Suspension:** `User.suspendedAt`; `suspendUser`/`reinstateUser`.
+  - `requireAuth` reads role and suspension on every request; a suspended user's session is ended with 403 `ACCOUNT_SUSPENDED`. Sign-in says so after a correct password; `/auth/me` → 401.
+  - Admins can't be suspended, and nobody can suspend themselves.
+  - Accepting a suspended applicant's application → 409 `APPLICANT_SUSPENDED` (rejecting still works).
+- **Listing moderation:** `Pet.hiddenAt`; `hidePet`/`restorePet` (lockPet first).
+  - Hidden pets are out of the public list and return 404 except to the owner and admins. Pets now carry a `hidden` flag.
+  - New applications → 404; existing applications and the state machine are unchanged; owners can't unhide.
+- **Audit:**
+  - Generalized entries (action, outcome succeeded/denied, actor, targetUser/targetPet, minimal metadata), created through `runAudited` in the same transaction as the change; refused attempts are recorded as `denied`.
+  - List views with personal data are recorded (`users|pets|applications.viewed`: page, filters used, row count, never the search text).
+  - Hash chain with `AUDIT_CHAIN_HEAD`, HMAC with optional `AUDIT_HMAC_KEY`, model hooks refuse updates and deletes, `pnpm audit:verify`.
+  - New page `/admin/audit`.
+- **Rate limits:** per admin account (session user id), 300 reads / 30 changes per 15 minutes → 429; in process memory.
+- **CLI config:** `config/env-file.ts` (`loadEnvFile`, `readMongodbUri`, `readAuditKey`) is shared by `config/env.ts` and the CLIs. `admin:grant` and `audit:verify` need only `MONGODB_URI` (+ the key).
+- **Web:**
+  - `ConfirmAction` (inline confirmation, optional reason) replaces the role-only control.
+  - Users page: status filter, Suspended badge, suspend/reinstate. Pets page: visibility filter, Hidden badge, hide/restore.
+  - Audit log page; overview counts for suspended and hidden.
+  - Pet page notice for hidden listings; `ACCOUNT_SUSPENDED` signs the web user out.
+  - Admin tabs wrap on phones (they were cut off). en + sr.
+- **Config/docs:** `AUDIT_HMAC_KEY` in both `.env.example` files and passed through in `docker-compose.yml`. Updated requirements, architecture (§2b, §3c, §4, §5b), deployment, design system, README, CLAUDE.md.
+- **Tests:**
+  - API: `admin-moderation.spec.ts` (+22: rate limits incl. spoofed headers, audit access/content/denied/append-only/chain/HMAC, suspension incl. sessions/sign-in/applications/races, moderation incl. owner bypass, CLI with only `MONGODB_URI`).
+  - Web: +8 (suspension, moderation, audit page, hidden notice).
+  - E2E: `admin-moderation.spec.ts` (+1: suspend a signed-in member, hide a listing, audit log).
+- **Checks (2026-10-27):**
+  - lint, typecheck and build for all 4 projects: ✅
+  - tests (`--parallel=1`): ✅ web 122/122, API 305/305
+  - E2E: ✅ 9/9 in one full run
+- **Browser verification:** Chromium at 1280 and 375 px against the real API and web app from source, with an in-memory database seeded by the demo seed and an admin made by the real `admin:grant` (only `MONGODB_URI` set).
+  - Every admin page; the loading (delayed), error (forced network failure + retry) and empty states; audit pagination (26 entries); role change and revert; suspend with a reason; a suspended sign-in; reinstate; hide (public search returns 0) and restore; the forbidden page for a non-admin.
+  - No horizontal overflow; console errors were only the expected 401 `/auth/me` before sign-in, the suspended user's 403 and the forced network failures; `audit:verify` reported the chain intact (HMAC).
+  - Script: `scratchpad/verify-admin.mjs` (not committed).
+  - **Not done:** the same check against the developer's own dev database (Docker Desktop wasn't running). To repeat it there:
+    1. `docker compose up -d` and start `pnpm nx serve @pet-adoption/api` and `pnpm nx dev @pet-adoption/web`;
+    2. `pnpm dev:seed` (if not seeded);
+    3. `pnpm admin:grant luka@demo.example.com --yes`;
+    4. sign in at http://localhost:4200 as luka (`demo-password`) and go through Admin → Overview, Users (search, role change, suspend with a reason, reinstate), Pets (hide, restore), Applications, Audit log; then sign in as marko and open /admin (expect "Admins only");
+    5. `pnpm audit:verify`.
+
+## Admin role and administration area (2026-10-27, uncommitted)
+
+- **Roles:** `user` (default) and `admin` (`USER_ROLES`, `User.role`). No shelter role: posting pets is open to every signed-in user and ownership stays per pet. Users stored before roles read as `user`.
+- **API** (`apps/api/src/admin/`):
+  - `requireAdmin` (in `auth/require-auth.ts`) is mounted on the whole `/api/admin` router. It reads the role from MongoDB on every request, so it denies by default and role changes apply on the next request.
+  - Endpoints: `GET stats`, `GET users`, `PUT users/:id/role`, `GET pets`, `GET applications`.
+  - Pets and applications are read-only; there is no bypass of ownership or the adoption state machine.
+  - `changeUserRole` runs in one transaction with a guard document (serializes role changes), refuses changes to one's own role and to the last admin, and writes an audit entry (`adminaudits`).
+- **Provisioning:** `pnpm admin:grant|revoke <email> [--yes]` (`scripts/admin-role.ts`; a dry run without `--yes`). Registration ignores `role`. Procedure in the README ("Administrators").
+- **Web** (`features/admin`):
+  - `/admin` overview (counts, recent admin activity), Users (search, role filter, role change with inline confirmation; one's own role can't be changed), Pets, Applications. URL-kept filters, skeleton/empty/error states.
+  - The header's Admin link is shown for admins only. `AdminLayout` handles loading, sign-in redirect and "Admins only".
+  - An `ADMIN_REQUIRED` response refetches `/auth/me`; admin caches are cleared on every identity change. en + sr.
+- **E2E:** the in-memory MongoDB uses fixed port 27031 so `support/admin.ts` can run the real `admin:grant`. `admin.spec.ts` covers the admin journey and an ordinary user being refused (UI and API).
+- **Small refactors for reuse:** `toPetView` moved to `pets/pet-view.ts`; `escapeRegex` exported; `listAllApplications` added to `application.service.ts`.
+- **Tests:** API +39 (`admin.controller.spec.ts` 34, `admin-role.spec.ts` 5; `auth.controller.spec.ts` now expects `role`); web +12 (`admin-pages.spec.tsx`).
+- **Checks (2026-10-27):**
+  - lint, typecheck and build for all 4 projects: ✅
+  - tests (`--parallel=1`): ✅ web 114/114, API 283/283
+  - E2E: ✅ 8/8 in one full run, including both admin journeys
+  - Two bugs were found by the tests and fixed before these runs: the stats aggregation grouped on a literal instead of `$status`, and the role-change guard is now created outside the transaction (a first-ever concurrent change could otherwise fail with a duplicate key).
+- **Not verified:** the admin pages in a real browser against the dev database (only through E2E and component tests).
+- **Findings for the roadmap:** see "Findings from the admin work" in [production-readiness.md](production-readiness.md) (admin reads not audited, no suspension, audit log not tamper-proof).
+
 ## Empty pet list in development (2026-10-26, uncommitted)
 
 **Cause:** the API returned 200 with no pets, for two separate reasons, neither of them a regression.

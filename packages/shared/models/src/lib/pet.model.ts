@@ -95,6 +95,12 @@ export type Pet = PetProfile & {
   description: string;
   status: PetStatus;
   /**
+   * `true` when an admin hid the listing. Hidden pets are left out of the
+   * public list and are only returned to their owner and to admins, so other
+   * clients always see `false`.
+   */
+  hidden: boolean;
+  /**
    * Public URL of the pet's primary (first) photo, or `null` if it has none.
    * Kept next to `images` so lists and older clients need only one field.
    */

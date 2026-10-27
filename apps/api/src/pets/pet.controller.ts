@@ -19,10 +19,12 @@ import {
 } from './pet.service';
 import { petListQuerySchema } from './pet.schema';
 import { detectImageType, tooManyImagesError } from './pet-image';
-import { PetModel, withProfileDefaults, type PetRecord } from './pet.model';
+import { PetModel } from './pet.model';
+import { toPetView } from './pet-view';
 import { getAuthenticatedUserId } from '../auth/require-auth';
+import { isAdmin } from '../users/user.service';
 import { parseInput } from '../middleware/validate';
-import { deleteStoredFileQuietly, storage } from '../storage';
+import { deleteStoredFileQuietly } from '../storage';
 import {
   AppError,
   BadRequestError,
@@ -50,25 +52,6 @@ const throwNotOwnedError = async (petId: string): Promise<never> => {
   throw new NotFoundError('PET_NOT_FOUND');
 };
 
-/**
- * The API shape of a pet: storage keys become public URLs. `imageUrl` is the
- * primary (first) photo, so single-photo clients keep working. Missing profile
- * facts (older pets) are filled with their defaults.
- */
-const toPetView = ({ images = [], ...pet }: PetRecord) => {
-  const views = images.map(({ _id, key }) => ({
-    _id: _id.toString(),
-    url: storage.publicUrl(key),
-  }));
-
-  return {
-    ...pet,
-    ...withProfileDefaults(pet),
-    imageUrl: views[0]?.url ?? null,
-    images: views,
-  };
-};
-
 export const getPetsController = async (
   req: Request,
   res: Response,
@@ -85,11 +68,28 @@ export const getPetByIdController = async (
 ): Promise<void> => {
   const pet = await getPetById(getPetId(req));
 
-  if (!pet) {
+  if (!pet || (pet.hiddenAt && !(await canSeeHiddenPet(req, pet)))) {
     throw new NotFoundError('PET_NOT_FOUND');
   }
 
   res.json(toPetView(pet));
+};
+
+/**
+ * A hidden listing is visible to its owner (who keeps managing it) and to
+ * admins (who moderate it); everyone else gets 404, as if it didn't exist.
+ */
+const canSeeHiddenPet = async (
+  req: Request,
+  pet: { owner?: { equals: (id: string) => boolean } },
+): Promise<boolean> => {
+  const { userId } = req.session;
+
+  if (!userId) {
+    return false;
+  }
+
+  return Boolean(pet.owner?.equals(userId)) || (await isAdmin(userId));
 };
 
 export const createPetController = async (

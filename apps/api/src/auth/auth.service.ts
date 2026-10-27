@@ -1,6 +1,6 @@
 import type { LoginInput, RegisterInput } from '@pet-adoption/models';
 
-import { UnauthorizedError } from '../errors/app-error';
+import { ForbiddenError, UnauthorizedError } from '../errors/app-error';
 import {
   createUser,
   findUserByEmailWithPasswordHash,
@@ -43,6 +43,12 @@ export const authenticateWithPassword = async ({
   // Same error for unknown email, missing password and wrong password.
   if (!user?.passwordHash || !isValid) {
     throw new UnauthorizedError('INVALID_CREDENTIALS');
+  }
+
+  // Only after a correct password, so the suspension of an account isn't
+  // revealed to someone who merely knows its email address.
+  if (user.suspendedAt) {
+    throw new ForbiddenError('ACCOUNT_SUSPENDED');
   }
 
   return user;

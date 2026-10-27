@@ -35,11 +35,13 @@ describe('POST /api/auth/register', () => {
       'createdAt',
       'email',
       'name',
+      'role',
       'updatedAt',
     ]);
     expect(response.body).toMatchObject({
       email: validUser.email,
       name: validUser.name,
+      role: 'user',
     });
     expect(getSessionCookie(response)).toBeDefined();
   });

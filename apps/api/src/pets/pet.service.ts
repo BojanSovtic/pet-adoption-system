@@ -34,22 +34,30 @@ const SORTS: Record<PetSort, Record<string, SortOrder>> = {
 const NAME_COLLATION = { locale: 'en', strength: 2 };
 
 /** User input is matched literally: "a.b" must not match "axb". */
-const escapeRegex = (value: string): string =>
+export const escapeRegex = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * One page of pets. Search and filters apply before paging, and the count uses
  * the same filter, so the metadata matches the results.
  */
-export const listPets = async ({
-  search,
-  species,
-  status,
-  sort,
-  page,
-  pageSize,
-}: ParsedPetListQuery): Promise<Paginated<PetRecord>> => {
+/**
+ * Which pets a list may contain: the public list only shows visible pets;
+ * the admin list can show hidden ones too.
+ */
+export type PetVisibility = 'visible' | 'hidden' | 'all';
+
+export const listPets = async (
+  { search, species, status, sort, page, pageSize }: ParsedPetListQuery,
+  visibility: PetVisibility = 'visible',
+): Promise<Paginated<PetRecord>> => {
   const filter: QueryFilter<PetRecord> = {};
+
+  if (visibility === 'visible') {
+    filter.hiddenAt = null;
+  } else if (visibility === 'hidden') {
+    filter.hiddenAt = { $ne: null };
+  }
 
   if (search) {
     filter.name = { $regex: escapeRegex(search), $options: 'i' };

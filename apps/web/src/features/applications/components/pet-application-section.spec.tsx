@@ -31,6 +31,7 @@ const makeUser = (id: string): User => ({
   _id: id,
   email: `${id}@example.com`,
   name: id,
+  role: 'user',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 });
@@ -47,6 +48,7 @@ const pet: Pet = {
   description: 'A friendly dog.',
   status: 'available',
   ...DEFAULT_PET_PROFILE,
+  hidden: false,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',

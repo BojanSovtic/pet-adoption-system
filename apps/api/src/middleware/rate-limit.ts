@@ -11,6 +11,23 @@ const FAILED_LOGINS_PER_ACCOUNT_AND_IP = 5;
 // Running several instances would need a shared store (e.g. MongoDB or Redis).
 const ipStore = new MemoryStore();
 const loginStore = new MemoryStore();
+const adminReadStore = new MemoryStore();
+const adminWriteStore = new MemoryStore();
+
+/**
+ * Admin limits, per admin account (not per IP). They run after
+ * `requireAdmin`, so the key is the user id from the server-side session:
+ * spoofed `X-Forwarded-For` headers can't change it, and admins behind one
+ * office IP don't share a budget.
+ *
+ * - Reads: 300 per 15 minutes, about one request every 3 seconds for a whole
+ *   working session; the pages debounce search, so normal use stays far below.
+ * - Changes (roles, suspensions, listing moderation): 30 per 15 minutes,
+ *   enough for deliberate one-by-one decisions but not for a runaway script
+ *   or a hijacked session mass-changing accounts.
+ */
+const ADMIN_READS_PER_ADMIN = 300;
+const ADMIN_CHANGES_PER_ADMIN = 30;
 
 const rejectWithRateLimitError = (
   req: Request,
@@ -54,8 +71,39 @@ export const loginRateLimit = rateLimit({
     `${ipKeyGenerator(req.ip ?? '')}:${normalizeEmail(req.body?.email)}`,
 });
 
+/** The admin's id, set by `requireAdmin` (which must run first). */
+const adminKey = (req: Request, res: Response): string => {
+  const userId = (res.locals.auth as { userId?: string } | undefined)?.userId;
+
+  if (!userId) {
+    throw new Error('Admin rate limits must run after requireAdmin');
+  }
+
+  return `admin:${userId}`;
+};
+
+/** GET requests on /api/admin. See ADMIN_READS_PER_ADMIN. */
+export const adminReadRateLimit = rateLimit({
+  ...sharedOptions,
+  limit: ADMIN_READS_PER_ADMIN,
+  store: adminReadStore,
+  keyGenerator: adminKey,
+  skip: (req) => req.method !== 'GET',
+});
+
+/** Role changes, suspensions and moderation. See ADMIN_CHANGES_PER_ADMIN. */
+export const adminWriteRateLimit = rateLimit({
+  ...sharedOptions,
+  limit: ADMIN_CHANGES_PER_ADMIN,
+  store: adminWriteStore,
+  keyGenerator: adminKey,
+  skip: (req) => req.method === 'GET',
+});
+
 /** Clears all counters; used by tests so limits don't leak between them. */
 export const resetRateLimits = (): void => {
   ipStore.resetAll();
   loginStore.resetAll();
+  adminReadStore.resetAll();
+  adminWriteStore.resetAll();
 };

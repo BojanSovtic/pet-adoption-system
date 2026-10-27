@@ -185,6 +185,16 @@ const PetDetailsPage = () => {
             <PetFacts pet={pet} />
           </div>
 
+          {/* Only the owner and admins ever receive a hidden pet. */}
+          {pet.hidden && (
+            <p
+              role="note"
+              className="rounded-md border border-destructive/30 bg-destructive-subtle p-3 text-sm text-destructive"
+            >
+              {t('hiddenNotice')}
+            </p>
+          )}
+
           {isOwner && (
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline">

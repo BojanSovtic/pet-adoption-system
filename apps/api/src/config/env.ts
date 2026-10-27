@@ -1,21 +1,21 @@
-import dotenv from 'dotenv';
 import path from 'node:path';
 
-dotenv.config({
-  path: path.resolve(process.cwd(), 'apps/api/.env'),
-});
+import { loadEnvFile, readAuditKey, readMongodbUri } from './env-file';
+
+// The web server's full configuration, validated at startup. Command-line
+// tools that only touch the database use env-file.ts instead.
+loadEnvFile();
 
 const port = Number(process.env.PORT ?? 3333);
-const mongodbUri = process.env.MONGODB_URI;
+const mongodbUri = readMongodbUri();
 const corsOrigin = process.env.CORS_ORIGIN;
 const sessionSecret = process.env.SESSION_SECRET;
 
+// Fails at startup if set but too short (it's read again where it's used).
+readAuditKey();
+
 if (!Number.isInteger(port) || port <= 0) {
   throw new Error('PORT must be a positive integer');
-}
-
-if (!mongodbUri) {
-  throw new Error('MONGODB_URI is required');
 }
 
 if (!corsOrigin) {

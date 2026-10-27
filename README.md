@@ -186,6 +186,37 @@ pnpm nx dev @pet-adoption/web            # web app: http://localhost:4200 (in a 
 - **Options A and B use the same ports (3333, 4200) and the same database**, so only one can run at a time. Before switching to option B, stop the app containers with `docker compose --profile app stop` (MongoDB keeps running). Otherwise the dev API stops with "Port 3333 … is already in use", and the web dev server refuses to start on a taken port 4200.
 - Photos are stored per stack: the dev API in `apps/api/uploads`, Docker in the `uploads_data` volume. Pets seeded through one stack show missing photos in the other.
 
+### Administrators
+
+Every new account is an ordinary user, and registration ignores any `role` field. Admins open the administration area (**Admin** in the header, `/admin`). The first admin is created from the command line by someone with access to the server's configuration:
+
+1. The person registers in the app as usual. No passwords or default accounts are stored in the repository.
+2. On the machine with the API's settings (`apps/api/.env`, or the API container's environment), from the repository root:
+
+   ```sh
+   pnpm admin:grant person@example.com         # dry run: shows the database (host/name, no credentials), the user and the change
+   pnpm admin:grant person@example.com --yes   # applies it
+   pnpm admin:revoke person@example.com --yes  # removes it again
+   ```
+
+3. The change applies to the person's next request; no new sign-in is needed. After that, admins can grant or remove admin access on the **Users** page.
+
+Safety:
+- Check the database line of the dry run before adding `--yes`: the command uses `MONGODB_URI` from the environment, so in a shell with production settings it changes production.
+- Nobody can change their own role, and the last admin can't be revoked (the command and the app refuse).
+- Every change, from the app or the command line, is recorded in the admin **Audit log** (also under **Recent admin activity** on the overview).
+- The command needs only `MONGODB_URI` (from the environment or `apps/api/.env`), plus `AUDIT_HMAC_KEY` if the API uses one. It doesn't need the web server's settings. With Docker (option A), run it on the host against the published MongoDB port: `MONGODB_URI="mongodb://localhost:27018/pet-adoption?directConnection=true" pnpm admin:grant …`.
+
+In the app, admins can also **suspend** accounts and **hide** listings (both reversible, see [requirements](docs/requirements.md#administration)).
+
+**Audit log integrity:** entries form a hash chain. Set `AUDIT_HMAC_KEY` (32+ random characters, kept outside the database) to sign them, and check the chain with:
+
+```sh
+pnpm audit:verify   # exit code 1 if an entry was changed, removed or reordered in the database
+```
+
+This detects tampering; it doesn't prevent it. Anyone with database write access can still delete recent entries (see [production-readiness.md](docs/production-readiness.md), A3).
+
 ### Demo data (optional)
 
 A ready-made demo with 4 users, 14 pets and 13 adoption applications in every status. It covers both list pages, all statuses, an auto-rejected application and a withdrawn one. It runs on its own database (`pet-adoption-demo`), photo folder (`tmp/demo-uploads`) and ports (web 4202, API 3335), so it never touches your development data.

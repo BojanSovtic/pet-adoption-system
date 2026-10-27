@@ -73,6 +73,7 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 - **Set expectations before a commitment:** explain what happens next beside a form (see `adoption-steps.tsx`), using wording that matches the real business rules.
 - **Unknown answers:** profile facts can be "unknown". Cards and fact tiles leave unknown facts out (no "Unknown" noise); the "Home and lifestyle" list shows them as "Not known yet", so adopters see what still needs asking. Positive answers get a ✓ chip on cards.
 - **Long forms are grouped** into `fieldset`s with a `legend` (e.g. "Basics", "Home and lifestyle"), and related selects (children/dogs/cats) share an inner `fieldset`.
+- **Data lists (admin area) are rows, not tables:** a `Card` holding a `ul.divide-y`, one `li` per record with `flex-wrap`, so they reflow on phones without horizontal scrolling. Filters sit in a `role="search"` panel and live in the URL; section navigation uses `NavLink` tabs (`aria-current="page"`). Per-row actions name their target in the accessible name ("Make admin: Ana") when the visible label repeats on every row. Consequential admin actions use `ConfirmAction` (`features/admin/components/confirm-action.tsx`): the button turns into the consequence, an optional reason field, and Confirm/Cancel, with focus on Cancel. Status badges for moderation use `destructive` ("Suspended", "Hidden").
 - **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field, and a character counter when there's a limit.
 
 ## Responsive layout

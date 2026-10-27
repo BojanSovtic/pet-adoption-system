@@ -1,6 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import { currentUserQueryKey } from '../features/auth/api/get-current-user';
 import { setCurrentUser } from '../features/auth/utils/set-current-user';
 import { ApiError } from '../lib/api-client';
 import { getErrorMessage } from '../lib/get-error-message';
@@ -28,10 +29,25 @@ export const shouldRetry = (failureCount: number, error: Error): boolean => {
   return failureCount < MAX_RETRIES;
 };
 
-/** A request failed because the session expired or was ended elsewhere. */
+/**
+ * Identity changes the API reports on any request:
+ * - the session expired, was ended elsewhere, or the account was suspended
+ *   (the API ended the session): the user is now signed out;
+ * - the user is no longer an admin: the cached user (and its role) is stale,
+ *   so refetch it and the admin navigation disappears.
+ */
 const handleUnauthenticated = (error: Error) => {
-  if (error instanceof ApiError && error.code === 'UNAUTHENTICATED') {
+  if (!(error instanceof ApiError)) {
+    return;
+  }
+
+  // A suspended account's session was ended by the API: signed out now.
+  if (error.code === 'UNAUTHENTICATED' || error.code === 'ACCOUNT_SUSPENDED') {
     setCurrentUser(queryClient, null);
+  }
+
+  if (error.code === 'ADMIN_REQUIRED') {
+    void queryClient.invalidateQueries({ queryKey: currentUserQueryKey });
   }
 };
 

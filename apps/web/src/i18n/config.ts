@@ -1,10 +1,12 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+import enAdmin from './locales/en/admin.json';
 import enApplications from './locales/en/applications.json';
 import enAuth from './locales/en/auth.json';
 import enCommon from './locales/en/common.json';
 import enPets from './locales/en/pets.json';
+import srAdmin from './locales/sr/admin.json';
 import srApplications from './locales/sr/applications.json';
 import srAuth from './locales/sr/auth.json';
 import srCommon from './locales/sr/common.json';
@@ -12,12 +14,14 @@ import srPets from './locales/sr/pets.json';
 
 export const resources = {
   en: {
+    admin: enAdmin,
     applications: enApplications,
     auth: enAuth,
     common: enCommon,
     pets: enPets,
   },
   sr: {
+    admin: srAdmin,
     applications: srApplications,
     auth: srAuth,
     common: srCommon,
@@ -64,7 +68,7 @@ i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   supportedLngs: [...SUPPORTED_LANGUAGES],
   defaultNS: 'common',
-  ns: ['common', 'pets', 'auth', 'applications'],
+  ns: ['common', 'pets', 'auth', 'applications', 'admin'],
   interpolation: {
     escapeValue: false,
   },

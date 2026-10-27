@@ -39,6 +39,7 @@ const makeUser = (id: string): User => ({
   _id: id,
   email: `${id}@example.com`,
   name: id,
+  role: 'user',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 });
@@ -55,6 +56,7 @@ const pet: Pet = {
   description: 'A friendly dog.',
   status: 'available',
   ...DEFAULT_PET_PROFILE,
+  hidden: false,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -140,6 +142,22 @@ describe('PetDetailsPage', () => {
       ['Cats', 'Not known yet'],
       ['Time alone', 'Up to about 5 hours'],
     ]);
+  });
+
+  it('tells the owner when administrators hid the listing', async () => {
+    vi.mocked(getPet).mockResolvedValue({ ...pet, hidden: true });
+    renderAt('/pets/pet-1', owner);
+
+    expect((await screen.findByRole('note')).textContent).toContain(
+      'Administrators hid this listing.',
+    );
+  });
+
+  it('shows no moderation notice on a visible listing', async () => {
+    renderAt('/pets/pet-1', owner);
+
+    await screen.findByRole('heading', { name: 'Milo' });
+    expect(screen.queryByRole('note')).toBeNull();
   });
 
   it('leaves out sex and breed when they are not known', async () => {

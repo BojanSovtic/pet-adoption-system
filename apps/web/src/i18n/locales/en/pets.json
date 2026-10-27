@@ -179,5 +179,6 @@
     "children": "Good with children",
     "dogs": "Good with dogs",
     "cats": "Good with cats"
-  }
+  },
+  "hiddenNotice": "Administrators hid this listing. Only you and the administrators can see it, and it takes no new applications. You can still decide existing applications."
 }

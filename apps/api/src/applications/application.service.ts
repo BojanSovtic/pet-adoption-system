@@ -2,9 +2,11 @@ import { mongo, type QueryFilter, type Types } from 'mongoose';
 import {
   APPLICATION_TRANSITIONS,
   getApplicationTransitionTarget,
+  type AdminApplication,
   type ApplicantSummary,
   type ApplicationAction,
   type ApplicationPetSummary,
+  type ApplicationStatus,
   type CreateApplicationInput,
   type MyApplication,
   type Paginated,
@@ -18,6 +20,7 @@ import {
   NotFoundError,
 } from '../errors/app-error';
 import { PetModel, type PetRecord } from '../pets/pet.model';
+import { UserModel } from '../users/user.model';
 import { lockPet, transitionPetStatus } from '../pets/pet.service';
 import { ApplicationModel, type ApplicationRecord } from './application.model';
 import type {
@@ -166,6 +169,49 @@ export const listReceivedApplications = async (
   return toPage(items, totalItems, paging);
 };
 
+/**
+ * Admin oversight: applications across the platform, newest first, with the
+ * pet, applicant and owner. Read-only; leaves out the message (not needed).
+ */
+export const listAllApplications = async ({
+  status,
+  ...paging
+}: Paging & { status?: ApplicationStatus }): Promise<
+  Paginated<AdminApplication>
+> => {
+  const filter: QueryFilter<ApplicationRecord> = status ? { status } : {};
+
+  const [applications, totalItems] = await Promise.all([
+    ApplicationModel.find(filter)
+      .sort(NEWEST_FIRST)
+      .skip((paging.page - 1) * paging.pageSize)
+      .limit(paging.pageSize)
+      .populate<{ pet: PopulatedPet }>('pet', PET_SUMMARY_FIELDS)
+      .populate<{ applicant: PopulatedApplicant }>(
+        'applicant',
+        APPLICANT_SUMMARY_FIELDS,
+      )
+      .populate<{ petOwner: PopulatedApplicant }>(
+        'petOwner',
+        APPLICANT_SUMMARY_FIELDS,
+      )
+      .lean(),
+    ApplicationModel.countDocuments(filter),
+  ]);
+
+  const items = applications.map((application) => ({
+    _id: application._id.toString(),
+    status: application.status,
+    pet: toPetSummary(application.pet),
+    applicant: toApplicantSummary(application.applicant),
+    owner: toApplicantSummary(application.petOwner),
+    createdAt: application.createdAt.toISOString(),
+    updatedAt: application.updatedAt.toISOString(),
+  }));
+
+  return toPage(items, totalItems, paging);
+};
+
 const SINGLE: Paging = { page: 1, pageSize: 1 };
 
 export const getApplicationView = async (
@@ -243,7 +289,9 @@ export const submitApplication = async (
     return await withTransaction(async (session) => {
       const pet = await lockPet(session, petId);
 
-      if (!pet) {
+      // A listing hidden by an admin takes no new applications. Checked
+      // after the lock, so it can't race with hiding.
+      if (!pet || pet.hiddenAt) {
         throw new NotFoundError('PET_NOT_FOUND');
       }
 
@@ -355,6 +403,18 @@ export const transitionApplication = async (
 
       if (!target) {
         throw new ConflictError('INVALID_STATUS_TRANSITION');
+      }
+
+      // A suspended applicant's applications stay pending (nothing is
+      // deleted or decided for them); the owner may reject but not accept.
+      if (
+        action === 'accept' &&
+        (await UserModel.exists({
+          _id: current?.applicant,
+          suspendedAt: { $ne: null },
+        }).session(session))
+      ) {
+        throw new ConflictError('APPLICANT_SUSPENDED');
       }
 
       // Conditional update: only changes an application still in `from`.

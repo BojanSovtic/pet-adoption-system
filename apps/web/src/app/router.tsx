@@ -7,6 +7,12 @@ import {
 
 import { AppShell } from './app-shell';
 import { NotFoundPage } from './not-found-page';
+import { AdminLayout } from '../features/admin/components/admin-layout';
+import { AdminApplicationsPage } from '../features/admin/pages/admin-applications-page';
+import { AdminAuditPage } from '../features/admin/pages/admin-audit-page';
+import { AdminDashboardPage } from '../features/admin/pages/admin-dashboard-page';
+import { AdminPetsPage } from '../features/admin/pages/admin-pets-page';
+import { AdminUsersPage } from '../features/admin/pages/admin-users-page';
 import { ApplicationsPage } from '../features/applications/pages/applications-page';
 import { LoginPage } from '../features/auth/pages/login-page';
 import { RegisterPage } from '../features/auth/pages/register-page';
@@ -45,6 +51,18 @@ export const routes: RouteObject[] = [
         element: <PetFormPage />,
       },
       { path: '/applications', element: <ApplicationsPage /> },
+      {
+        // AdminLayout checks the role; the API enforces it on every request.
+        path: '/admin',
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <AdminDashboardPage /> },
+          { path: 'users', element: <AdminUsersPage /> },
+          { path: 'pets', element: <AdminPetsPage /> },
+          { path: 'applications', element: <AdminApplicationsPage /> },
+          { path: 'audit', element: <AdminAuditPage /> },
+        ],
+      },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
       {

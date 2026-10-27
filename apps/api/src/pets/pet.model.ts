@@ -40,6 +40,7 @@ export type PetRecord = Omit<
   | 'images'
   | 'createdAt'
   | 'updatedAt'
+  | 'hidden'
   | keyof PetProfile
 > &
   // Pets saved before profile facts existed don't have them; the API reads
@@ -50,6 +51,12 @@ export type PetRecord = Omit<
     owner: Types.ObjectId;
     /** At most PET_IMAGE_MAX_COUNT; the first is the primary photo. */
     images?: PetImageRecord[];
+    /**
+     * Set when an admin hides the listing (`hidePet`); missing or null while
+     * public. Never part of the owner's input, so owners can't unhide.
+     * Who hid it is in the admin audit log.
+     */
+    hiddenAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -112,6 +119,8 @@ const petSchema = new Schema<PetRecord>(
       enum: [...PET_ALONE_TIME_VALUES],
       default: DEFAULT_PET_PROFILE.aloneTime,
     },
+    // Moderation. Not in any owner input schema, so only admins change it.
+    hiddenAt: { type: Date, default: null },
     // Never accepted from clients; only the photo endpoints change it. The
     // count limit is enforced by the photo update queries themselves.
     images: {

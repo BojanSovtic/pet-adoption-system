@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
-import { E2E_API_PORT, E2E_WEB_URL } from './config';
+import { E2E_API_ENV, E2E_API_PORT, E2E_MONGODB_PORT } from './config';
 
 /**
  * Starts the real API for E2E tests against a throwaway in-memory MongoDB
@@ -17,6 +17,8 @@ import { E2E_API_PORT, E2E_WEB_URL } from './config';
 const start = async () => {
   const replSet = await MongoMemoryReplSet.create({
     replSet: { count: 1, storageEngine: 'wiredTiger' },
+    // A fixed port so tests can run admin:grant against this database.
+    instanceOpts: [{ port: E2E_MONGODB_PORT }],
   });
 
   // Explicit values win over apps/api/.env (dotenv never overrides).
@@ -27,11 +29,9 @@ const start = async () => {
       stdio: 'inherit',
       env: {
         ...process.env,
-        MONGODB_URI: replSet.getUri('pet-adoption-e2e'),
+        ...E2E_API_ENV,
         PORT: String(E2E_API_PORT),
         HOST: 'localhost',
-        CORS_ORIGIN: E2E_WEB_URL,
-        SESSION_SECRET: 'e2e-session-secret-at-least-32-characters-long',
         UPLOADS_DIR: await mkdtemp(path.join(tmpdir(), 'pet-adoption-e2e-')),
       },
     },

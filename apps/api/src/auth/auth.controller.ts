@@ -51,8 +51,9 @@ export const getCurrentUserController = async (
 
   const user = await findUserById(userId);
 
-  if (!user) {
-    // The user was deleted while signed in; drop the orphaned session.
+  if (!user || user.suspendedAt) {
+    // Deleted or suspended while signed in: end the session, so the web
+    // shows the user as signed out (sign-in then explains a suspension).
     await endUserSession(req, res);
     throw new UnauthorizedError('UNAUTHENTICATED');
   }

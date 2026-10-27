@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "admin:grant": "tsx apps/api/src/scripts/admin-role.ts grant",
+    "admin:revoke": "tsx apps/api/src/scripts/admin-role.ts revoke",
+    "audit:verify": "tsx apps/api/src/scripts/audit-verify.ts",
     "dev:seed": "tsx apps/api/src/scripts/seed-demo.ts --dev",
     "demo:start": "tsx apps/api/src/scripts/start-demo.ts",
     "demo:images": "tsx apps/api/src/scripts/prepare-demo-images.ts",

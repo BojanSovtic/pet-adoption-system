@@ -43,6 +43,7 @@ const owner: User = {
   _id: 'owner-1',
   email: 'owner@example.com',
   name: 'Owner',
+  role: 'user',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -61,6 +62,7 @@ const pet: Pet = {
   description: 'A friendly dog.',
   status: 'available',
   ...DEFAULT_PET_PROFILE,
+  hidden: false,
   imageUrl: image('img-1').url,
   images: [image('img-1'), image('img-2')],
   createdAt: '2026-01-01T00:00:00.000Z',

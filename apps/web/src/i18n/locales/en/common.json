@@ -37,7 +37,17 @@
     "UNSUPPORTED_IMAGE_TYPE": "Only JPEG, PNG and WebP photos are supported.",
     "INVALID_IMAGE_UPLOAD": "The photo could not be uploaded.",
     "TOO_MANY_IMAGES": "A pet can have at most 5 photos.",
-    "IMAGE_NOT_FOUND": "The photo could not be found."
+    "IMAGE_NOT_FOUND": "The photo could not be found.",
+    "ADMIN_REQUIRED": "Only administrators can do that.",
+    "CANNOT_CHANGE_OWN_ROLE": "You can't change your own role.",
+    "LAST_ADMIN": "This is the last administrator. Make someone else an administrator first.",
+    "USER_NOT_FOUND": "The user could not be found.",
+    "INVALID_USER_ID": "The user ID is invalid.",
+    "ACCOUNT_SUSPENDED": "This account is suspended. Contact the site administrators if you think this is a mistake.",
+    "APPLICANT_SUSPENDED": "The applicant's account is suspended, so this application can't be accepted. You can reject it.",
+    "CANNOT_SUSPEND_ADMIN": "Administrators can't be suspended. Remove their admin role first.",
+    "CANNOT_SUSPEND_SELF": "You can't suspend your own account.",
+    "USER_SUSPENDED": "The account is suspended. Reinstate it first."
   },
   "validation": {
     "invalid": "This value is invalid.",

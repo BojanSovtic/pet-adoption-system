@@ -26,6 +26,7 @@ const pet: Pet = {
   description: 'A friendly dog.',
   status: 'available',
   ...DEFAULT_PET_PROFILE,
+  hidden: false,
   imageUrl: null,
   images: [],
   createdAt: '2026-01-01T00:00:00.000Z',

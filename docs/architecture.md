@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
@@ -16,14 +16,18 @@ flowchart LR
   end
 
   browser(["Browser"])
-  mongo[("MongoDB 8, single-node replica set<br/>Docker container (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications")]
+  operator(["Operator with server access"])
+  cli["pnpm admin:grant / admin:revoke / audit:verify<br/>apps/api/src/scripts/"]
+  mongo[("MongoDB 8, single-node replica set<br/>Docker container (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications,<br/>adminaudits, auditchainheads,<br/>rolechangeguards")]
 
   browser -- "loads SPA" --> web
   browser -- "axios /api/*<br/>JSON + sid cookie<br/>(withCredentials, CORS)" --> api
   web -. "imports types<br/>(workspace:*)" .-> models
   api -. "imports types + constants<br/>(bundled inline)" .-> models
-  api -- "Mongoose 9<br/>(pets, users, applications;<br/>transactions)" --> mongo
+  api -- "Mongoose 9<br/>(pets, users, applications,<br/>admin audit; transactions)" --> mongo
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
+  operator -- "runs" --> cli
+  cli -- "changeUserRole / verifyAuditChain<br/>(only MONGODB_URI + optional<br/>AUDIT_HMAC_KEY)" --> mongo
   uploads[("Uploaded pet photos<br/>local disk (UPLOADS_DIR)<br/>dev: apps/api/uploads<br/>Docker: uploads_data volume<br/>(FileStorage interface)")]
   api -- "save / delete files" --> uploads
   browser -- "img src: /uploads/pets/…" --> api
@@ -32,6 +36,7 @@ flowchart LR
 - **Two separate apps.** The frontend calls the API directly at `VITE_API_URL` (read at build time); there is no Vite or nginx proxy. Section 6 shows how they run in Docker and in E2E tests. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
 - **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
+- **Admins are created outside the API.** `pnpm admin:grant <email>` connects to the database directly and uses the same `changeUserRole` service as the admin area (§3c, §5b). No HTTP route can create the first admin. The command-line tools load only `config/env-file.ts` (`MONGODB_URI`, optional `AUDIT_HMAC_KEY`), not the web server's `config/env.ts`, so they don't need `SESSION_SECRET` or `CORS_ORIGIN`.
 - **Photos are files, not database data.** A pet stores up to 5 storage keys in `images`; the API returns `images: [{ _id, url }]` and `imageUrl` (the first photo) built by the storage.
   - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`) with a local-disk implementation, served at `/uploads` with `nosniff` and long-term caching. Object storage (S3, R2) would be a second implementation; nothing else changes.
   - **Upload:** `POST /api/pets/:id/images` checks sign-in, ownership and free photo slots first, then parses multipart with `multer` (in memory, at most 5 files of 5 MB in the field "images"). It detects JPEG, PNG or WebP from each file's bytes and stores the files under random names: all of them or none.
@@ -104,26 +109,29 @@ flowchart TB
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
-  router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>session user must exist<br/>→ 401 UNAUTHENTICATED"]
+  router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
+  router -- "/api/admin/* (every path,<br/>router-level)" --> admin["requireAdmin<br/>requireAuth, then role = admin<br/>→ 401 / 403 ADMIN_REQUIRED<br/>+ per-admin rate limits<br/>→ 429 RATE_LIMITED"]
   router -- "GET /api/pets, /api/pets/:id (public)<br/>/api/auth/me, /logout" --> controller
 
   rate --> validate["validateBody(zod)<br/>(POST/PUT with a body only)<br/>→ 400 VALIDATION_FAILED"]
   auth --> validate
+  admin --> validate
   validate --> controller["asyncHandler(controller)<br/>checks ids, throws AppError<br/>no owned pet matched → 403 / 404"]
-  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>application.service (transactions)<br/>auth.service / user.service"]
-  service --> model["Mongoose model<br/>PetModel / UserModel / ApplicationModel"]
+  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>application.service (transactions)<br/>auth.service / user.service<br/>admin.service / user-role.service<br/>pet-moderation / admin-audit.service"]
+  service --> model["Mongoose model<br/>PetModel / UserModel / ApplicationModel<br/>AdminAuditModel / AuditChainHeadModel<br/>RoleChangeGuardModel"]
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
-  cors & origin & json & rate & auth & validate & controller -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
+  cors & origin & json & rate & auth & admin & validate & controller -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
 ```
 
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
 - **Errors leave through one place.** Every error, including rate-limit, validation and origin errors, reaches `errorHandler`. Response bodies are always `{ code, details? }`; the web translates `code`.
 - **Not every route has every step.**
-  - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /auth/register`, `POST /auth/login`).
-  - Rate limiting runs only on `register` and `login`.
+  - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /auth/register`, `POST /auth/login`, `PUT /admin/users/:id/role`).
   - `requireAuth` runs on pet create, update, delete and photo routes and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
+  - `requireAdmin` is mounted on the whole `/api/admin` router (`router.use`), so it also runs for admin paths that match no route: access is denied by default. The admin rate limits run right after it (§5b).
+  - Rate limiting runs on `register`/`login` (per IP and per IP+email) and on every admin request (per admin account).
   - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check ownership (and free slots) before `multer` reads the multipart body.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
@@ -191,7 +199,7 @@ sequenceDiagram
       C->>DB: destroy session
       C-->>UI: 401 UNAUTHENTICATED (cookie cleared)
     else user exists
-      C-->>UI: 200 public User (toPublicUser: no passwordHash)
+      C-->>UI: 200 public User incl. role (toPublicUser: no passwordHash; missing role → user)
     end
   end
 
@@ -206,8 +214,46 @@ sequenceDiagram
 - **Authentication vs authorization.**
   - `requireAuth` (`auth/require-auth.ts`) only answers "who is signed in?". It also rejects sessions whose user was deleted.
   - Ownership ("may this user change this pet?") lives in the pet service queries.
-  - Browsing pets stays public. There are no admin roles.
+  - The admin role is checked by `requireAdmin` (§3c). Browsing pets stays public.
 - **Separate from the sign-in method:** `startUserSession` and `endUserSession` take only a user id. A future OAuth/OIDC callback would find or create a user and call the same function.
+
+### 3c. Roles and authorization
+
+```mermaid
+flowchart LR
+  visitor(["Visitor<br/>(signed out)"])
+  user(["user<br/>(default for every account)"])
+  admin(["admin"])
+
+  subgraph public["Public"]
+    browse["browse and view pets"]
+  end
+  subgraph signedIn["Signed in (requireAuth)"]
+    post["post pets → becomes their owner"]
+    apply["apply / withdraw (as applicant)"]
+  end
+  subgraph perPet["Per pet, not a role (owner-scoped queries)"]
+    manage["edit / delete / photos of own pets"]
+    decide["accept / reject applications for own pets"]
+  end
+  subgraph adminArea["/api/admin/* (requireAdmin)"]
+    stats["stats + audit log"]
+    users["list users, change roles,<br/>suspend / reinstate<br/>(not oneself, not admins,<br/>never the last admin)"]
+    oversight["all pets: hide / restore listings<br/>all applications: read-only"]
+  end
+
+  visitor --> public
+  user --> public & signedIn
+  signedIn -. "owner of that pet" .-> perPet
+  admin --> public & signedIn & adminArea
+  admin -. "only for pets they own,<br/>like any user" .-> perPet
+```
+
+- **Two roles:** `user` and `admin` (`USER_ROLES` in the shared library). There is no "shelter" role: anyone signed in can post pets, and owning a pet is a relation to that pet (`pet.owner`), not a role. Admins get no shortcut around ownership or the adoption state machine; on someone else's pet they get the same 403/404 as any user.
+- **Where the role comes from:** the `role` field on the user document (default `user`; missing on older users, which counts as `user`). The session stores only `userId`. `requireAuth` reads the user's `role` and `suspendedAt` from MongoDB on **every** request (one query; `requireAdmin` reuses it), so promotion, demotion and suspension take effect on the user's next request without signing in again, and nothing the client sends (body, URL, headers, the cached `/auth/me`) can grant access.
+- **Suspended accounts:** `requireAuth` ends the session and answers 403 `ACCOUNT_SUSPENDED`; `/auth/me` ends it and answers 401 (the web shows the user as signed out); sign-in answers 403 `ACCOUNT_SUSPENDED` only after a correct password. Browsing stays public. Admins can't be suspended, so an active admin always remains.
+- **Who can change a role or suspension:** only `changeUserRole`, `suspendUser` and `reinstateUser` (`admin/user-role.service.ts`), called by the admin endpoints (acting admin from the session) and, for roles, by the `admin:grant` / `admin:revoke` command (no actor; an operator with database access). Registration ignores any `role` field: `registerSchema` strips unknown keys and `createUser` writes only email, name and password hash.
+- **The web** shows the Admin link and the `/admin` pages only when `/auth/me` says `role: 'admin'` (usability only). An `ADMIN_REQUIRED` response refetches `/auth/me`, so a demoted admin's UI updates; `ACCOUNT_SUSPENDED` signs the user out in the web; all admin query data is removed on every identity change (`setCurrentUser`).
 
 ## 4. Data model
 
@@ -220,8 +266,34 @@ erDiagram
     string email UK "trimmed, lowercase, max 254"
     string name "max 100"
     string passwordHash "Argon2id, select false, optional"
+    string role "user | admin, default user, indexed; missing = user"
+    date suspendedAt "null = active; set by an admin"
     date createdAt
     date updatedAt
+  }
+  ADMIN_AUDIT {
+    ObjectId _id PK
+    number seq UK "1, 2, 3, ... chain position"
+    string action "user.role.changed | user.suspended | user.reinstated | pet.hidden | pet.restored | users.viewed | pets.viewed | applications.viewed"
+    string outcome "succeeded | denied"
+    ObjectId actor FK "ref User, the acting admin; absent for the CLI"
+    ObjectId targetUser FK "ref User, optional"
+    ObjectId targetPet FK "ref Pet, optional"
+    object metadata "from/to role, reason, error code, page, filters used, row count"
+    string source "admin-ui | cli"
+    date createdAt
+    string prevHash "hash of entry seq-1 (genesis: 64 zeros)"
+    string hash "HMAC-SHA256 with AUDIT_HMAC_KEY, else SHA-256"
+    boolean keyed
+  }
+  AUDIT_CHAIN_HEAD {
+    string _id PK "'admin-audit' (single document)"
+    number seq "last entry"
+    string hash "last entry's hash"
+  }
+  ROLE_CHANGE_GUARD {
+    string _id PK "'user-roles' (single document)"
+    date changedAt "written first by every role change"
   }
   PET {
     ObjectId _id PK
@@ -235,6 +307,7 @@ erDiagram
     string breed "optional, max 60, default empty"
     object compatibility "children, dogs, cats: yes | no | unknown, default unknown"
     string aloneTime "short | part-day | full-day | unknown, default unknown"
+    date hiddenAt "null = public; set by an admin (moderation)"
     array images "0-5 x { _id, key }, e.g. key pets/uuid.jpg; the first is the main photo"
     date createdAt
     date updatedAt
@@ -259,9 +332,14 @@ erDiagram
   USER ||--o{ ADOPTION_APPLICATION : "receives (petOwner)"
   PET ||--o{ ADOPTION_APPLICATION : "receives"
   SESSION }o--|| USER : "userId (plain string, not a Mongoose ref)"
+  USER ||--o{ ADMIN_AUDIT : "acts (actor)"
+  USER ||--o{ ADMIN_AUDIT : "is affected (targetUser)"
+  PET ||--o{ ADMIN_AUDIT : "is moderated (targetPet)"
 ```
 
-- **Mongoose models:** `USER`, `PET` and `ADOPTION_APPLICATION` (`users/`, `pets/`, `applications/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
+- **Mongoose models:** `USER`, `PET`, `ADOPTION_APPLICATION`, `ADMIN_AUDIT`, `AUDIT_CHAIN_HEAD` and `ROLE_CHANGE_GUARD` (`users/`, `pets/`, `applications/`, `admin/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
+- **Admin audit log:** written in the same transaction as each change, so a change never exists without its record; refused attempts and list views get their own entry. No update or delete path exists in the app (model hooks refuse them). See §5b for the hash chain and its limits.
+- **Hidden pets** (`hiddenAt` set) are left out of `GET /api/pets` and return 404 from `GET /api/pets/:id` except to their owner and admins. The API returns only a `hidden` flag, never who hid it.
 - **`owner` and `applicant` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
 - **Pet profile facts** (`sex`, `breed`, `compatibility`, `aloneTime`) are optional in the API input. Pets stored before they existed lack them; `withProfileDefaults` fills `unknown`/empty in every response, so no migration is needed.
 - **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
@@ -341,6 +419,71 @@ sequenceDiagram
 - **Concurrency:** the first write locks the pet, so two simultaneous acceptances (or a withdraw racing a reject) can't both act on stale data. MongoDB raises a write conflict, `connection.transaction()` retries the losing transaction, and the retry sees the committed result (409). The unique "one accepted per pet" index is the final guarantee.
 - **The same pattern** (lock the pet, check, write, adjust the pet status) is used for submit, reject and withdraw, so the pet status stays consistent even when the last two pending applications end at the same moment.
 
+### 5b. Administration
+
+Admins see platform-wide counts, users, pets, applications and the audit log; they change roles, suspend and reinstate users, and hide and restore listings. Applications stay **read-only**: adoption decisions stay with owners and applicants (§5), so admins can't create a second accepted application or skip the pet lock. The application list leaves out the applicant's message.
+
+| Endpoint (all behind `requireAdmin` + rate limits) | Purpose |
+|---|---|
+| `GET /api/admin/stats` | Users (total, admins, suspended), pets by status and hidden, applications by status, the 5 newest audited *changes* |
+| `GET /api/admin/audit?action=&page=&pageSize=` | The audit log, newest first (not itself audited) |
+| `GET /api/admin/users?search=&role=&status=&page=&pageSize=` | Users with role, suspension, pet and application counts; search matches name or email (escaped, any case); page size 20 (max 50). **Audited** (`users.viewed`) |
+| `PUT /api/admin/users/:id/role` `{ role }` | Change a role |
+| `POST /api/admin/users/:id/suspend` `{ reason? }` / `…/reinstate` | Suspend / lift a suspension |
+| `GET /api/admin/pets?…&visibility=` | The pet list (public parameters, hidden pets included) with owners and `hiddenAt`. **Audited** (`pets.viewed`) |
+| `POST /api/admin/pets/:id/hide` `{ reason? }` / `…/restore` | Hide / restore a listing |
+| `GET /api/admin/applications?status=&page=&pageSize=` | All applications with pet, applicant and owner (no message). **Audited** (`applications.viewed`) |
+
+**Rules** (in `user-role.service.ts` and `pet-moderation.service.ts`):
+- Nobody changes their own role or suspends themselves.
+- The last admin keeps the role.
+- Admins can't be suspended; suspended users can't be made admins.
+- Suspension keeps all data. A suspended applicant's pending applications stay pending: the owner can reject them, but accepting returns 409 `APPLICANT_SUSPENDED`.
+- Hiding keeps the pet, its status and its applications; only new applications are refused (404, checked after the pet lock). The owner keeps seeing and managing it and can't unhide it (`hiddenAt` is in no input schema).
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Op as Operator (server access)
+  actor A as Admin (browser)
+  participant CLI as pnpm admin:grant
+  participant API as /api/admin/... (change)
+  participant S as runAudited + service
+  participant DB as MongoDB (transaction)
+
+  Note over Op,CLI: First admin: the person registers in the app, then
+  Op->>CLI: admin:grant <email> (dry run), then --yes
+  CLI->>S: changeUserRole { target, role: admin, source: cli } (no actor)
+
+  Note over A,API: Later: Users / Pets pages (inline confirmation, optional reason)
+  A->>API: role / suspend / reinstate / hide / restore + sid cookie
+  API->>API: requireAdmin (role + suspension read now) → rate limit (30 changes / 15 min / admin) → validateBody
+  API->>S: { target from URL, actor from session, source: admin-ui }
+  S->>DB: user changes: write the role-change guard first; listings: lock the pet first
+  S->>DB: actor still an active admin? else 403 ADMIN_REQUIRED
+  S->>DB: rules (own account, last admin, admin/suspended, target exists)
+  S->>DB: apply the change + append the audit entry (same transaction)
+  DB-->>S: commit, or abort: nothing kept
+  alt a rule refused it (AppError)
+    S->>DB: append an audit entry with outcome denied + the error code
+    S-->>API: 403 / 404 / 409 { code }
+  else
+    S-->>API: 200 (public user or pet)
+  end
+```
+
+- **Why the guard document:** each transaction alone would see another admin, so two admins demoting each other at the same moment could otherwise leave none; likewise a promotion and a suspension of the same user could otherwise both succeed. Every role or suspension change writes the same document first; MongoDB lets one transaction hold it, the other retries and then sees the result (both tested).
+- **Effect on sessions:** nothing to revoke. The next request of the affected user is authorized against the current role and suspension (tested: a demoted admin gets 403, a suspended user's open session gets 403 `ACCOUNT_SUSPENDED` and is ended).
+- **Rate limits** (`middleware/rate-limit.ts`): per admin account, keyed by the user id from the session (spoofed `X-Forwarded-For` headers don't matter): 300 reads and 30 changes per 15 minutes, 429 `RATE_LIMITED`. Counters are in process memory, like the sign-in limits: they reset on restart and are not shared between several API instances.
+
+**The audit chain** (`admin-audit.service.ts`):
+- **Appending:** every entry gets the next `seq`, the previous entry's hash as `prevHash`, and `hash` = HMAC-SHA256 (with `AUDIT_HMAC_KEY`) or SHA-256 (without a key) over its content. The single `AUDIT_CHAIN_HEAD` document is updated in the same transaction, which serializes concurrent appends.
+- **Checking:** `pnpm audit:verify` (or `verifyAuditChain`) walks the chain and reports gaps, broken links, changed content and a head that doesn't match the last entry.
+- **Trust boundary: tamper-evident, not tamper-proof.** The application can't change or delete entries, but anyone with database write access can.
+  - Without the key, they can also rewrite the chain consistently.
+  - With the key (kept outside the database), they can't forge entries, but they can still delete the newest entries and roll back the head.
+  - Detecting that needs a copy of the head outside the database (planned with hosting; see production-readiness.md A3).
+
 ## 6. Runtime environments
 
 ### Docker Compose
@@ -411,15 +554,20 @@ flowchart LR
   pw["Playwright (Chromium)<br/>apps/web-e2e"]
   web["Vite dev server<br/>localhost:4201"]
   api["Real API from source (tsx)<br/>localhost:3334"]
-  db[("In-memory MongoDB replica set<br/>empty on every run")]
+  db[("In-memory MongoDB replica set<br/>127.0.0.1:27031, empty on every run")]
   tmp[("Temporary uploads directory")]
+  cli["admin:grant command<br/>(support/admin.ts)"]
 
   pw -- "drives the UI in a browser" --> web
   pw -- "test setup: register users,<br/>create pets, apply (support/api.ts)" --> api
+  pw -- "make a test admin" --> cli
+  cli --> db
   web -- "pages call VITE_API_URL" --> api
   api --> db
   api --> tmp
 ```
+
+- **Admins in E2E** are created exactly like in production: the test registers a user through the API, then runs the real `admin:grant` command against the run's database (fixed port 27031, `E2E_MONGODB_URI` in `support/config.ts`). There is no test-only way to become an admin.
 
 - **Isolated:** Playwright starts both servers itself (`reuseExistingServer: false`), so dev servers, Docker containers and dev data are never used.
 - **No seed data:** each test creates uniquely named users and pets through the API, then checks the journeys in the UI.

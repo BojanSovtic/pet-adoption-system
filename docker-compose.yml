@@ -50,6 +50,7 @@ services:
       UPLOADS_DIR: /app/uploads
       # Required; the API refuses to start without it (see .env.example).
       SESSION_SECRET: ${SESSION_SECRET:-}
+      AUDIT_HMAC_KEY: ${AUDIT_HMAC_KEY:-}
       # Local Compose runs over plain http; "production" would mark session
       # cookies Secure (HTTPS only).
       NODE_ENV: development

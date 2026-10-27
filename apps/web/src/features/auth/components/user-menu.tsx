@@ -43,6 +43,12 @@ const UserMenu = () => {
 
   return (
     <div className="flex items-center gap-3">
+      {/* Shown to admins only for convenience; the API decides access. */}
+      {currentUser.role === 'admin' && (
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/admin">{t('adminLink')}</Link>
+        </Button>
+      )}
       <Button asChild variant="ghost" size="sm">
         <Link to="/applications">{t('applicationsLink')}</Link>
       </Button>
