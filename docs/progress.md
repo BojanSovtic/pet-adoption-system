@@ -398,8 +398,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 ## Security considerations still open
 
 - **Pet photos:**
-  - **Metadata is kept.** Photos are stored as uploaded, so camera metadata (EXIF, which may include GPS location) isn't removed, and files aren't re-encoded. Stripping it would need an image library such as `sharp` (a native dependency).
-  - **Polyglot files:** the magic-byte check plus `nosniff` and a fixed extension keep a disguised file from being treated as HTML or script, but it doesn't prove the file is a valid image.
+  - ~~Metadata is kept~~ / ~~polyglot files~~: since 2026-10-27 every upload is decoded and re-encoded with `sharp` (no metadata, EXIF rotation applied, ≤ 40 MP in, ≤ 2000 px out); see production-readiness.md §6, Batch 2. The Docker dev/QA volumes may still hold originals from before; don't carry them into a deployment.
   - **Memory:** uploads are buffered in memory (5 MB each).
   - **No per-user upload rate limit.**
   - **Possible orphans:** a crash between writing a file and updating the database could leave an orphaned file; there's no cleanup job.
@@ -442,7 +441,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1 and P0-3 are done (2026-10-27, uncommitted; details in its §6). Next: P0-2 (image re-encoding), then P0-8, P0-9, P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
+0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1 and P0-3 (committed) and P0-2 (2026-10-27, uncommitted) are done; details in its §6. Next: P0-8 (per-user write limits), then P0-9 and P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
 1. **Manual QA on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): add `QA_SESSION_SECRET` to the root `.env`, `pnpm qa:up`, `pnpm qa:seed`, open http://127.0.0.1:4203, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

@@ -1,5 +1,6 @@
 import express, { type RequestHandler } from 'express';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { FileStorage } from './file-storage';
@@ -26,9 +27,19 @@ export const createLocalFileStorage = ({
 }): FileStorage => ({
   save: async (key, data) => {
     const filePath = resolveKey(directory, key);
+    // Written under a dot-file name (never served: `dotfiles: 'deny'`), then
+    // renamed, so a half-written file is never public under the real key.
+    const tempPath = path.join(path.dirname(filePath), `.${randomUUID()}.tmp`);
 
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, data);
+
+    try {
+      await writeFile(tempPath, data);
+      await rename(tempPath, filePath);
+    } catch (error) {
+      await rm(tempPath, { force: true });
+      throw error;
+    }
   },
 
   delete: async (key) => {

@@ -134,7 +134,7 @@ flowchart TB
   - `requireAuth` runs on pet create, update, delete and photo routes and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
   - `requireAdmin` is mounted on the whole `/api/admin` router (`router.use`), so it also runs for admin paths that match no route: access is denied by default. The admin rate limits run right after it (§5b).
   - Rate limiting runs on `register`/`login` (per IP and per IP+email) and on every admin request (per admin account).
-  - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check ownership (and free slots) before `multer` reads the multipart body.
+  - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check ownership (and free slots) before `multer` reads the multipart body. The controller then runs `processPetImage` (magic bytes → `sharp` header check, ≤ 40 MP → re-encode without metadata, EXIF rotation applied, ≤ 2000 px) before anything is stored; the uploaded bytes are never saved.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
   - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).

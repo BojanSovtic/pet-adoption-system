@@ -9,24 +9,32 @@ import {
   createSignedInAgent,
   type SignedInAgent,
 } from '../test/auth-test-helpers';
+import sharp from 'sharp';
+
+import {
+  createAnimatedWebp,
+  createPhoneJpeg,
+  createPngClaimingSize,
+  createTestImage,
+  hasGpsTag,
+  METADATA_MARKER,
+} from '../test/image-fixtures';
 import { listStoredFiles } from '../test/upload-test-helpers';
 import { PetModel } from './pet.model';
 
-// Only the leading "magic number" bytes matter for type detection.
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.alloc(64),
-]);
-const JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
-  Buffer.alloc(64),
-]);
-const WEBP = Buffer.concat([
-  Buffer.from('RIFF'),
-  Buffer.alloc(4),
-  Buffer.from('WEBP'),
-  Buffer.alloc(64),
-]);
+// Real images: uploads are decoded and re-encoded, so magic bytes alone are
+// no longer enough.
+let PNG: Buffer;
+let JPEG: Buffer;
+let WEBP: Buffer;
+
+beforeAll(async () => {
+  [PNG, JPEG, WEBP] = await Promise.all([
+    createTestImage('png'),
+    createTestImage('jpeg'),
+    createTestImage('webp'),
+  ]);
+});
 
 const missingPetId = '507f1f77bcf86cd799439011';
 
@@ -506,6 +514,196 @@ describe('pet photos', { timeout: 20_000 }, () => {
 
       expect(response.body).toMatchObject({ imageUrl: null, images: [] });
       expect(await storedFiles()).toEqual([]);
+    });
+  });
+
+  describe('re-encoding and validation', () => {
+    /** Uploads through PUT /image and downloads what is actually served. */
+    const uploadAndFetch = async (
+      data: Buffer,
+      options?: Parameters<typeof upload>[3],
+    ) => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const response = await upload(owner.agent, petId, data, options);
+      expect(response.status).toBe(200);
+
+      const served = await request(app)
+        .get(uploadPath(response.body.imageUrl))
+        .buffer(true)
+        .parse((res, callback) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => callback(null, Buffer.concat(chunks)));
+        });
+      expect(served.status).toBe(200);
+
+      return { response, served, data: served.body as Buffer };
+    };
+
+    const expectRejected = async (
+      data: Buffer,
+      status: number,
+      code: string,
+    ) => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+
+      const single = await upload(owner.agent, petId, data);
+      const gallery = await addImages(owner.agent, petId, [PNG, data]);
+
+      expect(single.status).toBe(status);
+      expect(single.body).toEqual({ code });
+      expect(gallery.status).toBe(status);
+      expect(gallery.body).toEqual({ code });
+      // Nothing stored or half-written (readdir lists dot-files too).
+      expect(await storedFiles()).toEqual([]);
+      expect((await PetModel.findById(petId).lean())?.images).toEqual([]);
+    };
+
+    it('removes EXIF, GPS and XMP metadata and serves new bytes', async () => {
+      const original = await createPhoneJpeg();
+      const before = await sharp(original).metadata();
+      // The fixture really carries the metadata.
+      expect(before.exif).toBeDefined();
+      expect(before.xmp).toBeDefined();
+      expect(hasGpsTag(before.exif as Buffer)).toBe(true);
+      expect(original.includes(METADATA_MARKER)).toBe(true);
+
+      const { data } = await uploadAndFetch(original, {
+        filename: 'IMG_0001.jpg',
+        contentType: 'image/jpeg',
+      });
+      const after = await sharp(data).metadata();
+
+      expect(data.equals(original)).toBe(false);
+      expect(after.format).toBe('jpeg');
+      expect(after.exif).toBeUndefined();
+      expect(after.xmp).toBeUndefined();
+      expect(after.iptc).toBeUndefined();
+      expect(after.icc).toBeUndefined();
+      expect(after.orientation).toBeUndefined();
+      expect(hasGpsTag(data)).toBe(false);
+      expect(data.includes(METADATA_MARKER)).toBe(false);
+      expect(data.includes('PhoneMaker')).toBe(false);
+    });
+
+    it('applies the EXIF orientation to the pixels', async () => {
+      // Stored 40×20 (red left, blue right) with "rotate 90° clockwise".
+      const { data } = await uploadAndFetch(await createPhoneJpeg(), {
+        filename: 'IMG_0002.jpg',
+        contentType: 'image/jpeg',
+      });
+      const { data: pixels, info } = await sharp(data)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const pixel = (x: number, y: number) => {
+        const offset = (y * info.width + x) * info.channels;
+        return { red: pixels[offset], blue: pixels[offset + 2] };
+      };
+
+      expect([info.width, info.height]).toEqual([20, 40]);
+      // Rotated clockwise, the left (red) edge is now at the top.
+      expect(pixel(10, 2).red).toBeGreaterThan(200);
+      expect(pixel(10, 2).blue).toBeLessThan(60);
+      expect(pixel(10, 37).blue).toBeGreaterThan(200);
+      expect(pixel(10, 37).red).toBeLessThan(60);
+    });
+
+    it.each([
+      ['png', 'image/png', '.png'],
+      ['jpeg', 'image/jpeg', '.jpg'],
+      ['webp', 'image/webp', '.webp'],
+    ] as const)(
+      'stores %s with a matching extension, content type and format',
+      async (format, contentType, extension) => {
+        const { response, served, data } = await uploadAndFetch(
+          await createTestImage(format),
+          // The declared name and type are deliberately wrong.
+          { filename: 'upload.gif', contentType: 'application/octet-stream' },
+        );
+
+        expect(path.extname(response.body.imageUrl)).toBe(extension);
+        expect(served.headers['content-type']).toBe(contentType);
+        expect((await sharp(data).metadata()).format).toBe(format);
+      },
+    );
+
+    it.each(['png', 'webp'] as const)(
+      'keeps transparency in %s',
+      async (format) => {
+        const { data } = await uploadAndFetch(
+          await createTestImage(format, { alpha: true }),
+        );
+        const { data: pixels, info } = await sharp(data)
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+
+        expect(info.channels).toBe(4);
+        expect(pixels[3]).toBe(0);
+      },
+    );
+
+    it('downscales large photos to 2000 px on the longest side', async () => {
+      const { data } = await uploadAndFetch(
+        await createTestImage('png', { width: 3000, height: 1500 }),
+      );
+      const metadata = await sharp(data).metadata();
+
+      expect([metadata.width, metadata.height]).toEqual([2000, 1000]);
+    });
+
+    it('rejects an image whose header claims more than 40 megapixels', async () => {
+      // 100 megapixels declared in a file of a few dozen bytes.
+      await expectRejected(
+        await createPngClaimingSize(10_000, 10_000),
+        413,
+        'IMAGE_DIMENSIONS_TOO_LARGE',
+      );
+    });
+
+    it('rejects a truncated JPEG', async () => {
+      const jpeg = await createTestImage('jpeg', { width: 64, height: 64 });
+
+      await expectRejected(
+        jpeg.subarray(0, Math.floor(jpeg.length / 2)),
+        400,
+        'INVALID_IMAGE',
+      );
+    });
+
+    it('rejects valid magic bytes followed by garbage', async () => {
+      await expectRejected(
+        Buffer.concat([
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          Buffer.from('<script>alert(1)</script>'.repeat(4)),
+        ]),
+        400,
+        'INVALID_IMAGE',
+      );
+    });
+
+    it('rejects an animated WebP', async () => {
+      await expectRejected(
+        await createAnimatedWebp(),
+        415,
+        'UNSUPPORTED_IMAGE_TYPE',
+      );
+    });
+
+    it.each([
+      [
+        'SVG',
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+      ],
+      ['GIF', 'GIF89a\x01\x00\x01\x00\x00\x00\x00;'],
+      ['HTML', '<!doctype html><script>alert(1)</script>'],
+    ])('rejects %s sent as image/png', async (_name, content) => {
+      await expectRejected(
+        Buffer.from(content, 'binary'),
+        415,
+        'UNSUPPORTED_IMAGE_TYPE',
+      );
     });
   });
 

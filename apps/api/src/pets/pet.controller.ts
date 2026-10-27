@@ -18,7 +18,7 @@ import {
   updateOwnedPet,
 } from './pet.service';
 import { petListQuerySchema } from './pet.schema';
-import { detectImageType, tooManyImagesError } from './pet-image';
+import { processPetImage, tooManyImagesError } from './pet-image';
 import { PetModel } from './pet.model';
 import { toPetView } from './pet-view';
 import { getAuthenticatedUserId } from '../auth/require-auth';
@@ -26,7 +26,6 @@ import { isAdmin } from '../users/user.service';
 import { parseInput } from '../middleware/validate';
 import { deleteStoredFileQuietly } from '../storage';
 import {
-  AppError,
   BadRequestError,
   ForbiddenError,
   NotFoundError,
@@ -170,17 +169,9 @@ export const uploadPetImageController = async (
     throw new BadRequestError('IMAGE_REQUIRED');
   }
 
-  // Decided by the file's content, not by its name or declared type.
-  const type = detectImageType(req.file.buffer);
-
-  if (!type) {
-    throw new AppError('UNSUPPORTED_IMAGE_TYPE', 415);
-  }
-
-  const pet = await setPetImage(petId, getAuthenticatedUserId(req), {
-    data: req.file.buffer,
-    type,
-  });
+  // Checked by content and re-encoded; the uploaded bytes are never stored.
+  const image = await processPetImage(req.file.buffer);
+  const pet = await setPetImage(petId, getAuthenticatedUserId(req), image);
 
   if (!pet) {
     return throwNotOwnedError(petId);
@@ -234,16 +225,13 @@ export const addPetImagesController = async (
     throw new BadRequestError('IMAGE_REQUIRED');
   }
 
-  // Every file is checked by its content before any of them is stored.
-  const files = uploaded.map((file) => {
-    const type = detectImageType(file.buffer);
+  // Every file is checked and re-encoded before any of them is stored. One at
+  // a time, so a request decodes at most one image at once.
+  const files = [];
 
-    if (!type) {
-      throw new AppError('UNSUPPORTED_IMAGE_TYPE', 415);
-    }
-
-    return { data: file.buffer, type };
-  });
+  for (const file of uploaded) {
+    files.push(await processPetImage(file.buffer));
+  }
 
   const pet = await addPetImages(petId, getAuthenticatedUserId(req), files);
 
