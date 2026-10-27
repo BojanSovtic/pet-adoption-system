@@ -303,4 +303,24 @@ describe('rate limiting', { timeout: 20_000 }, () => {
     expect(blocked.status).toBe(429);
     expect(blocked.body).toEqual({ code: 'RATE_LIMITED' });
   });
+
+  it('ignores X-Forwarded-For when no proxy is trusted', async () => {
+    // Outside production `trust proxy` is off, so a client can't pick a new
+    // IP (and a fresh budget) per request by sending its own header.
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .set('X-Forwarded-For', `203.0.113.${attempt}`)
+        .send({ email: 'invalid', name: '', password: '' });
+      expect(response.status).toBe(400);
+    }
+
+    const blocked = await request(app)
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', '::ffff:198.51.100.7')
+      .send({ email: validUser.email, password: validUser.password });
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toEqual({ code: 'RATE_LIMITED' });
+  });
 });

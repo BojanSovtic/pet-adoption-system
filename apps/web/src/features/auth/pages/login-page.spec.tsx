@@ -125,4 +125,15 @@ describe('LoginPage', () => {
       expect(router.state.location.pathname).toBe('/pets');
     });
   });
+
+  it('ignores a return path that uses a backslash to leave the app', async () => {
+    vi.mocked(login).mockResolvedValue(user);
+    const { router } = renderLoginPage('/\\evil.example');
+
+    fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/pets');
+    });
+  });
 });

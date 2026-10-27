@@ -426,7 +426,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
   - ~~`sass` appears unused.~~ Removed 2026-10-26.
   - Peer-dependency warnings from `pnpm install` were not investigated.
 - `env.ts` resolves `.env` relative to the working directory. **Checked 2026-10-21 and left as is:** Nx loads `apps/api/.env` into its tasks itself, E2E starts the API from the repo root, and Docker passes the variables directly, so every documented workflow works. A file-relative path would differ between `src/` and the bundled `dist/main.js`.
-- React Router v6 future-flag warning.
+- React Router v6 future-flag warning. Two moderate React Router advisories are only fixed in v7 (see production-readiness.md §6); plan the v7 upgrade.
 - **Applications whose applicant account is deleted** aren't handled; there's no account deletion yet.
 
 ## Roadmap (agreed priority)
@@ -442,7 +442,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-0. **Production readiness first** ([production-readiness.md](production-readiness.md)): start with P0-10 (reliable tests), then P0-1 (vulnerable dependencies), P0-3 (API error/header gaps) and P0-9 (error boundary). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
+0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1 and P0-3 are done (2026-10-27, uncommitted; details in its §6). Next: P0-2 (image re-encoding), then P0-8, P0-9, P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
 1. **Manual QA on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): add `QA_SESSION_SECRET` to the root `.env`, `pnpm qa:up`, `pnpm qa:seed`, open http://127.0.0.1:4203, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
 2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
 3. Add screenshots to the README (instructions are in the README).

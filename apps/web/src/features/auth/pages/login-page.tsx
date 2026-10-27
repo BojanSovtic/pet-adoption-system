@@ -25,8 +25,13 @@ const getReturnPath = (state: unknown): string => {
       ? state.from
       : undefined;
 
-  // Only same-app paths: "/pets/new" yes, "//evil.example" no.
-  return typeof from === 'string' && /^\/(?!\/)/.test(from) ? from : '/pets';
+  // Only same-app paths: "/pets/new" yes; "//evil.example" and "/\evil.example"
+  // no (browsers read a backslash as a slash, see GHSA-wrjc-x8rr-h8h6).
+  return typeof from === 'string' &&
+    /^\/(?!\/)/.test(from) &&
+    !from.includes('\\')
+    ? from
+    : '/pets';
 };
 
 const LoginPage = () => {

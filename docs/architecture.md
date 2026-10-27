@@ -100,10 +100,11 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  req(["HTTP request"]) -- "/uploads/*" --> files["static photo files<br/>(nosniff, immutable cache)"]
-  req --> cors["cors<br/>origin = CORS_ORIGIN, credentials"]
+  req(["HTTP request"]) -- "/uploads/*" --> files["helmet (CORP cross-origin)<br/>static photo files<br/>(nosniff, immutable cache)"]
+  req --> headers["helmet<br/>CSP default-src 'none', DENY framing,<br/>nosniff, CORP same-origin; no X-Powered-By"]
+  headers --> cors["cors<br/>origin = CORS_ORIGIN, credentials"]
   cors --> origin["requireTrustedOrigin<br/>unsafe method + foreign Origin → 403"]
-  origin --> json["express.json<br/>bad JSON → 400 INVALID_JSON"]
+  origin --> json["express.json (100 kB)<br/>bad JSON → 400 INVALID_JSON<br/>too large → 413 PAYLOAD_TOO_LARGE<br/>bad encoding/charset → 415"]
   json --> session["sessionMiddleware<br/>loads req.session from the sid cookie"]
   session --> router{"router"}
 
@@ -112,6 +113,7 @@ flowchart TB
   router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
   router -- "/api/admin/* (every path,<br/>router-level)" --> admin["requireAdmin<br/>requireAuth, then role = admin<br/>→ 401 / 403 ADMIN_REQUIRED<br/>+ per-admin rate limits<br/>→ 429 RATE_LIMITED"]
   router -- "GET /api/pets, /api/pets/:id (public)<br/>/api/auth/me, /logout" --> controller
+  router -- "any other /api path" --> notfound["404 ROUTE_NOT_FOUND"]
 
   rate --> validate["validateBody(zod)<br/>(POST/PUT with a body only)<br/>→ 400 VALIDATION_FAILED"]
   auth --> validate
@@ -122,7 +124,7 @@ flowchart TB
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
-  cors & origin & json & rate & auth & admin & validate & controller -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
+  cors & origin & json & rate & auth & admin & validate & controller & notfound -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
 ```
 
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
