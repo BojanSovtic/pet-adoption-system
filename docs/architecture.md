@@ -493,35 +493,13 @@ sequenceDiagram
 
 ### Docker Compose
 
-```mermaid
-flowchart LR
-  browser(["Browser"])
-
-  subgraph compose["docker-compose.yml"]
-    direction TB
-    web["web (profile app)<br/>nginx: static Vite build<br/>host :4200 → 80"]
-    api["api (profile app)<br/>Node 22: API bundle + production deps<br/>host :3333, runs as non-root"]
-    mongo[("mongodb (always)<br/>mongo:8, replica set rs0<br/>host :27018 → 27017")]
-    dbvol[("volume mongodb_data")]
-    upvol[("volume uploads_data")]
-  end
-
-  browser -- "loads SPA" --> web
-  browser -- "/api/* + /uploads/*<br/>VITE_API_URL baked in at build" --> api
-  api -- "mongodb://mongodb:27017" --> mongo
-  mongo --- dbvol
-  api --- upvol
-```
-
-- **Two modes.** `docker compose up -d` starts only `mongodb`, for running the apps with Nx. `docker compose --profile app up -d --build` also builds and starts `api` and `web`.
-- **Start order:** `api` waits until `mongodb` is healthy (the health check also initiates the replica set on first start); `web` waits until `api` answers `/api/health`.
-- **Images:** the API image is built from the Nx `prune` output (bundle plus a pruned lockfile). The web image serves the Vite build with nginx, which sends every client-side route to `index.html`.
-- **Browser-facing addresses:** the browser calls the API at `localhost`, not through the Compose network, so `VITE_API_URL`, `CORS_ORIGIN` and `UPLOADS_BASE_URL` use host ports (`API_PORT`, `WEB_PORT` in the root `.env`).
-- **Plain HTTP:** the API runs with `NODE_ENV=development` in Compose, so session cookies are not marked `Secure`.
+- **`docker-compose.yml`: MongoDB only** (`mongodb`, mongo:8, replica set `rs0`, host port 27018, volume `mongodb_data`) for local development. The API and web app run with Nx on the host.
+- **Built images** run only in the Docker QA stack below. The API image is built from the Nx `prune` output (bundle plus a pruned lockfile). The web image serves the Vite build with nginx, which sends every client-side route to `index.html`.
+- **Plain HTTP:** QA runs the API with `NODE_ENV=development`, so session cookies are not marked `Secure`.
 
 ### Docker QA stack
 
-`docker-compose.qa.yml` (project `pet-adoption-qa`) runs the same Dockerfiles for manual QA. It shares nothing with the main stack above: different containers, network and volumes.
+`docker-compose.qa.yml` (project `pet-adoption-qa`) runs the Dockerfiles for manual QA and for showing the app. It shares nothing with the development MongoDB: different containers, network and volumes.
 
 ```mermaid
 flowchart LR

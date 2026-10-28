@@ -1,6 +1,6 @@
 # Demo photos
 
-`pnpm demo:seed` gives each demo pet up to 5 photos from this folder.
+The seed (`pnpm dev:seed` or `pnpm qa:seed`) gives each demo pet up to 5 photos from this folder.
 
 ## Naming rule
 
@@ -36,9 +36,9 @@ pnpm demo:images             # copy, e.g. dog.4048.jpg → max.jpg, dog.4161.jpg
 
 ## Seeding and reruns
 
-`pnpm demo:seed` (with `pnpm demo:start` running) uploads all of a pet's photos in one request, through the normal authenticated API (`POST /api/pets/:id/images`). It only does so for pets that have **no** photos yet, so rerunning never duplicates or replaces photos.
+The seed uploads all of a pet's photos in one request, through the normal authenticated API (`POST /api/pets/:id/images`). It only does so for pets that have **no** photos yet, so rerunning never duplicates or replaces photos.
 
-**To refresh a demo pet's photos:** remove its photos in the edit form (as its owner, e.g. `ana@demo.example.com`), then run `pnpm demo:seed` again. To refresh all of them, reset the demo (`pnpm demo:reset --yes`), which deletes all demo data, and seed again.
+**To refresh a demo pet's photos:** remove its photos in the edit form (as its owner, e.g. `ana@demo.example.com`), then seed again. To refresh all of them in QA, run `pnpm qa:reset --yes` (deletes all QA data) and `pnpm qa:seed`.
 
 ## Before adding your own photos
 

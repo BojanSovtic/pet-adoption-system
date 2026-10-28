@@ -8,7 +8,7 @@ import type {
   User,
 } from '@pet-adoption/models';
 
-import { DEV_API_URL, resolveSeedTarget } from './demo-config';
+import { resolveSeedTarget } from './demo-config';
 import { PETS, USERS, type PetSpec, type UserKey } from './demo-data';
 import {
   DEMO_IMAGE_DIR,
@@ -22,7 +22,8 @@ import { QA_API_URL } from './qa-config';
  * Creates the portfolio demo data through the HTTP API, so it passes the same
  * validation, hashing, transactions and state machines as real use. Safe to
  * run again: each step first checks what already exists. It never deletes
- * anything (see reset-demo.ts).
+ * anything (QA has pnpm qa:reset; development data is never reset by script).
+ * Targets: pnpm dev:seed (--dev) or pnpm qa:seed (--qa), see demo-config.ts.
  *
  * Photos: up to 5 per pet from apps/api/src/scripts/demo-images/, named
  * `max.jpg`, `max-2.webp` … (see demo-images.ts and pnpm demo:images).
@@ -70,16 +71,12 @@ let apiUrl = '';
 const resetCommand = () =>
   apiUrl === QA_API_URL
     ? 'pnpm qa:reset --yes'
-    : apiUrl === DEV_API_URL
-      ? 'remove the conflicting data by hand; the development database has no reset command'
-      : 'pnpm demo:reset --yes';
+    : 'remove the conflicting data by hand; the development database has no reset command';
 
 const restartCommand = () =>
   apiUrl === QA_API_URL
     ? 'pnpm qa:down, then pnpm qa:up'
-    : apiUrl === DEV_API_URL
-      ? 'restart pnpm nx serve @pet-adoption/api'
-      : 'restart pnpm demo:start';
+    : 'restart pnpm nx serve @pet-adoption/api';
 
 type Session = { user: User; cookie: string };
 
@@ -375,8 +372,8 @@ const checkApiSupportsDemoData = async (isDev: boolean) => {
       throw new Error(
         `The API at ${apiUrl} rejects the species "${value}", so it runs older code than this seed. ` +
           (isDev
-            ? 'Port 3333 is probably the Docker app stack: check with "docker compose --profile app ps", stop it with "docker compose --profile app stop", then start "pnpm nx serve @pet-adoption/api".'
-            : 'Rebuild or restart that API.'),
+            ? 'Restart "pnpm nx serve @pet-adoption/api" with the current code.'
+            : 'Rebuild it with "pnpm qa:up".'),
       );
     }
   }
@@ -389,16 +386,10 @@ const main = async () => {
 
   const label = isQa
     ? ' (Docker QA stack)'
-    : isDev
-      ? ' (development API: the database in apps/api/.env)'
-      : '';
+    : ' (development API: the database in apps/api/.env)';
   console.log(`Seeding demo data through ${apiUrl}${label}`);
 
-  const startCommand = isQa
-    ? 'pnpm qa:up'
-    : isDev
-      ? 'pnpm nx serve @pet-adoption/api'
-      : 'pnpm demo:start';
+  const startCommand = isQa ? 'pnpm qa:up' : 'pnpm nx serve @pet-adoption/api';
 
   try {
     await fetch(`${apiUrl}/health`);

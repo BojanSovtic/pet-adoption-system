@@ -9,7 +9,7 @@ import {
 } from './demo-images';
 
 /**
- * Copies downloaded images to the names pnpm demo:seed looks for, as listed
+ * Copies downloaded images to the names the seed (pnpm dev:seed / qa:seed) looks for, as listed
  * in demo-images/mapping.json (e.g. "dog.4048.jpg" → "max.jpg"). The
  * originals are kept. It never overwrites a different file and is safe to run
  * again. `--dry-run` only shows what it would do.
@@ -57,7 +57,9 @@ const main = () => {
   const copies = plan.steps.filter((step) => step.action === 'copy').length;
   console.log(
     `\n${dryRun ? 'Dry run: would copy' : 'Copied'} ${copies} file(s); ${plan.steps.length - copies} already prepared.` +
-      (dryRun ? '' : ' Next: pnpm demo:seed (with pnpm demo:start running).'),
+      (dryRun
+        ? ''
+        : ' Next: pnpm dev:seed (with the dev API running) or pnpm qa:seed.'),
   );
 };
 

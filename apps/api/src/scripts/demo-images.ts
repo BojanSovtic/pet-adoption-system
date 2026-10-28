@@ -281,7 +281,7 @@ export const planDemoImagePreparation = (
 
     if (extras.length > 0) {
       plan.warnings.push(
-        `${petKey}: ${extras.join(', ')} not in mapping.json; pnpm demo:seed would still use it. Delete it if it is left over.`,
+        `${petKey}: ${extras.join(', ')} not in mapping.json; the seed would still use it. Delete it if it is left over.`,
       );
     }
   }

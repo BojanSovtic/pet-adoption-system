@@ -20,8 +20,7 @@ export const listen = (
         error.code === 'EADDRINUSE'
           ? new Error(
               `Port ${port} on ${host} is already in use, so the API cannot start. ` +
-                'Another process is listening there, often the Docker app stack ' +
-                '("docker compose --profile app ps"; stop it with "docker compose --profile app stop"). ' +
+                'Another process is listening there, often a second "pnpm nx serve" in another terminal. ' +
                 'Stop it, or set PORT in apps/api/.env (and CORS_ORIGIN / VITE_API_URL to match).',
               { cause: error },
             )

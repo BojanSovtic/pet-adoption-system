@@ -1,52 +1,25 @@
-import {
-  DEFAULT_DEMO_API_URL,
-  DEV_API_URL,
-  resolveSeedTarget,
-} from './demo-config';
+import { DEV_API_URL, resolveSeedTarget } from './demo-config';
 import { QA_API_URL } from './qa-config';
 
 describe('resolveSeedTarget', () => {
-  describe('pnpm demo:seed (no --qa): unchanged demo behaviour', () => {
-    it('uses the demo API by default', () => {
-      expect(resolveSeedTarget([], {}, QA_API_URL)).toBe(DEFAULT_DEMO_API_URL);
-      expect(DEFAULT_DEMO_API_URL).toBe('http://localhost:3335/api');
-    });
-
-    it('follows DEMO_API_URL for other stacks', () => {
-      expect(
-        resolveSeedTarget(
-          [],
-          { DEMO_API_URL: 'http://localhost:3399/api' },
-          QA_API_URL,
-        ),
-      ).toBe('http://localhost:3399/api');
-    });
-
-    it('needs --allow-port-3333 for the development/Docker API', () => {
-      const env = { DEMO_API_URL: 'http://localhost:3333/api' };
-
-      expect(() => resolveSeedTarget([], env, QA_API_URL)).toThrow(
-        '--allow-port-3333',
-      );
-      expect(resolveSeedTarget(['--allow-port-3333'], env, QA_API_URL)).toBe(
-        'http://localhost:3333/api',
-      );
-    });
-
-    it.each(['http://127.0.0.1:3336/api', 'http://localhost:3336/api'])(
-      'refuses the QA API %s without --qa',
-      (url) => {
-        expect(() =>
-          resolveSeedTarget([], { DEMO_API_URL: url }, QA_API_URL),
-        ).toThrow('pnpm qa:seed');
-      },
+  it('requires a target flag', () => {
+    expect(() => resolveSeedTarget([], {}, QA_API_URL)).toThrow(
+      'Choose a target',
     );
+    // DEMO_API_URL alone doesn't choose a target either.
+    expect(() =>
+      resolveSeedTarget(
+        [],
+        { DEMO_API_URL: 'http://localhost:3399/api' },
+        QA_API_URL,
+      ),
+    ).toThrow('Choose a target');
+  });
 
-    it('refuses an invalid DEMO_API_URL', () => {
-      expect(() =>
-        resolveSeedTarget([], { DEMO_API_URL: 'localhost' }, QA_API_URL),
-      ).toThrow('not a valid URL');
-    });
+  it('cannot combine --dev and --qa', () => {
+    expect(() => resolveSeedTarget(['--dev', '--qa'], {}, QA_API_URL)).toThrow(
+      'cannot be combined',
+    );
   });
 
   describe('pnpm qa:seed (--qa)', () => {
@@ -58,21 +31,14 @@ describe('resolveSeedTarget', () => {
       ).toBe(QA_API_URL);
     });
 
-    it.each([
-      'http://localhost:3335/api',
-      'http://localhost:3333/api',
-      'http://localhost:3336/api',
-    ])('refuses when DEMO_API_URL points elsewhere (%s)', (url) => {
-      expect(() =>
-        resolveSeedTarget(['--qa'], { DEMO_API_URL: url }, QA_API_URL),
-      ).toThrow('Unset DEMO_API_URL');
-    });
-
-    it('cannot be combined with --allow-port-3333', () => {
-      expect(() =>
-        resolveSeedTarget(['--qa', '--allow-port-3333'], {}, QA_API_URL),
-      ).toThrow('cannot be combined');
-    });
+    it.each(['http://localhost:3333/api', 'http://localhost:3336/api'])(
+      'refuses when DEMO_API_URL points elsewhere (%s)',
+      (url) => {
+        expect(() =>
+          resolveSeedTarget(['--qa'], { DEMO_API_URL: url }, QA_API_URL),
+        ).toThrow('Unset DEMO_API_URL');
+      },
+    );
   });
 
   describe('pnpm dev:seed (--dev)', () => {
@@ -84,19 +50,14 @@ describe('resolveSeedTarget', () => {
       ).toBe(DEV_API_URL);
     });
 
-    it.each(['http://localhost:3335/api', 'http://127.0.0.1:3336/api'])(
-      'refuses when DEMO_API_URL points elsewhere (%s)',
-      (url) => {
-        expect(() =>
-          resolveSeedTarget(['--dev'], { DEMO_API_URL: url }, QA_API_URL),
-        ).toThrow('Unset DEMO_API_URL');
-      },
-    );
-
-    it('cannot be combined with --qa', () => {
+    it('refuses when DEMO_API_URL points elsewhere', () => {
       expect(() =>
-        resolveSeedTarget(['--dev', '--qa'], {}, QA_API_URL),
-      ).toThrow('cannot be combined');
+        resolveSeedTarget(
+          ['--dev'],
+          { DEMO_API_URL: 'http://127.0.0.1:3336/api' },
+          QA_API_URL,
+        ),
+      ).toThrow('Unset DEMO_API_URL');
     });
   });
 });

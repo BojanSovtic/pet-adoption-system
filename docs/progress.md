@@ -102,6 +102,12 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
+## Fewer environments (2026-10-28, uncommitted)
+
+- **Now three:** local development (MongoDB in Docker, apps with Nx), Docker QA (`pnpm qa:*`, also for showing the app) and E2E. See README, "Running the app".
+- **Removed:** the Docker app stack (`docker compose --profile app`; it shared the dev database and ports with local development, and QA runs the same images in isolation) and the demo environment (`pnpm demo:start|seed|reset`, `start-demo.ts`, `reset-demo.ts`; QA covers it). `docker-compose.yml` is MongoDB only; the root `.env` holds only `QA_SESSION_SECRET`. `seed-demo.ts` needs `--dev` or `--qa`.
+- **Left on disk, not deleted:** the database `pet-adoption-demo` on the dev MongoDB, `tmp/demo-uploads/` (if present), the volume `pet-adoption-system_uploads_data`, and any old `pet-adoption-api` / `pet-adoption-web` containers. Remove them by hand if wanted; `docker compose down --remove-orphans` (without `-v`) removes the old containers. Entries below that mention the removed commands are history.
+
 ## Local MongoDB
 
 **Set up 2026-10-20 (Docker option).**

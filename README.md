@@ -14,7 +14,7 @@ The interface is available in English and Serbian. The full rules are in [docs/r
 
 <!--
   Screenshots are not captured yet. To add them:
-  1. Run the app (see "Option A: everything in Docker" below), register two users and add a few pets.
+  1. Start Docker QA and load the demo data (see "Docker QA environment" below).
   2. Save PNGs in docs/screenshots/ with these names:
        pet-list.png       the pet list with search and filters
        pet-details.png    a pet's page with the apply form
@@ -58,111 +58,19 @@ docs/                 Requirements, architecture, deployment notes, progress
 
 ## Running the app
 
-There are two ways to run it locally (for manual QA there is a third, isolated stack: see [Docker QA environment](#docker-qa-environment)):
+Three environments, each for one job. They use different ports and data, so they can run at the same time.
 
-|                      | Option A: everything in Docker | Option B: local development              |
-| -------------------- | ------------------------------ | ---------------------------------------- |
-| Best for             | Trying the app                 | Changing the code (hot reload)           |
-| Runs in Docker       | MongoDB, API, web app          | MongoDB only                             |
-| Runs on your machine | Nothing                        | API and web app (Node.js)                |
-| Needs                | Docker Desktop, Git            | Docker Desktop, Git, Node.js 22, pnpm 12 |
+|           | Local development                                     | Docker QA                                        | E2E tests                           |
+| --------- | ----------------------------------------------------- | ------------------------------------------------ | ----------------------------------- |
+| Use for   | Writing code (hot reload)                             | Testing the built app by hand; showing the app   | Automated browser tests             |
+| Runs      | MongoDB in Docker, API and web app with Node.js       | Everything in Docker, built like a deployment    | Its own servers, started by the run |
+| Web / API | http://localhost:4200 / :3333                         | **http://127.0.0.1:4203** / :3336                | localhost:4201 / :3334              |
+| Data      | Database `pet-adoption` (port 27018), `apps/api/uploads/` | Its own MongoDB server and volumes           | In memory, thrown away              |
+| Start     | See [Local development](#local-development)           | `pnpm qa:up` (see [Docker QA](#docker-qa-environment)) | `pnpm nx e2e @pet-adoption/web-e2e` |
 
-Both use the same ports (web 4200, API 3333) and the **same MongoDB database**, so run one option at a time. Uploaded photos are _not_ shared: Docker keeps them in a volume, local development in `apps/api/uploads/`, so a photo added in one option shows as missing in the other.
+### Local development
 
-### Option A: everything in Docker
-
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (started, with the whale icon showing "running") and Git. You don't need Node.js or pnpm: the images install everything themselves.
-
-All commands run in a terminal opened in the **repository root**, the `pet-adoption-system` folder that contains `docker-compose.yml`.
-
-**1. One-time setup:** create `.env` in the repository root from the example:
-
-```sh
-cp .env.example .env
-```
-
-Open `.env` and set `SESSION_SECRET` to at least 32 random characters. The API refuses to start without it. Any long random string works, for example from a password generator, or, if Node.js is installed:
-
-```sh
-node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-```
-
-**2. Build and start:**
-
-```sh
-docker compose --profile app up -d --build
-```
-
-The first build takes a few minutes. Compose starts MongoDB, waits until it is healthy, then starts the API, waits for it, then starts the web app. `-d` returns you to the prompt while the containers keep running.
-
-**3. Open the app:**
-
-| What                                         | Address                                                        |
-| -------------------------------------------- | -------------------------------------------------------------- |
-| Web app                                      | http://localhost:4200                                          |
-| API health check (returns `{"status":"ok"}`) | http://localhost:3333/api/health                               |
-| API: public pet list (JSON)                  | http://localhost:3333/api/pets                                 |
-| MongoDB, for tools such as MongoDB Compass   | `mongodb://localhost:27018/pet-adoption?directConnection=true` |
-
-The database starts empty. Register a user in the web app and add pets. To try the adoption flow, register a second user (for example in a private browser window) and apply for the first user's pet. For ready-made data, see [Demo data](#demo-data-optional).
-
-**Check status and logs:**
-
-```sh
-docker compose --profile app ps              # each container's state: "healthy" is good
-docker compose --profile app logs -f api     # follow the API's log (Ctrl+C stops following, not the app)
-docker compose --profile app logs mongodb    # MongoDB's log
-```
-
-The API logs `[ ready ] http://0.0.0.0:3333` when it has started. If it fails, the log ends with the reason: an `Error: …` line for missing settings (for example `SESSION_SECRET is required`), or a line starting with `[ startup ]` for problems such as the database.
-
-**Stop and start again:**
-
-```sh
-docker compose --profile app stop              # stop the containers; start again with "start"
-docker compose --profile app start
-docker compose --profile app down              # stop and remove the containers (data is kept)
-docker compose --profile app up -d             # start again after "down"
-docker compose --profile app up -d --build     # after changing code: rebuild and restart
-```
-
-The containers restart automatically when Docker Desktop starts, unless you stopped them.
-
-#### Your data
-
-- The database is stored in the Docker volume `pet-adoption-system_mongodb_data` and uploaded photos in `pet-adoption-system_uploads_data`. Stopping, `down`, restarting and rebuilding all **keep** them.
-- These **delete** them, so avoid them unless you want to start from scratch:
-  - `docker compose --profile app down -v` (the `-v` removes the volumes)
-  - `docker volume rm …` or `docker volume prune`, `docker system prune --volumes`
-  - Deleting the volumes in Docker Desktop's _Volumes_ tab, or _Troubleshoot → Clean / Purge data_
-- To back up the database first (photos are not included):
-
-  ```sh
-  docker exec pet-adoption-mongodb mongodump --db pet-adoption --archive=/tmp/pet-adoption.archive
-  docker cp pet-adoption-mongodb:/tmp/pet-adoption.archive ./pet-adoption.archive
-  ```
-
-  To restore it later, copy it back in and run `mongorestore`:
-
-  ```sh
-  docker cp ./pet-adoption.archive pet-adoption-mongodb:/tmp/pet-adoption.archive
-  docker exec pet-adoption-mongodb mongorestore --archive=/tmp/pet-adoption.archive
-  ```
-
-#### Troubleshooting
-
-| Problem                                                                               | What to do                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Cannot connect to the Docker daemon`, `error during connect`, or similar             | Docker Desktop isn't running. Start it and wait until it says it's running.                                                                                                                                                                                                                                                                                                                                       |
-| `api` keeps restarting, `web` never starts, the log says `SESSION_SECRET is required` | The root `.env` is missing or `SESSION_SECRET` is shorter than 32 characters. Fix it, then run `docker compose --profile app up -d`.                                                                                                                                                                                                                                                                              |
-| `port is already allocated` / `address already in use`                                | Something else uses port 4200, 3333 or 27018, often the local dev servers from option B. Stop them (Ctrl+C), or find the program with `netstat -ano \| findstr :3333` (Windows) / `lsof -i :3333` (macOS/Linux). For 4200 and 3333 you can instead set `WEB_PORT` / `API_PORT` in `.env` and run `up -d --build` (the web app's API address is fixed at build time). Port 27018 is fixed in `docker-compose.yml`. |
-| The page loads but shows "The server could not be reached"                            | The API isn't running or not healthy yet. Check `docker compose --profile app ps` and the API log.                                                                                                                                                                                                                                                                                                                |
-| The API log mentions MongoDB or a replica set                                         | MongoDB isn't ready. Check `docker compose --profile app logs mongodb` and that `mongodb` is "healthy" in `ps`. The first start initializes the replica set and can take a few seconds longer.                                                                                                                                                                                                                    |
-| The app can't reach the API after changing `WEB_PORT` / `API_PORT`                    | Run `docker compose --profile app up -d --build` so the web app and the API's allowed origin both use the new ports.                                                                                                                                                                                                                                                                                              |
-
-### Option B: local development (MongoDB in Docker, apps with Node.js)
-
-**Prerequisites:** Docker Desktop, Git, Node.js 22 and pnpm 12. Run the commands in the repository root.
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running), Git, Node.js 22 and pnpm 12. Run the commands in the repository root (the `pet-adoption-system` folder).
 
 ```sh
 pnpm install
@@ -171,20 +79,29 @@ cp apps/web/.env.example apps/web/.env
 docker compose up -d                     # MongoDB only (replica set on port 27018)
 pnpm nx serve @pet-adoption/api          # API: http://localhost:3333/api
 pnpm nx dev @pet-adoption/web            # web app: http://localhost:4200 (in a second terminal)
+pnpm dev:seed                            # optional, while the API runs: demo users, pets, applications
 ```
 
-- Option B uses `apps/api/.env` and `apps/web/.env`; the root `.env` is only for option A.
-- **The development database (`pet-adoption`) starts empty.** To fill it with the demo users, pets and applications, run this once while the dev API is running (safe to run again; it only adds what is missing):
+A `SESSION_SECRET` can come from a password generator, or from `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. The API refuses to start without it.
+
+- **The development database starts empty.** `pnpm dev:seed` fills it with the [demo data](#demo-data). It only adds what is missing, so it is safe to run again.
+- **Stop** the dev servers with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data; `docker compose up -d` starts it again.
+- **Your data** lives in the Docker volume `pet-adoption-system_mongodb_data` (photos in `apps/api/uploads/`). `docker compose down -v`, `docker volume prune`, `docker system prune --volumes` and Docker Desktop's _Clean / Purge data_ **delete it**. To back up the database first:
 
   ```sh
-  pnpm dev:seed   # seeds through http://localhost:3333/api into the database in apps/api/.env
+  docker exec pet-adoption-mongodb mongodump --db pet-adoption --archive=/tmp/pet-adoption.archive
+  docker cp pet-adoption-mongodb:/tmp/pet-adoption.archive ./pet-adoption.archive
   ```
 
-  It refuses to run if the API on port 3333 is an older build, for example the Docker app stack (option A).
+  To restore it: `docker cp ./pet-adoption.archive pet-adoption-mongodb:/tmp/pet-adoption.archive`, then `docker exec pet-adoption-mongodb mongorestore --archive=/tmp/pet-adoption.archive`.
 
-- Stop the dev servers with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data; `docker compose up -d` starts it again.
-- **Options A and B use the same ports (3333, 4200) and the same database**, so only one can run at a time. Before switching to option B, stop the app containers with `docker compose --profile app stop` (MongoDB keeps running). Otherwise the dev API stops with "Port 3333 … is already in use", and the web dev server refuses to start on a taken port 4200.
-- Photos are stored per stack: the dev API in `apps/api/uploads`, Docker in the `uploads_data` volume. Pets seeded through one stack show missing photos in the other.
+| Problem                                                                   | What to do                                                                                                                         |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Cannot connect to the Docker daemon`, `error during connect`             | Docker Desktop isn't running. Start it and wait until it says it's running.                                                        |
+| The API stops with `SESSION_SECRET is required`                           | `apps/api/.env` is missing or `SESSION_SECRET` is shorter than 32 characters.                                                      |
+| "Port 3333 … is already in use", or the web dev server won't start on 4200 | Something else uses the port. Find it with `netstat -ano \| findstr :3333` (Windows) / `lsof -i :3333` (macOS/Linux).             |
+| The page shows "The server could not be reached"                          | The API isn't running. Start `pnpm nx serve @pet-adoption/api`.                                                                    |
+| The API log mentions MongoDB or a replica set                             | MongoDB isn't ready: `docker compose ps` should show it "healthy". The first start initialises the replica set, which takes a few seconds. |
 
 ### Administrators
 
@@ -205,7 +122,7 @@ Safety:
 - Check the database line of the dry run before adding `--yes`: the command uses `MONGODB_URI` from the environment, so in a shell with production settings it changes production.
 - Nobody can change their own role, and the last admin can't be revoked (the command and the app refuse).
 - Every change, from the app or the command line, is recorded in the admin **Audit log** (also under **Recent admin activity** on the overview).
-- The command needs only `MONGODB_URI` (from the environment or `apps/api/.env`), plus `AUDIT_HMAC_KEY` if the API uses one. It doesn't need the web server's settings. With Docker (option A), run it on the host against the published MongoDB port: `MONGODB_URI="mongodb://localhost:27018/pet-adoption?directConnection=true" pnpm admin:grant …`.
+- The command needs only `MONGODB_URI` (from the environment or `apps/api/.env`), plus `AUDIT_HMAC_KEY` if the API uses one. It doesn't need the web server's settings. For Docker QA, point it at the QA MongoDB port: `MONGODB_URI="mongodb://127.0.0.1:27019/pet-adoption-qa?directConnection=true" pnpm admin:grant …` (in PowerShell, set `$env:MONGODB_URI` first).
 
 In the app, admins can also **suspend** accounts and **hide** listings (both reversible, see [requirements](docs/requirements.md#administration)).
 
@@ -217,35 +134,19 @@ pnpm audit:verify   # exit code 1 if an entry was changed, removed or reordered 
 
 This detects tampering; it doesn't prevent it. Anyone with database write access can still delete recent entries (see [production-readiness.md](docs/production-readiness.md), A3).
 
-### Demo data (optional)
+### Demo data
 
-A ready-made demo with 4 users, 14 pets and 13 adoption applications in every status. It covers both list pages, all statuses, an auto-rejected application and a withdrawn one. It runs on its own database (`pet-adoption-demo`), photo folder (`tmp/demo-uploads`) and ports (web 4202, API 3335), so it never touches your development data.
+4 users, 14 pets (11 with photos) and 13 adoption applications in every status, including an auto-rejected and a withdrawn one. Load it with `pnpm dev:seed` (local development) or `pnpm qa:seed` (Docker QA). It goes through the normal API, so it passes the same validation and rules as real use, and it only adds what is missing.
 
-**Prerequisites:** those of option B, including `apps/api/.env` with `SESSION_SECRET`, and MongoDB running (`docker compose up -d`).
+Sign in as `ana@demo.example.com` (owner with the most pets and applications), `marko@demo.example.com`, `jelena@demo.example.com` or `luka@demo.example.com`. All four use the demo-only password `demo-password`.
 
-```sh
-pnpm demo:start   # terminal 1: web app http://localhost:4202, API http://localhost:3335/api (Ctrl+C stops both)
-pnpm demo:seed    # terminal 2: creates the demo data; safe to run again
-```
-
-Sign in at http://localhost:4202 as `ana@demo.example.com` (owner with the most pets and applications), `marko@demo.example.com`, `jelena@demo.example.com` or `luka@demo.example.com`. All four use the demo-only password `demo-password`.
-
-- **Rerunning** `pnpm demo:seed` only adds what is missing. If demo data was changed by hand (decisions are final), it reports the difference instead of guessing.
-- **Starting over:** `pnpm demo:reset` shows what it would delete. `pnpm demo:reset --yes` empties the demo database and deletes the demo photos. It refuses any database whose name doesn't end in `-demo`.
+- **Changed by hand?** The seed reports differences instead of guessing (decisions are final). In QA, start over with `pnpm qa:reset --yes` and seed again. The development database has no reset command on purpose.
 - **Photos:** up to 5 per pet from [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) (`max.jpg`, `max-2.jpg`, …). `pnpm demo:images` copies downloaded images to those names as listed in `mapping.json`. The seed adds photos only to pets that have none yet.
-- **Seeding a fresh Docker stack** (option A, e.g. for someone reviewing the project) works through its API. Run this only when that stack has no data of your own:
-
-  ```sh
-  DEMO_API_URL=http://localhost:3333/api pnpm demo:seed --allow-port-3333
-  ```
-
-  In PowerShell, set the variable first: `$env:DEMO_API_URL = 'http://localhost:3333/api'`.
-
-- **Rate limit:** sign-in and registration allow 20 attempts per 15 minutes. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart `pnpm demo:start`.
+- **Rate limits:** sign-in and registration allow 20 attempts per 15 minutes from one IP. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart the API.
 
 ## Docker QA environment
 
-A separate Docker stack for manual QA. It runs the built web app (nginx) and API like option A, but with **its own MongoDB server, database, network and photo storage**, so testing never touches your development data or the demo.
+A separate Docker stack for manual QA and for showing the app. It runs the built images (the web app on nginx, the bundled API), as a deployment would, with **its own MongoDB server, database, network and photo storage**, so testing never touches your development data.
 
 |                                    | Docker QA                                                                                        |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -257,13 +158,13 @@ A separate Docker stack for manual QA. It runs the built web app (nginx) and API
 | Database                           | `pet-adoption-qa` on its own MongoDB server                                                      |
 | Volumes                            | `pet-adoption-qa_mongodb_data`, `pet-adoption-qa_mongodb_config`, `pet-adoption-qa_uploads_data` |
 
-Use `127.0.0.1`, **not** `localhost`. The API only accepts the web app from `http://127.0.0.1:4203`. Browsers also keep cookies per host name, not per port, so this keeps your QA sign-in separate from development and the demo on `localhost`.
+Use `127.0.0.1`, **not** `localhost`. The API only accepts the web app from `http://127.0.0.1:4203`. Browsers also keep cookies per host name, not per port, so this keeps your QA sign-in separate from development on `localhost`.
 
 ### Setup (once)
 
 **Prerequisites:** Docker Desktop (running), Node.js 22, pnpm 12, and `pnpm install` (the `qa:*` commands are pnpm scripts).
 
-Add `QA_SESSION_SECRET` to the root `.env` (see `.env.example`). Use at least 32 random characters, different from `SESSION_SECRET`:
+Add `QA_SESSION_SECRET` to the root `.env` (see `.env.example`). Use at least 32 random characters, different from the development `SESSION_SECRET` in `apps/api/.env`:
 
 ```sh
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
@@ -283,7 +184,7 @@ The QA stack refuses to start without it. `.env` is not committed.
 | `pnpm qa:reset --yes` | Deletes all QA data: every document in `pet-adoption-qa` and every photo in the QA volume.                                         |
 | `pnpm qa:down`        | Stops the stack and removes its containers. **Data and volumes are kept.**                                                         |
 
-All of them run `docker compose -f docker-compose.qa.yml -p pet-adoption-qa`; the README's other `docker compose` commands are for the main project. `qa:up`, `qa:ps`, `qa:logs` and `qa:down` accept only the service names `mongodb`, `api` and `web` as extra arguments, so options like `-v` are refused.
+All of them run `docker compose -f docker-compose.qa.yml -p pet-adoption-qa`; the README's other `docker compose` commands are for the development MongoDB. `qa:up`, `qa:ps`, `qa:logs` and `qa:down` accept only the service names `mongodb`, `api` and `web` as extra arguments, so options like `-v` are refused.
 
 ### A typical QA run
 
@@ -297,7 +198,7 @@ pnpm qa:reset --yes && pnpm qa:seed   # start the next run from fresh demo data
 pnpm qa:down      # stop; data stays for next time
 ```
 
-The seeded accounts are `ana@demo.example.com` (owner of most pets), `marko@demo.example.com`, `jelena@demo.example.com` and `luka@demo.example.com`. All use the demo-only password `demo-password`.
+Accounts: see [Demo data](#demo-data).
 
 ### What persists, and what a reset deletes
 
@@ -305,26 +206,13 @@ The seeded accounts are `ana@demo.example.com` (owner of most pets), `marko@demo
 - **`pnpm qa:reset --yes`** empties the QA database (collections and indexes stay) and deletes the QA photos. It **doesn't delete volumes or containers**, and touches nothing outside the QA stack.
 - **Before deleting anything, it checks** that both QA containers are running, belong to the `pet-adoption-qa` project, have the QA volumes mounted, and that the API is configured for the QA database. Inside MongoDB it confirms the database name once more. If anything doesn't match, it changes nothing.
 
-### How it differs from the other environments
-
-|           | Docker QA                             | Local development (option B) | Demo (`pnpm demo:start`)                 | Docker app (option A)                     | E2E (`pnpm nx e2e`)     |
-| --------- | ------------------------------------- | ---------------------------- | ---------------------------------------- | ----------------------------------------- | ----------------------- |
-| Runs      | Built images (nginx + API bundle)     | Dev servers from source      | Dev servers from source                  | Built images                              | Dev servers from source |
-| Web / API | 127.0.0.1:4203 / 3336                 | localhost:4200 / 3333        | localhost:4202 / 3335                    | localhost:4200 / 3333                     | localhost:4201 / 3334   |
-| Database  | `pet-adoption-qa`, own MongoDB server | `pet-adoption`               | `pet-adoption-demo` (same server as dev) | `pet-adoption` (same as dev)              | In memory, thrown away  |
-| Photos    | Volume `pet-adoption-qa_uploads_data` | `apps/api/uploads/`          | `tmp/demo-uploads/`                      | Volume `pet-adoption-system_uploads_data` | Temporary folder        |
-| Use for   | Manual QA                             | Development                  | Demos                                    | Trying the app                            | Automated tests         |
-
-All of them can run at the same time; they use different ports. Option A and local development can't run together, because they share 4200/3333.
-
 ### Warnings
 
-> **Never run `docker compose down -v` on the main project casually.** Without `-f docker-compose.qa.yml` it targets the main project, and `-v` deletes `pet-adoption-system_mongodb_data`. That volume holds the development **and** the demo database. To empty QA data, always use `pnpm qa:reset`.
+> **Never run `docker compose down -v` on the main project casually.** Without `-f docker-compose.qa.yml` it targets the main project, and `-v` deletes `pet-adoption-system_mongodb_data`. That volume holds the development database. To empty QA data, always use `pnpm qa:reset`.
 
-> **Never point the QA scripts at the development or demo database.**
+> **Never point the QA scripts at the development database.**
 >
 > - `pnpm qa:seed` always targets `http://127.0.0.1:3336/api`, and refuses to run if `DEMO_API_URL` says otherwise.
-> - `pnpm demo:seed` refuses the QA port.
 > - Don't edit the connection string in `docker-compose.qa.yml`. It must stay `mongodb://mongodb:27017/pet-adoption-qa`; `pnpm qa:reset` refuses anything else.
 
 ### Troubleshooting

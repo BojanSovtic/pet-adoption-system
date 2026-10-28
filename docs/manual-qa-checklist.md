@@ -15,12 +15,11 @@ Commands run in PowerShell in the repository root. UI text is quoted in English.
 | Environment           | Web                       | API health                       | Data                                                                                         | Use for                                   |
 | --------------------- | ------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | **Docker QA**         | **http://127.0.0.1:4203** | http://127.0.0.1:3336/api/health | Its own MongoDB server (database `pet-adoption-qa`) and photo volume; kept between restarts  | All manual QA, including the Docker suite |
-| Demo                  | http://localhost:4202     | http://localhost:3335/api/health | Database `pet-adoption-demo` on the development MongoDB server, photos in `tmp/demo-uploads` | Demos (not for QA)                        |
-| Docker app (option A) | http://localhost:4200     | http://localhost:3333/api/health | **Your development database** and the main photo volume                                      | Not for QA                                |
+| Local development     | http://localhost:4200     | http://localhost:3333/api/health | **Your development database** (`pet-adoption`), photos in `apps/api/uploads`                 | Development, not for QA                   |
 
 > **Never delete Docker volumes as part of QA.**
 >
-> - `docker compose --profile app down -v` on the main project deletes `pet-adoption-system_mongodb_data`: the development **and** the demo database.
+> - `docker compose down -v` on the main project deletes `pet-adoption-system_mongodb_data`: the development database.
 > - `docker volume prune` and Docker Desktop's _Clean / Purge data_ can delete any of them.
 >
 > To empty the QA data, use `pnpm qa:reset --yes`.
@@ -59,8 +58,7 @@ Open **http://127.0.0.1:4203**, not `localhost:4203`: the API only accepts `127.
 
 ### 1.2 Other setups (not for manual QA)
 
-- **Demo** (`pnpm demo:start`, `pnpm demo:seed`; web :4202, API :3335) is for showing the app. It shares the development MongoDB server.
-- **Docker app stack and local development** (ports 4200/3333) use your development database.
+- **Local development** (ports 4200/3333) uses your development database.
 - **E2E:** `pnpm nx e2e @pet-adoption/web-e2e` starts its own throwaway servers (web :4201, API :3334, in-memory database) for the Playwright tests.
 
 ## 2. What to run when

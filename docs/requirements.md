@@ -135,7 +135,7 @@ Not supported today:
 - Search covers pet names only; there are no breed, location or size fields.
 - Uploaded photos keep their original metadata (for example camera location data).
 - Pets created before ownership was introduced have no owner: they are visible, but nobody can edit, delete or apply for them.
-- A fresh installation starts empty. Optional demo data can be created with `pnpm demo:seed` (see the README).
+- A fresh installation starts empty. Optional demo data can be created with `pnpm dev:seed` or `pnpm qa:seed` (see the README).
 
 ## Planned
 
