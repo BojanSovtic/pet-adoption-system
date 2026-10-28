@@ -7,8 +7,11 @@ A full-stack web app where people post pets that need a new home, others apply t
 - **Visitors** browse, search and filter pets without an account.
 - **Signed-in users** post pets (with up to 5 photos), apply to adopt other people's pets, and withdraw their applications.
 - **Pet owners** see who applied, with their contact details, and accept or reject applications. Accepting one adopts the pet and rejects the others.
+- **Admins** see platform statistics and all users, pets and applications, change roles, suspend and reinstate accounts, and hide or restore listings. Every admin action is recorded in an audit log. The first admin is created from the command line.
 
-The interface is available in English and Serbian. The full rules are in [docs/requirements.md](docs/requirements.md).
+Pet profiles include species, age, sex, breed and how the pet gets along with children, dogs and cats. The interface is available in English and Serbian. The full rules are in [docs/requirements.md](docs/requirements.md).
+
+**Status:** a learning and portfolio project, not deployed. Production hardening is tracked in [docs/production-readiness.md](docs/production-readiness.md); several launch blockers (deployment, monitoring, backups, password reset) are still open.
 
 ## Screenshots
 
@@ -31,18 +34,20 @@ _Screenshots coming soon._
 
 - **Consistent adoption decisions.** Submitting, accepting, rejecting and withdrawing each run in one MongoDB transaction that locks the pet first. Two simultaneous acceptances can't both succeed, and a unique index is the final guarantee. This is covered by concurrency tests.
 - **State machines shared by API and UI.** Application and pet statuses change only through explicit actions (`accept`, `reject`, `withdraw`) defined once in a shared TypeScript library. The API enforces them and the UI uses them to decide which buttons to show.
-- **Server-side sessions.** HttpOnly session cookie, Argon2id password hashing, a new session id on sign-in, `SameSite` plus an `Origin` check against CSRF, and rate limits on sign-in and registration.
-- **Authorization on the server.** Owner and applicant ids always come from the session. Owners see applicants' email addresses; nobody else can see an application.
-- **One error contract.** The API returns stable error codes (`{ code, details? }`) and never display text; the web app translates them, including field-level validation errors.
+- **Server-side sessions.** HttpOnly session cookie, Argon2id password hashing, a new session id on sign-in, and `SameSite` plus an `Origin` check against CSRF.
+- **Abuse limits.** Rate limits on sign-in and registration, per-user limits on every change (applications, new pets, photo uploads, the rest), per-admin limits, and a per-IP backstop.
+- **Authorization on the server.** Owner and applicant ids always come from the session. Owners see applicants' email addresses; nobody else can see an application. Admin role and suspension are read from the database on every request; admin changes run in a transaction with a hash-chained audit entry.
+- **Safe photo uploads.** Files are checked by content, then decoded and re-encoded with sharp: no EXIF/GPS metadata, rotation applied, pixel and size limits. The uploaded bytes are never stored.
+- **One error contract.** The API returns stable error codes (`{ code, details? }`) and never display text; the web app translates them, including field-level validation errors. Unknown API routes and oversized or malformed bodies get JSON errors too, and every response carries security headers (helmet).
 - **Server-side search and pagination.** The pet list and both application lists are paginated with stable ordering and matching indexes. The pet list keeps its state in the URL.
 - **Isolated tests.** API tests run against an in-memory MongoDB replica set, so transactions are real and no database setup is needed. Playwright E2E tests start their own API and web servers with a throwaway database.
 
-Architecture diagrams (system, request pipeline, authentication, data model, adoption workflow, Docker, E2E): [docs/architecture.md](docs/architecture.md).
+Architecture diagrams (system, request pipeline, authentication, admin, data model, adoption workflow, Docker, E2E): [docs/architecture.md](docs/architecture.md).
 
 ## Tech stack
 
 - **Frontend:** React 19, TypeScript, Vite, React Router 6, TanStack Query, Axios, Tailwind CSS 4 + shadcn/ui, react-i18next, zod
-- **Backend:** Node.js 22, Express 4, MongoDB 8 with Mongoose 9, express-session + connect-mongo, Argon2, multer
+- **Backend:** Node.js 22, Express 4, MongoDB 8 with Mongoose 9, express-session + connect-mongo, Argon2, multer + sharp, express-rate-limit, helmet
 - **Shared:** a TypeScript library with the API types, constants and state machines
 - **Tooling:** Nx monorepo with pnpm, Vitest + Testing Library + Supertest, Playwright, ESLint, Prettier, Docker Compose, GitHub Actions
 
@@ -53,20 +58,20 @@ apps/api              Express API
 apps/web              React app
 apps/web-e2e          Playwright end-to-end tests
 packages/shared/models  Types and rules shared by the API and the web app
-docs/                 Requirements, architecture, deployment notes, progress
+docs/                 Project documentation (see "Documentation" below)
 ```
 
 ## Running the app
 
 Three environments, each for one job. They use different ports and data, so they can run at the same time.
 
-|           | Local development                                     | Docker QA                                        | E2E tests                           |
-| --------- | ----------------------------------------------------- | ------------------------------------------------ | ----------------------------------- |
-| Use for   | Writing code (hot reload)                             | Testing the built app by hand; showing the app   | Automated browser tests             |
-| Runs      | MongoDB in Docker, API and web app with Node.js       | Everything in Docker, built like a deployment    | Its own servers, started by the run |
-| Web / API | http://localhost:4200 / :3333                         | **http://127.0.0.1:4203** / :3336                | localhost:4201 / :3334              |
-| Data      | Database `pet-adoption` (port 27018), `apps/api/uploads/` | Its own MongoDB server and volumes           | In memory, thrown away              |
-| Start     | See [Local development](#local-development)           | `pnpm qa:up` (see [Docker QA](#docker-qa-environment)) | `pnpm nx e2e @pet-adoption/web-e2e` |
+|           | Local development                                         | Docker QA                                              | E2E tests                           |
+| --------- | --------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------- |
+| Use for   | Writing code (hot reload)                                 | Testing the built app by hand; showing the app         | Automated browser tests             |
+| Runs      | MongoDB in Docker, API and web app with Node.js           | Everything in Docker, built like a deployment          | Its own servers, started by the run |
+| Web / API | http://localhost:4200 / :3333                             | **http://127.0.0.1:4203** / :3336                      | localhost:4201 / :3334              |
+| Data      | Database `pet-adoption` (port 27018), `apps/api/uploads/` | Its own MongoDB server and volumes                     | In memory, thrown away              |
+| Start     | See [Local development](#local-development)               | `pnpm qa:up` (see [Docker QA](#docker-qa-environment)) | `pnpm nx e2e @pet-adoption/web-e2e` |
 
 ### Local development
 
@@ -95,13 +100,13 @@ A `SESSION_SECRET` can come from a password generator, or from `node -e "console
 
   To restore it: `docker cp ./pet-adoption.archive pet-adoption-mongodb:/tmp/pet-adoption.archive`, then `docker exec pet-adoption-mongodb mongorestore --archive=/tmp/pet-adoption.archive`.
 
-| Problem                                                                   | What to do                                                                                                                         |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Cannot connect to the Docker daemon`, `error during connect`             | Docker Desktop isn't running. Start it and wait until it says it's running.                                                        |
-| The API stops with `SESSION_SECRET is required`                           | `apps/api/.env` is missing or `SESSION_SECRET` is shorter than 32 characters.                                                      |
-| "Port 3333 … is already in use", or the web dev server won't start on 4200 | Something else uses the port. Find it with `netstat -ano \| findstr :3333` (Windows) / `lsof -i :3333` (macOS/Linux).             |
-| The page shows "The server could not be reached"                          | The API isn't running. Start `pnpm nx serve @pet-adoption/api`.                                                                    |
-| The API log mentions MongoDB or a replica set                             | MongoDB isn't ready: `docker compose ps` should show it "healthy". The first start initialises the replica set, which takes a few seconds. |
+| Problem                                                                    | What to do                                                                                                                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Cannot connect to the Docker daemon`, `error during connect`              | Docker Desktop isn't running. Start it and wait until it says it's running.                                                                |
+| The API stops with `SESSION_SECRET is required`                            | `apps/api/.env` is missing or `SESSION_SECRET` is shorter than 32 characters.                                                              |
+| "Port 3333 … is already in use", or the web dev server won't start on 4200 | Something else uses the port. Find it with `netstat -ano \| findstr :3333` (Windows) / `lsof -i :3333` (macOS/Linux).                      |
+| The page shows "The server could not be reached"                           | The API isn't running. Start `pnpm nx serve @pet-adoption/api`.                                                                            |
+| The API log mentions MongoDB or a replica set                              | MongoDB isn't ready: `docker compose ps` should show it "healthy". The first start initialises the replica set, which takes a few seconds. |
 
 ### Administrators
 
@@ -119,6 +124,7 @@ Every new account is an ordinary user, and registration ignores any `role` field
 3. The change applies to the person's next request; no new sign-in is needed. After that, admins can grant or remove admin access on the **Users** page.
 
 Safety:
+
 - Check the database line of the dry run before adding `--yes`: the command uses `MONGODB_URI` from the environment, so in a shell with production settings it changes production.
 - Nobody can change their own role, and the last admin can't be revoked (the command and the app refuse).
 - Every change, from the app or the command line, is recorded in the admin **Audit log** (also under **Recent admin activity** on the overview).
@@ -230,18 +236,34 @@ Accounts: see [Demo data](#demo-data).
 ## Tests
 
 ```sh
-pnpm nx run-many -t lint typecheck test   # unit/integration tests (API uses an in-memory MongoDB)
-pnpm nx e2e @pet-adoption/web-e2e         # Playwright end-to-end tests (starts its own servers)
+pnpm nx run-many -t lint typecheck test build   # everything CI runs (API tests use an in-memory MongoDB)
+pnpm nx test @pet-adoption/api                  # one project's tests
+pnpm nx e2e @pet-adoption/web-e2e               # Playwright end-to-end tests (starts its own servers)
 ```
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs lint, typecheck, unit/integration tests and builds on every push and pull request to `master` and `develop`. The E2E tests are not part of CI yet.
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. The E2E tests are not part of CI yet. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).
+
+## Documentation
+
+| Document                                                                                                     | What it covers                                                                                               |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| [docs/requirements.md](docs/requirements.md)                                                                 | Roles, workflows, business rules, rate limits, known limitations                                             |
+| [docs/architecture.md](docs/architecture.md)                                                                 | Mermaid diagrams of the system, request pipeline, auth, admin, data model, adoption workflow, Docker and E2E |
+| [docs/production-readiness.md](docs/production-readiness.md)                                                 | What blocks a public launch (P0), what can follow (P1), and the hardening log                                |
+| [docs/deployment.md](docs/deployment.md)                                                                     | Requirements for a future deployment (HTTPS, proxy, cookies, env, rate-limit store)                          |
+| [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)                                                   | How to run manual QA: suites, choosing cases, recording results                                              |
+| [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv) / [manual-qa-log.csv](docs/manual-qa-log.csv) | The test-case catalog / the execution log                                                                    |
+| [docs/design-system.md](docs/design-system.md), [docs/ux-benchmark.md](docs/ux-benchmark.md)                 | UI tokens and components; the UX review and its batches                                                      |
+| [docs/learning/](docs/learning/)                                                                             | Notes on React, TanStack Query, Express, the adoption workflow and authorization                             |
+| [docs/progress.md](docs/progress.md)                                                                         | Current status, open issues and the roadmap                                                                  |
 
 ## Known limitations
 
-- Not deployed; there is no live demo. Production needs depend on the hosting setup: see [docs/deployment.md](docs/deployment.md).
-- No admin role, email verification, password reset or account deletion.
+- **Not deployed and not production-ready.** There is no production configuration, monitoring or backup yet; see [docs/production-readiness.md](docs/production-readiness.md) and [docs/deployment.md](docs/deployment.md).
+- No email verification, password reset or account deletion; no privacy notice yet.
 - No messaging between owners and applicants; they contact each other outside the app.
-- Uploaded photos keep their original metadata (e.g. camera location).
+- Users can't report listings or accounts to admins yet.
 - Rate limits are kept in memory, which suits a single API instance only.
+- A render error blanks the page (no React error boundary yet).
 
-More detail: [docs/requirements.md](docs/requirements.md#known-limitations). Status and roadmap: [docs/progress.md](docs/progress.md).
+More detail: [docs/requirements.md](docs/requirements.md#known-limitations).

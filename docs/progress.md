@@ -11,7 +11,7 @@ Verified by passing tests or by reading the code.
 - **Pets API:** `GET`, `POST`, `PUT` (full replacement) and `DELETE` on `/api/pets[/:id]`, with consistent `{ code, details? }` errors.
   - **Public:** listing and details. They include `owner` as a user id only.
   - **Paginated listing:** `GET /api/pets?search=&species=&status=&sort=&page=&pageSize=` → `{ items, page, pageSize, totalItems, totalPages }`.
-    - **Search:** names only (there's no breed field), case-insensitive "contains", with regex characters escaped.
+    - **Search:** names only (breed is not searched), case-insensitive "contains", with regex characters escaped.
     - **Filters:** `species` and `status`.
     - **Sort:** a whitelist of `newest` (default), `oldest`, `name` (case-insensitive collation) and `age`, each with `_id` as a tie-breaker for a stable order across pages.
     - **Paging:** `page` defaults to 1 (at most 10,000); `pageSize` defaults to 12 (at most 50).
@@ -102,7 +102,7 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
-## Fewer environments (2026-10-28, uncommitted)
+## Fewer environments (2026-10-28)
 
 - **Now three:** local development (MongoDB in Docker, apps with Nx), Docker QA (`pnpm qa:*`, also for showing the app) and E2E. See README, "Running the app".
 - **Removed:** the Docker app stack (`docker compose --profile app`; it shared the dev database and ports with local development, and QA runs the same images in isolation) and the demo environment (`pnpm demo:start|seed|reset`, `start-demo.ts`, `reset-demo.ts`; QA covers it). `docker-compose.yml` is MongoDB only; the root `.env` holds only `QA_SESSION_SECRET`. `seed-demo.ts` needs `--dev` or `--qa`.
@@ -119,7 +119,7 @@ Verified by passing tests or by reading the code.
 - **Docker Desktop must be running** before you start the API. The container restarts automatically (`restart: unless-stopped`).
 - **Since 2026-10-21:** `docker compose up -d` still starts only MongoDB. The API and web containers are behind the `app` profile (see README). The health check now waits until the node accepts writes, not just until the replica set is initiated.
 
-## Design system foundation (2026-10-26, uncommitted)
+## Design system foundation (2026-10-26)
 
 - **Decision:** kept Tailwind 4 + shadcn/ui and did not add SCSS (Tailwind 4 isn't designed to run with Sass). Details, tokens and conventions are in [design-system.md](design-system.md).
 - **Tokens:** a warm palette with a terracotta brand colour and success/warning/destructive tints, all checked for WCAG AA. Also radius, shadow and layout tokens (`max-w-page`, `page-container`). Files: `apps/web/src/styles/tokens.css`, `styles/base.css`.
@@ -154,7 +154,7 @@ Verified by passing tests or by reading the code.
 - **Checks:** web lint, typecheck and 98/98 tests ✅, build ✅, E2E 6/6 ✅ (owner flow updated to confirm), details-page screenshots at 375/1280 px.
 - **Next:** Batch 2 (applications dashboard), then Batch 3 (forms: `FormField`, `pet-form-page`), as listed in the roadmap.
 
-## Admin hardening: moderation, audit, rate limits (2026-10-27, uncommitted)
+## Admin hardening: moderation, audit, rate limits (2026-10-27)
 
 Closes the findings recorded after the admin feature; status per finding (A1–A6) is in [production-readiness.md](production-readiness.md).
 
@@ -198,7 +198,7 @@ Closes the findings recorded after the admin feature; status per finding (A1–A
     4. sign in at http://localhost:4200 as luka (`demo-password`) and go through Admin → Overview, Users (search, role change, suspend with a reason, reinstate), Pets (hide, restore), Applications, Audit log; then sign in as marko and open /admin (expect "Admins only");
     5. `pnpm audit:verify`.
 
-## Admin role and administration area (2026-10-27, uncommitted)
+## Admin role and administration area (2026-10-27)
 
 - **Roles:** `user` (default) and `admin` (`USER_ROLES`, `User.role`). No shelter role: posting pets is open to every signed-in user and ownership stays per pet. Users stored before roles read as `user`.
 - **API** (`apps/api/src/admin/`):
@@ -222,7 +222,7 @@ Closes the findings recorded after the admin feature; status per finding (A1–A
 - **Not verified:** the admin pages in a real browser against the dev database (only through E2E and component tests).
 - **Findings for the roadmap:** see "Findings from the admin work" in [production-readiness.md](production-readiness.md) (admin reads not audited, no suspension, audit log not tamper-proof).
 
-## Empty pet list in development (2026-10-26, uncommitted)
+## Empty pet list in development (2026-10-26)
 
 **Cause:** the API returned 200 with no pets, for two separate reasons, neither of them a regression.
 
@@ -251,7 +251,7 @@ Batch A and the list filters were ruled out: the pet list applies no default fil
 
 **Production readiness:** assessed in [production-readiness.md](production-readiness.md) (P0 launch blockers, P1, decisions D1–D4).
 
-## Batch A: more species and richer pet profiles (2026-10-26, uncommitted)
+## Batch A: more species and richer pet profiles (2026-10-26)
 
 Plan for the rest of the pre-admin work: [ux-benchmark.md §6](ux-benchmark.md#6-pre-admin-plan-2026-10-26) (B lifestyle filters → C applications dashboard → D forms/apply polish).
 
@@ -276,7 +276,7 @@ Plan for the rest of the pre-admin work: [ux-benchmark.md §6](ux-benchmark.md#6
   - Screenshots: list, details and form at 375/1280 px, no horizontal overflow.
 - **Not verified:** a real browser against the real API and a re-seeded demo database.
 
-## Docker QA environment (2026-10-23, uncommitted)
+## Docker QA environment (2026-10-23)
 
 - **What:** `docker-compose.qa.yml`, a separate Compose project `pet-adoption-qa` for manual QA. It has its own MongoDB server (database `pet-adoption-qa`), network and volumes (`pet-adoption-qa_mongodb_data`, `_mongodb_config`, `_uploads_data`), and runs the same Dockerfiles. Ports are bound to 127.0.0.1: web 4203, API 3336, MongoDB 27019. It needs `QA_SESSION_SECRET` in the root `.env` and refuses to start without it.
 - **Scripts:**
@@ -447,7 +447,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1, P0-3, P0-2 (committed) and P0-8 (2026-10-27, uncommitted; one API instance) are done; details in its §6. Next: P0-9 (React error boundary), then P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/6/7.
-1. **Manual QA on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): add `QA_SESSION_SECRET` to the root `.env`, `pnpm qa:up`, `pnpm qa:seed`, open http://127.0.0.1:4203, then the smoke suite (UPL-001 checks real multi-photo upload through Axios), UPL-002, UPL-005, UPL-006, then the release and Docker suites. Record the results in `docs/manual-qa-log.csv`.
-2. **Check that the CI run for `060eb5d` passed on GitHub** (Actions tab). Then fast-forward `master` to `develop` (see "Changes in this session") so the default branch shows the project.
+0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1, P0-2, P0-3 and P0-8 (one API instance) are done; details in its §6. Next: P0-9 (React error boundary), then P0-10 (order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/5/6/7.
+1. **Finish the manual QA run on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): started 2026-10-28 (ENV-001 passed at `48dad22`). Continue with the smoke suite, then the release (incl. the new UPL-007 and ADMIN cases) and Docker suites, and record each result in `docs/manual-qa-log.csv`.
+2. **Merge `develop` into `master`** (a fast-forward; `master` has no commits of its own) once CI is green for the latest `develop` commit and the QA run has no open failures.
 3. Add screenshots to the README (instructions are in the README).

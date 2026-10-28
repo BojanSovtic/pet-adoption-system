@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27; security headers, photo re-encoding, write rate limits and the three environments reviewed on 2026-10-28). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
@@ -28,7 +28,7 @@ flowchart LR
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
   operator -- "runs" --> cli
   cli -- "changeUserRole / verifyAuditChain<br/>(only MONGODB_URI + optional<br/>AUDIT_HMAC_KEY)" --> mongo
-  uploads[("Uploaded pet photos<br/>local disk (UPLOADS_DIR)<br/>dev: apps/api/uploads<br/>Docker: uploads_data volume<br/>(FileStorage interface)")]
+  uploads[("Uploaded pet photos (re-encoded)<br/>local disk (UPLOADS_DIR)<br/>dev: apps/api/uploads<br/>Docker QA: pet-adoption-qa_uploads_data<br/>(FileStorage interface)")]
   api -- "save / delete files" --> uploads
   browser -- "img src: /uploads/pets/…" --> api
 ```
@@ -39,7 +39,7 @@ flowchart LR
 - **Admins are created outside the API.** `pnpm admin:grant <email>` connects to the database directly and uses the same `changeUserRole` service as the admin area (§3c, §5b). No HTTP route can create the first admin. The command-line tools load only `config/env-file.ts` (`MONGODB_URI`, optional `AUDIT_HMAC_KEY`), not the web server's `config/env.ts`, so they don't need `SESSION_SECRET` or `CORS_ORIGIN`.
 - **Photos are files, not database data.** A pet stores up to 5 storage keys in `images`; the API returns `images: [{ _id, url }]` and `imageUrl` (the first photo) built by the storage.
   - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`) with a local-disk implementation, served at `/uploads` with `nosniff` and long-term caching. Object storage (S3, R2) would be a second implementation; nothing else changes.
-  - **Upload:** `POST /api/pets/:id/images` checks sign-in, ownership and free photo slots first, then parses multipart with `multer` (in memory, at most 5 files of 5 MB in the field "images"). It detects JPEG, PNG or WebP from each file's bytes and stores the files under random names: all of them or none.
+  - **Upload:** `POST /api/pets/:id/images` checks sign-in, the per-user upload rate limit, ownership and free photo slots first, then parses multipart with `multer` (in memory, at most 5 files of 5 MB in the field "images"). Each file must be JPEG, PNG or WebP by its bytes; `processPetImage` (sharp) then checks the header (≤ 40 MP, not animated), decodes it and re-encodes it in the same format without metadata (EXIF/GPS, XMP, ICC), with EXIF rotation applied and at most 2000 px. At most 2 images are processed at once per process. Only the re-encoded files are stored, under random names (written as a hidden temp file, then renamed): all of them or none.
   - **The 5-photo limit is part of the update query** (`$expr` on the array size), so simultaneous uploads can't exceed it.
   - **New files are written first;** files are deleted only after the database no longer points to them. A failed database write removes the new files. Keys are never reused, so a file belongs to exactly one photo.
   - **Deleting:** `DELETE /api/pets/:id/images/:imageId` removes one photo. Deleting the pet removes all its photos too, after the transaction.
@@ -490,6 +490,8 @@ sequenceDiagram
   - Detecting that needs a copy of the head outside the database (planned with hosting; see production-readiness.md A3).
 
 ## 6. Runtime environments
+
+Three environments, each with its own data: **local development** (MongoDB in Docker, API and web with Nx; ports 27018/3333/4200), **Docker QA** (built images, own MongoDB server and volumes; 127.0.0.1:4203/3336/27019) and **E2E** (own servers and an in-memory database per run; 4201/3334). There is no separate demo stack: Docker QA is used to show the app.
 
 ### Docker Compose
 

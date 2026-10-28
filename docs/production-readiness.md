@@ -1,6 +1,6 @@
 # Production readiness
 
-_Assessed 2026-10-26 against the code at `38aaa79` plus the uncommitted Batch A work._
+_Assessed 2026-10-26 against the code at `38aaa79` plus the then-uncommitted Batch A work; hardening batches through 2026-10-28 are logged in §6. The app is **not** production-ready: P0-4 to P0-7, P0-9 and P0-10 are open._
 
 The project is meant to be deployed and used by real people, so "production-ready" is a requirement here, not a nice-to-have. This document lists what is verified, what blocks a public launch, and what can follow.
 

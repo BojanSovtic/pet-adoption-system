@@ -126,14 +126,13 @@ The same user can be an owner of some pets and an applicant for others.
 
 Not supported today:
 
-- No admin or moderator role; nobody can manage other users' pets or accounts.
+- Users can't report listings or accounts to admins; admins act on what they find themselves (see [Administration](#administration)).
 - No email verification, password reset, account editing or account deletion.
 - No sign-in with Google, GitHub or other providers (planned).
 - No messaging between owners and applicants; contact happens outside the app using the applicant's email.
 - An accepted adoption cannot be undone, and a rejected applicant cannot reapply for the same pet.
 - The application lists cannot be searched or filtered.
-- Search covers pet names only; there are no breed, location or size fields.
-- Uploaded photos keep their original metadata (for example camera location data).
+- Search covers pet names only; breed can be entered but isn't searchable, and there are no location or size fields.
 - Pets created before ownership was introduced have no owner: they are visible, but nobody can edit, delete or apply for them.
 - A fresh installation starts empty. Optional demo data can be created with `pnpm dev:seed` or `pnpm qa:seed` (see the README).
 
