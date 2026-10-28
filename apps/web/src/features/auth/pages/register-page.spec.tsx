@@ -77,6 +77,22 @@ describe('RegisterPage', () => {
     expect(screen.queryByLabelText('Email')).toBeNull();
   });
 
+  it('marks every field as required and explains the password rule', async () => {
+    renderRegisterPage();
+    await screen.findByLabelText('Confirm password');
+
+    expect(screen.getByText('Fields marked * are required.')).toBeTruthy();
+    for (const label of ['Name', 'Email', 'Password', 'Confirm password']) {
+      expect((screen.getByLabelText(label) as HTMLInputElement).required).toBe(
+        true,
+      );
+    }
+    const hint = screen.getByText('At least 8 characters.');
+    expect(
+      screen.getByLabelText('Password').getAttribute('aria-describedby'),
+    ).toBe(hint.id);
+  });
+
   it('asks for the confirmation on an empty form', async () => {
     renderRegisterPage();
     await screen.findByLabelText('Confirm password');

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 
 import {
@@ -105,10 +106,13 @@ const LoginPage = () => {
       </h1>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <RequiredFieldsNote />
+
         <FormField
           id="email"
           type="email"
           autoComplete="email"
+          required
           label={t('fields.email')}
           value={values.email}
           onChange={(event) => updateField('email', event.target.value)}
@@ -119,6 +123,7 @@ const LoginPage = () => {
           id="password"
           type="password"
           autoComplete="current-password"
+          required
           label={t('fields.password')}
           value={values.password}
           onChange={(event) => updateField('password', event.target.value)}

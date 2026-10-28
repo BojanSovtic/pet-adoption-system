@@ -78,5 +78,8 @@
   "skipToContent": "Pređi na glavni sadržaj",
   "language": {
     "label": "Jezik"
+  },
+  "form": {
+    "requiredNote": "Polja označena sa * su obavezna."
   }
 }

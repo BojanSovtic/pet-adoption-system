@@ -4,12 +4,12 @@ How the web app (`apps/web`) is styled, and the rules to follow when redesigning
 
 ## Visual direction
 
-Warm, calm and photo-first. The interface stays quiet so pet photos carry the colour.
+Calm, trustworthy and photo-first. The interface stays quiet so pet photos carry the colour.
 
-- **Palette:** warm off-white page, white cards, warm near-black text. One brand colour, **terracotta** (`primary`), used for main actions, links and focus. It reads as warm and friendly, and it's distinct from both the error red and the green "available" status.
+- **Palette:** a cool off-white page, white cards and blue-tinted near-black text. One brand colour, **blue** (`primary`, `#2368bd`; hover `#1e55a4`), used for main actions, links, selected states and focus. It reads as calm and trustworthy, and it's distinct from the error red, the amber "pending" and the green "available" status. Changed from terracotta on 2026-10-28; every pair was re-checked for AA. There is no dark theme yet.
 - **Status colours** are tints with dark text of the same hue: green = available/accepted, amber = pending, red = rejected/errors, grey = adopted/withdrawn.
 - **Type:** [Figtree](https://fonts.google.com/specimen/Figtree), one variable font, self-hosted through `@fontsource-variable/figtree`. No CDN request, and it works offline and in Docker. It covers Serbian Latin (č ć đ š ž). Hierarchy comes from size and weight (600 for headings), not from a second font.
-- **Shape:** 8px radius for controls, 12px for cards and panels, pills only for badges. Thin warm borders plus a very soft shadow. No gradients and no decorative blobs.
+- **Shape:** 8px radius for controls, 12px for cards and panels, pills only for badges. Thin cool-grey borders plus a very soft shadow. No gradients and no decorative blobs.
 - **Motion:** colour/shadow transitions at 150ms, and a slight photo zoom on card hover. Everything is turned off under `prefers-reduced-motion`.
 
 All text/background pairs meet WCAG AA (4.5:1). Input borders and the focus outline meet 3:1. Re-check contrast when you change a colour.
@@ -55,6 +55,8 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 ## Primitives
 
 - **Button**: variants `default` (one main action per area), `outline` (secondary), `secondary`, `ghost` (toolbars, header), `destructive`, `link`. Sizes: `sm` 32px (header, dense lists), `default` 40px, `lg` 44px, `icon`. Use `asChild` to style a router `Link` as a button. Put icons before the text and mark them `aria-hidden`.
+- **Required fields**: `<Label required>` adds a red `*` after the label (outside the `<label>` and `aria-hidden`, so the field's name stays the label text). Also set `required` on the control. Forms with several fields start with `<RequiredFieldsNote />` ("Fields marked * are required."). Optional fields keep "(optional)" in the label.
+- **Pointer cursor**: `Button` and `NativeSelect` set `cursor-pointer`; `styles/base.css` gives raw buttons, file-picker buttons, checkboxes, radios and `summary` a pointer, and never to disabled controls.
 - **Input / Textarea / NativeSelect / Label**: same height, border, hover, focus and `aria-invalid` styles through `fieldControlClassName`. `NativeSelect` is a real `<select>` with a custom arrow. Its `className` styles the select and `containerClassName` styles the wrapper (width, grid span). Every control needs a label: a visible `<label>`, or `aria-label` when the context is clear (search, filters).
 - **Card**: the one surface style (white, border, `rounded-lg`, `shadow-card`). Override padding/gap with `className` instead of creating a new surface.
 - **Badge**: `success`, `warning`, `neutral`, `destructive` for statuses, mapped per domain in `PetStatusBadge` and `ApplicationStatusBadge`. Don't pick colours ad hoc.

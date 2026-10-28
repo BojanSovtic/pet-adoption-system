@@ -113,9 +113,7 @@ describe('PetDetailsPage', () => {
 
     expect(await screen.findByText('Pet list')).toBeTruthy();
     expect(router.state.location.pathname).toBe('/pets');
-    expect(router.state.location.search).toBe(
-      '?search=mil&species=dog&page=2',
-    );
+    expect(router.state.location.search).toBe('?search=mil&species=dog&page=2');
   });
 
   it('goes back to the first list page when opened directly', async () => {
@@ -125,6 +123,24 @@ describe('PetDetailsPage', () => {
 
     expect(await screen.findByText('Pet list')).toBeTruthy();
     expect(router.state.location.search).toBe('');
+  });
+
+  it('explains a pending status to visitors, not to the owner', async () => {
+    const hint =
+      "Someone has applied and the owner hasn't decided yet. You can still apply.";
+    vi.mocked(getPet).mockResolvedValue({ ...pet, status: 'pending' });
+
+    renderAt('/pets/pet-1', otherUser);
+    expect(await screen.findByText(hint)).toBeTruthy();
+  });
+
+  it('hides the pending explanation from the owner', async () => {
+    vi.mocked(getPet).mockResolvedValue({ ...pet, status: 'pending' });
+
+    renderAt('/pets/pet-1', owner);
+    // The owner's controls show once the current user is known.
+    expect(await screen.findByRole('link', { name: 'Edit pet' })).toBeTruthy();
+    expect(screen.queryByText(/You can still apply/)).toBeNull();
   });
 
   it('shows edit and delete to the owner', async () => {

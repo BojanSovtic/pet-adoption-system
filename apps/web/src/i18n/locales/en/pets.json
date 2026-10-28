@@ -180,5 +180,8 @@
     "dogs": "Good with dogs",
     "cats": "Good with cats"
   },
-  "hiddenNotice": "Administrators hid this listing. Only you and the administrators can see it, and it takes no new applications. You can still decide existing applications."
+  "hiddenNotice": "Administrators hid this listing. Only you and the administrators can see it, and it takes no new applications. You can still decide existing applications.",
+  "statusHint": {
+    "pending": "Someone has applied and the owner hasn't decided yet. You can still apply."
+  }
 }

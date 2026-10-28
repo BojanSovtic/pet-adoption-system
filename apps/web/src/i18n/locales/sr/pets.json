@@ -182,5 +182,8 @@
     "dogs": "Dobar sa psima",
     "cats": "Dobar sa mačkama"
   },
-  "hiddenNotice": "Administratori su sakrili ovaj oglas. Vidiš ga samo ti i administratori i ne prima nove zahteve. Postojeće zahteve i dalje možeš da rešiš."
+  "hiddenNotice": "Administratori su sakrili ovaj oglas. Vidiš ga samo ti i administratori i ne prima nove zahteve. Postojeće zahteve i dalje možeš da rešiš.",
+  "statusHint": {
+    "pending": "Neko se već prijavio, a vlasnik još nije odlučio. I dalje možeš da se prijaviš."
+  }
 }

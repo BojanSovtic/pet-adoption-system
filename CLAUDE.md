@@ -83,6 +83,14 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 - Run Prettier only on files you changed (repo-wide runs rewrite line endings of untouched files).
 - User-facing text goes through i18n, in both `en` and `sr`.
 
+### UI conventions (web)
+
+Details and primitives in [docs/design-system.md](docs/design-system.md).
+
+- **Clickable controls show they are clickable.** Every control that performs an action is a real `<button>`, `<a>`/`Link` or `Button` and shows a pointer on hover (`Button` and `NativeSelect` set it; `styles/base.css` covers raw buttons, file pickers, checkboxes, radios and `summary`). Don't add `onClick` to a `div`/`span` to get a pointer, and don't give a pointer to decorative icons, plain text or disabled controls. Keep the global focus outline.
+- **Required fields have a visible `*`.** Decide requiredness from the form's zod schema and the API, never from looks: use `<Label required>` (or `FormField required`) and set `required` on the control too, since that is what screen readers announce. Optional fields get no `*` (keep "(optional)" in their label). Forms with more than one field show `<RequiredFieldsNote />` once at the top. Don't change validation to match the marker; report unclear cases.
+- **Hint where users could misunderstand.** When a field, action, status, restriction or term could reasonably be misread, add one concise, contextual hint, worded to match the real behaviour. Use an inline hint (muted text linked with `aria-describedby`) for anything needed before submitting. Use a tooltip only for supplementary detail on an icon, status or secondary control, and never for required-field info, validation errors or warnings. There is no tooltip primitive yet: before the first tooltip, add one that works with keyboard and touch (not `title=`). Icon-only buttons need an `aria-label`. Don't add hints that repeat the label or tooltips on every button.
+
 ## Working agreements
 
 - Prefer simple, maintainable solutions. Explain why before adding any dependency.

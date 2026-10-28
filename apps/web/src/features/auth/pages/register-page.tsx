@@ -5,6 +5,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { PASSWORD_MIN_LENGTH, type RegisterInput } from '@pet-adoption/models';
 
+import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 
 import {
@@ -105,9 +106,12 @@ const RegisterPage = () => {
       </h1>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <RequiredFieldsNote />
+
         <FormField
           id="name"
           autoComplete="name"
+          required
           label={t('fields.name')}
           value={values.name}
           onChange={(event) => updateField('name', event.target.value)}
@@ -118,6 +122,7 @@ const RegisterPage = () => {
           id="email"
           type="email"
           autoComplete="email"
+          required
           label={t('fields.email')}
           value={values.email}
           onChange={(event) => updateField('email', event.target.value)}
@@ -128,7 +133,9 @@ const RegisterPage = () => {
           id="password"
           type="password"
           autoComplete="new-password"
+          required
           label={t('fields.password')}
+          hint={t('hints.password', { min: PASSWORD_MIN_LENGTH })}
           value={values.password}
           onChange={(event) => updateField('password', event.target.value)}
           error={getFieldError('password')}
@@ -138,6 +145,7 @@ const RegisterPage = () => {
           id="confirmPassword"
           type="password"
           autoComplete="new-password"
+          required
           label={t('fields.confirmPassword')}
           value={values.confirmPassword}
           onChange={(event) =>

@@ -102,6 +102,13 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
+## UX consistency batch (2026-10-28)
+
+- **Blue palette:** `styles/tokens.css` now uses a blue brand colour (`#2368bd`) and cool neutrals; success, warning and destructive are unchanged. All pairs re-checked for WCAG AA. Only tokens changed, no component colours.
+- **Conventions** (recorded in `CLAUDE.md`, "UI conventions"): pointer cursor on clickable controls (shared rule in `styles/base.css`), `*` on required fields (`<Label required>`, `FormField required`, `RequiredFieldsNote`), and contextual hints.
+- **Applied to:** login, register (plus an "At least 8 characters." password hint), the pet form (name, species, age, description), the adoption message, and a "you can still apply" hint for pending pets on the details page (not shown to the owner). Admin forms have only optional fields.
+- **Left for later:** a keyboard- and touch-friendly tooltip primitive (none exists yet); explaining "Pending" on pet cards; the auth `FormField` still uses its own input classes instead of `Input`.
+
 ## Fewer environments (2026-10-28)
 
 - **Now three:** local development (MongoDB in Docker, apps with Nx), Docker QA (`pnpm qa:*`, also for showing the app) and E2E. See README, "Running the app".

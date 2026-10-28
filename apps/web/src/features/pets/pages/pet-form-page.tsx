@@ -25,6 +25,7 @@ import {
 } from '@pet-adoption/models';
 
 import { PageHeader } from '@/components/page-header';
+import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -370,6 +371,8 @@ const PetFormPage = () => {
       />
 
       <form onSubmit={handleSubmit} noValidate className="space-y-8">
+        <RequiredFieldsNote />
+
         <fieldset className="rounded-lg border bg-card p-6 shadow-card">
           <legend className={legendClassName}>
             {t('form.sections.basics')}
@@ -377,7 +380,9 @@ const PetFormPage = () => {
 
           <div className="clear-both space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name">{t('form.fields.name')}</Label>
+              <Label htmlFor="name" required>
+                {t('form.fields.name')}
+              </Label>
               <Input
                 {...controlProps('name')}
                 onChange={(event) => updateField('name', event.target.value)}
@@ -390,9 +395,12 @@ const PetFormPage = () => {
 
             <div className="grid gap-6 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="species">{t('form.fields.species')}</Label>
+                <Label htmlFor="species" required>
+                  {t('form.fields.species')}
+                </Label>
                 <NativeSelect
                   {...controlProps('species')}
+                  required
                   onChange={(event) =>
                     updateField('species', event.target.value)
                   }
@@ -420,7 +428,9 @@ const PetFormPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="age">{t('form.fields.age')}</Label>
+                <Label htmlFor="age" required>
+                  {t('form.fields.age')}
+                </Label>
                 <Input
                   {...controlProps('age')}
                   onChange={(event) => updateField('age', event.target.value)}
@@ -448,7 +458,7 @@ const PetFormPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">
+              <Label htmlFor="description" required>
                 {t('form.fields.description')}
               </Label>
               <Textarea

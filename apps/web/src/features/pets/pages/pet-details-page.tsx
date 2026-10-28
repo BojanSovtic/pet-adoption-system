@@ -188,6 +188,12 @@ const PetDetailsPage = () => {
           <div className="space-y-3">
             <PetStatusBadge status={pet.status} />
             <h1 className="text-3xl sm:text-4xl">{pet.name}</h1>
+            {/* "Pending" reads like "taken"; applications are still open. */}
+            {!isOwner && pet.status === 'pending' && (
+              <p className="text-sm text-muted-foreground">
+                {t('statusHint.pending')}
+              </p>
+            )}
             <PetFacts pet={pet} />
           </div>
 

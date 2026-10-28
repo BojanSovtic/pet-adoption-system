@@ -178,7 +178,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
       <h2 className="text-xl">{t('form.title', { name: pet.name })}</h2>
 
       <div className="space-y-2">
-        <Label htmlFor="application-message">
+        <Label htmlFor="application-message" required>
           {t('form.message', { name: pet.name })}
         </Label>
         <p
@@ -197,6 +197,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
           }}
           maxLength={APPLICATION_MESSAGE_MAX_LENGTH}
           rows={5}
+          required
           aria-invalid={Boolean(fieldError)}
           aria-describedby={
             fieldError
