@@ -22,9 +22,9 @@ import {
   PET_SPECIES,
   type CreatePetInput,
   type Pet,
-  type PetCompatibilityTarget,
 } from '@pet-adoption/models';
 
+import { FieldError } from '@/components/field-error';
 import { PageHeader } from '@/components/page-header';
 import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
@@ -34,10 +34,8 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 
 import { ApiError } from '../../../lib/api-client';
-import {
-  getErrorMessage,
-  getFieldErrors,
-} from '../../../lib/get-error-message';
+import { getErrorMessage } from '../../../lib/get-error-message';
+import { useFormValidation } from '../../../lib/use-form-validation';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
@@ -116,11 +114,6 @@ const toPetInput = ({
   compatibility: { children, dogs, cats },
 });
 
-const isCompatibilityField = (
-  field: FieldName,
-): field is PetCompatibilityTarget =>
-  (PET_COMPATIBILITY_TARGETS as readonly string[]).includes(field);
-
 // A native legend sits on the fieldset border; floating it puts it inside
 // the card like a heading (the content after it uses `clear-both`).
 const legendClassName = 'float-left mb-4 w-full text-lg font-semibold';
@@ -146,13 +139,6 @@ const getMainImageId = (
   return undefined;
 };
 
-const FieldError = ({ id, message }: { id: string; message?: string }) =>
-  message ? (
-    <p id={id} className="text-sm text-destructive">
-      {message}
-    </p>
-  ) : null;
-
 const PetFormPage = () => {
   const { t } = useTranslation('pets');
   const { t: tCommon } = useTranslation('common');
@@ -164,9 +150,6 @@ const PetFormPage = () => {
   const { data: currentUser, isPending: isUserPending } = useCurrentUser();
 
   const [values, setValues] = useState<FormValues>(initialValues);
-  const [fieldErrors, setFieldErrors] = useState<
-    Partial<Record<FieldName, string>>
-  >({});
   const [imageChange, setImageChange] =
     useState<PetImagesChange>(NO_IMAGE_CHANGE);
 
@@ -188,24 +171,6 @@ const PetFormPage = () => {
     },
     enabled: isEditing,
   });
-
-  useEffect(() => {
-    if (!existingPet) {
-      return;
-    }
-
-    setValues({
-      name: existingPet.name,
-      species: existingPet.species,
-      age: String(existingPet.age),
-      description: existingPet.description,
-      sex: existingPet.sex,
-      breed: existingPet.breed,
-      ...existingPet.compatibility,
-      aloneTime: existingPet.aloneTime,
-    });
-    setFieldErrors({});
-  }, [existingPet]);
 
   const mutation = useMutation({
     meta: { skipGlobalErrorToast: true },
@@ -267,54 +232,55 @@ const PetFormPage = () => {
     },
   });
 
+  const validation = useFormValidation({
+    schema: petFormSchema,
+    values,
+    serverError: mutation.error,
+    translate: (key) => t(key),
+  });
+  const { reset: resetValidation } = validation;
+
+  useEffect(() => {
+    if (!existingPet) {
+      return;
+    }
+
+    setValues({
+      name: existingPet.name,
+      species: existingPet.species,
+      age: String(existingPet.age),
+      description: existingPet.description,
+      sex: existingPet.sex,
+      breed: existingPet.breed,
+      ...existingPet.compatibility,
+      aloneTime: existingPet.aloneTime,
+    });
+    resetValidation();
+  }, [existingPet, resetValidation]);
+
   const updateField = (field: FieldName, value: string) => {
-    setValues((current) => ({ ...current, [field]: value }));
-    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    const nextValues = { ...values, [field]: value };
+    setValues(nextValues);
+    validation.fieldChanged(field, nextValues);
+    // Clears the form-level error; server field errors are kept per field.
     mutation.reset();
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFieldErrors({});
     mutation.reset();
 
-    const result = petFormSchema.safeParse(values);
+    const data = validation.validateForSubmit();
 
-    if (!result.success) {
-      const errors: Partial<Record<FieldName, string>> = {};
-
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as FieldName;
-
-        // A translation key; translated on render so a language change applies.
-        if (!errors[field]) {
-          errors[field] = issue.message;
-        }
-      }
-
-      setFieldErrors(errors);
-      return;
+    if (data) {
+      // Always send the full pet (PUT replaces it); photos are saved separately.
+      mutation.mutate({ input: toPetInput(data), images: imageChange });
     }
-
-    // Always send the full pet (PUT replaces it); photos are saved separately.
-    mutation.mutate({ input: toPetInput(result.data), images: imageChange });
   };
 
-  // Server-side validation errors are derived from the mutation, so they are
-  // cleared automatically by `mutation.reset()`.
-  const serverFieldErrors = getFieldErrors(mutation.error);
+  const getFieldError = validation.getError;
 
-  const getFieldError = (field: FieldName) => {
-    const key = fieldErrors[field];
-    // The API reports nested fields with their path ("compatibility.dogs").
-    const serverField = isCompatibilityField(field)
-      ? `compatibility.${field}`
-      : field;
-
-    return key ? t(key) : serverFieldErrors[serverField];
-  };
-
-  // Props shared by every control: value, change handler and error wiring.
+  // Props shared by every control: value, handlers and error wiring.
   const controlProps = (field: FieldName, describedBy?: string) => {
     const error = getFieldError(field);
     const ids = [describedBy, error ? `${field}-error` : undefined]
@@ -325,6 +291,7 @@ const PetFormPage = () => {
       id: field,
       name: field,
       value: values[field],
+      onBlur: () => validation.fieldBlurred(field),
       'aria-invalid': Boolean(error),
       'aria-describedby': ids || undefined,
     };
@@ -405,7 +372,12 @@ const PetFormPage = () => {
         description={t('form.subtitle')}
       />
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-8">
+      <form
+        ref={validation.formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-8"
+      >
         <RequiredFieldsNote />
 
         <fieldset className="rounded-lg border bg-card p-6 shadow-card">

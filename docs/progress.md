@@ -102,6 +102,33 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
+## Form validation UX (2026-10-28)
+
+- **Shared behaviour** for login, register, the pet create/edit form and the adoption application (rules in design-system.md, "Form validation and errors"):
+  - submit stays enabled when invalid and is disabled only while sending;
+  - no field errors before the first submit;
+  - a failed submit focuses the first invalid field, scrolling only if it's off-screen, with no smooth scrolling. Server `VALIDATION_FAILED` field errors are focused the same way;
+  - after the first submit, errors clear as soon as the field is valid, and new ones show on blur;
+  - editing the password re-checks the confirmation.
+- **Server field errors** are now cleared per field. Before, any edit cleared all of them through `mutation.reset()`. The form-level API message still clears on any edit, as before.
+- **New:** `lib/use-form-validation.ts` (no `flushSync`: a focus-request counter and an effect run after the errors render), `lib/focus-first-invalid-field.ts`, and `components/field-error.tsx`. The duplicated `getFormErrors` and the local `FieldError` were removed.
+- **Auth `FormField`** now renders the shared `Input`: global focus outline (no more `outline-none`), the same height, and the same invalid style as the other forms.
+- **Found, not changed:** the pet form mapped API errors to `compatibility.<target>`, but `getFieldErrors` groups by top-level field (`compatibility`), so those errors never reached a select. They only show as the form-level message, as before. That mapping was removed as dead code.
+- **Tests:** web +21:
+  - focus helper (7);
+  - hook (8): timing, blur, dependent field, server errors, refocus;
+  - login (2): server field error focus and per-field clearing, button disabled only while pending;
+  - register (2);
+  - pet form (2): client and server focus;
+  - application: focus assertion added.
+
+  E2E +1 (`form-validation.spec.ts`): phone viewport, empty name, Create clicked at the bottom → Name focused and fully in view.
+- **Checks:**
+  - web lint, typecheck and test (183 passed);
+  - E2E `form-validation`, `auth` and `adoption-application`. In a combined run, "a visitor can register" once timed out waiting for the API (5 parallel workers with production Argon2), then passed when rerun alone.
+  - `router.spec.tsx` ("signing out leaves a signed-in-only page") failed once under full-suite load (two "Register" links) and passed 3/3 alone. Both are timing flakes for P0-10 (test reliability), not caused by this change.
+- **Not verified by hand:** keyboard and screen-reader behaviour in a real browser (NVDA/VoiceOver), and the edit form on a phone.
+
 ## Ownership badge, confirmation dialog, main photo (2026-10-28)
 
 - **"Your pet" badge** on pet cards for the signed-in owner (`isPetOwner` + the cached current user; no extra requests, no API change).
@@ -113,7 +140,7 @@ Verified by passing tests or by reading the code.
 - **Blue palette:** `styles/tokens.css` now uses a blue brand colour (`#2368bd`) and cool neutrals; success, warning and destructive are unchanged. All pairs re-checked for WCAG AA. Only tokens changed, no component colours.
 - **Conventions** (recorded in `CLAUDE.md`, "UI conventions"): pointer cursor on clickable controls (shared rule in `styles/base.css`), `*` on required fields (`<Label required>`, `FormField required`, `RequiredFieldsNote`), and contextual hints.
 - **Applied to:** login, register (plus an "At least 8 characters." password hint), the pet form (name, species, age, description), the adoption message, and a "you can still apply" hint for pending pets on the details page (not shown to the owner). Admin forms have only optional fields.
-- **Left for later:** a keyboard- and touch-friendly tooltip primitive (none exists yet); explaining "Pending" on pet cards; the auth `FormField` still uses its own input classes instead of `Input`.
+- **Left for later:** a keyboard- and touch-friendly tooltip primitive (none exists yet); explaining "Pending" on pet cards; ~~the auth `FormField` still uses its own input classes instead of `Input`~~ (done 2026-10-28, "Form validation UX").
 
 ## Fewer environments (2026-10-28)
 

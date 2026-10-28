@@ -1,5 +1,7 @@
 import type { ComponentProps } from 'react';
 
+import { FieldError } from '@/components/field-error';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type FormFieldProps = ComponentProps<'input'> & {
@@ -9,9 +11,6 @@ type FormFieldProps = ComponentProps<'input'> & {
   hint?: string;
   error?: string;
 };
-
-const inputClassName =
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 const FormField = ({
   id,
@@ -36,20 +35,15 @@ const FormField = ({
           {hint}
         </p>
       )}
-      <input
+      <Input
         id={id}
         name={id}
         required={required}
         aria-invalid={Boolean(error)}
         aria-describedby={describedBy}
-        className={inputClassName}
         {...inputProps}
       />
-      {error && (
-        <p id={errorId} className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      <FieldError id={errorId} message={error} />
     </div>
   );
 };

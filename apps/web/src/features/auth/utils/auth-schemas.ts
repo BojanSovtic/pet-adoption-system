@@ -47,18 +47,3 @@ export const registerFormSchema = z
       when: () => true,
     },
   );
-
-/** Maps zod issues to `{ field: translationKey }`, first issue per field. */
-export const getFormErrors = (error: z.ZodError): Record<string, string> => {
-  const errors: Record<string, string> = {};
-
-  for (const issue of error.issues) {
-    const field = String(issue.path[0]);
-
-    if (!errors[field]) {
-      errors[field] = issue.message;
-    }
-  }
-
-  return errors;
-};

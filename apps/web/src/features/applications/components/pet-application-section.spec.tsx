@@ -155,6 +155,11 @@ describe('PetApplicationSection', () => {
       await screen.findByText('Please write a short message.'),
     ).toBeTruthy();
     expect(submitApplication).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByLabelText('Why would you like to adopt Milo?'),
+      );
+    });
 
     fireEvent.change(
       screen.getByLabelText('Why would you like to adopt Milo?'),

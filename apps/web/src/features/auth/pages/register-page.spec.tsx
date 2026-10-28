@@ -104,6 +104,39 @@ describe('RegisterPage', () => {
     expect(register).not.toHaveBeenCalled();
   });
 
+  it('keeps the submit button enabled on an empty form and focuses the first invalid field', async () => {
+    renderRegisterPage();
+    await screen.findByLabelText('Confirm password');
+    const button = screen.getByRole('button', { name: 'Create account' });
+
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    // No errors before the first attempt, even after leaving a field.
+    fireEvent.focusOut(screen.getByLabelText('Name'));
+    expect(screen.queryByText('Name is required.')).toBeNull();
+
+    submit();
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name'));
+    });
+  });
+
+  it('shows a new mismatch when the password field is left, not while typing', async () => {
+    renderRegisterPage();
+    await screen.findByLabelText('Confirm password');
+
+    fillForm('correct horse', 'correct horse');
+    type('Name', '');
+    submit();
+    await screen.findByText('Name is required.');
+
+    type('Password', 'correct horse battery');
+    expect(screen.queryByText('Passwords do not match.')).toBeNull();
+
+    fireEvent.focusOut(screen.getByLabelText('Password'));
+    expect(screen.getByText('Passwords do not match.')).toBeTruthy();
+  });
+
   it('blocks submission when the passwords do not match', async () => {
     renderRegisterPage();
     await screen.findByLabelText('Confirm password');

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
@@ -8,15 +8,13 @@ import { PASSWORD_MIN_LENGTH, type RegisterInput } from '@pet-adoption/models';
 import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 
-import {
-  getErrorMessage,
-  getFieldErrors,
-} from '../../../lib/get-error-message';
+import { getErrorMessage } from '../../../lib/get-error-message';
+import { useFormValidation } from '../../../lib/use-form-validation';
 import { setCurrentUser } from '../utils/set-current-user';
 import { register } from '../api/register';
 import { FormField } from '../components/form-field';
 import { useCurrentUser } from '../hooks/use-current-user';
-import { getFormErrors, registerFormSchema } from '../utils/auth-schemas';
+import { registerFormSchema } from '../utils/auth-schemas';
 
 type RegisterValues = {
   name: string;
@@ -37,7 +35,6 @@ const RegisterPage = () => {
     password: '',
     confirmPassword: '',
   });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
     meta: { skipGlobalErrorToast: true },
@@ -48,6 +45,15 @@ const RegisterPage = () => {
       toast.success(t('register.success', { name: user.name }));
       navigate('/pets', { replace: true });
     },
+  });
+
+  const validation = useFormValidation({
+    schema: registerFormSchema,
+    values,
+    serverError: mutation.error,
+    // Editing the password can fix or cause a mismatch.
+    dependentFields: { password: ['confirmPassword'] },
+    translate: (key) => t(key, { min: PASSWORD_MIN_LENGTH }),
   });
 
   // Render nothing until the session is known, so a signed-in user is
@@ -61,13 +67,10 @@ const RegisterPage = () => {
   }
 
   const updateField = (field: keyof RegisterValues, value: string) => {
-    setValues((current) => ({ ...current, [field]: value }));
-    setFieldErrors((current) => ({
-      ...current,
-      [field]: '',
-      // Editing either password can resolve a mismatch.
-      ...(field === 'password' && { confirmPassword: '' }),
-    }));
+    const nextValues = { ...values, [field]: value };
+    setValues(nextValues);
+    validation.fieldChanged(field, nextValues);
+    // Clears the form-level error; server field errors are kept per field.
     mutation.reset();
   };
 
@@ -75,25 +78,26 @@ const RegisterPage = () => {
     event.preventDefault();
     mutation.reset();
 
-    const result = registerFormSchema.safeParse(values);
+    const data = validation.validateForSubmit();
 
-    if (!result.success) {
-      // Translation keys; translated on render so a language change applies.
-      setFieldErrors(getFormErrors(result.error));
+    if (!data) {
       return;
     }
 
-    setFieldErrors({});
     // Only the API's fields: the confirmation stays in the form.
-    const { name, email, password } = result.data;
+    const { name, email, password } = data;
     mutation.mutate({ name, email, password });
   };
 
-  const serverFieldErrors = getFieldErrors(mutation.error);
-  const getFieldError = (field: keyof RegisterValues) =>
-    (fieldErrors[field] &&
-      t(fieldErrors[field], { min: PASSWORD_MIN_LENGTH })) ||
-    serverFieldErrors[field];
+  // Props shared by every field: value, handlers and error.
+  const fieldProps = (field: keyof RegisterValues) => ({
+    id: field,
+    value: values[field],
+    onChange: (event: ChangeEvent<HTMLInputElement>) =>
+      updateField(field, event.target.value),
+    onBlur: () => validation.fieldBlurred(field),
+    error: validation.getError(field),
+  });
 
   const errorMessage = mutation.error
     ? getErrorMessage(mutation.error, t('register.error'))
@@ -105,53 +109,44 @@ const RegisterPage = () => {
         {t('register.title')}
       </h1>
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+      <form
+        ref={validation.formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-6"
+      >
         <RequiredFieldsNote />
 
         <FormField
-          id="name"
+          {...fieldProps('name')}
           autoComplete="name"
           required
           label={t('fields.name')}
-          value={values.name}
-          onChange={(event) => updateField('name', event.target.value)}
-          error={getFieldError('name')}
         />
 
         <FormField
-          id="email"
+          {...fieldProps('email')}
           type="email"
           autoComplete="email"
           required
           label={t('fields.email')}
-          value={values.email}
-          onChange={(event) => updateField('email', event.target.value)}
-          error={getFieldError('email')}
         />
 
         <FormField
-          id="password"
+          {...fieldProps('password')}
           type="password"
           autoComplete="new-password"
           required
           label={t('fields.password')}
           hint={t('hints.password', { min: PASSWORD_MIN_LENGTH })}
-          value={values.password}
-          onChange={(event) => updateField('password', event.target.value)}
-          error={getFieldError('password')}
         />
 
         <FormField
-          id="confirmPassword"
+          {...fieldProps('confirmPassword')}
           type="password"
           autoComplete="new-password"
           required
           label={t('fields.confirmPassword')}
-          value={values.confirmPassword}
-          onChange={(event) =>
-            updateField('confirmPassword', event.target.value)
-          }
-          error={getFieldError('confirmPassword')}
         />
 
         {errorMessage && (

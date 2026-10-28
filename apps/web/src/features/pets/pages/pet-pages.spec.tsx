@@ -308,6 +308,48 @@ describe('PetFormPage', () => {
     });
   });
 
+  it('focuses the first invalid field when saving fails validation', async () => {
+    vi.mocked(updatePet).mockClear();
+    renderAt('/pets/pet-1/edit', owner);
+    const description = await screen.findByLabelText('Description');
+    const age = screen.getByLabelText('Age (years)');
+
+    fireEvent.change(description, { target: { value: '   ' } });
+    fireEvent.change(age, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    // Age comes before Description on the page.
+    expect(await screen.findByText('Age is required.')).toBeTruthy();
+    expect(screen.getByText('Description is required.')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(age));
+    expect(screen.getByLabelText('Name').getAttribute('aria-invalid')).toBe(
+      'false',
+    );
+    expect(updatePet).not.toHaveBeenCalled();
+  });
+
+  it('focuses a field the API rejected', async () => {
+    vi.mocked(updatePet).mockRejectedValue(
+      new ApiError(400, 'VALIDATION_FAILED', [
+        { field: 'description', code: 'too_big' },
+      ]),
+    );
+    renderAt('/pets/pet-1/edit', owner);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Save changes' }),
+    );
+
+    const description = screen.getByLabelText('Description');
+    expect(
+      await screen.findByText('This value is too long or too large.'),
+    ).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(description));
+    expect(description.getAttribute('aria-describedby')).toBe(
+      'description-error',
+    );
+  });
+
   it('keeps the list state through edit and save, for "Back to pets"', async () => {
     vi.mocked(getPet).mockResolvedValue(pet);
     vi.mocked(updatePet).mockResolvedValue(pet);

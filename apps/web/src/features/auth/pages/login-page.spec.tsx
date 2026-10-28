@@ -103,6 +103,53 @@ describe('LoginPage', () => {
     );
   });
 
+  it('shows server field errors on their field, focuses it and clears it only when that field is edited', async () => {
+    vi.mocked(login).mockRejectedValue(
+      new ApiError(400, 'VALIDATION_FAILED', [
+        { field: 'email', code: 'invalid_format' },
+      ]),
+    );
+    renderLoginPage();
+
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    const email = screen.getByLabelText('Email');
+    expect(
+      await screen.findByText('This value has an invalid format.'),
+    ).toBeTruthy();
+    expect(email.getAttribute('aria-invalid')).toBe('true');
+    await waitFor(() => expect(document.activeElement).toBe(email));
+
+    // Editing another field keeps the email's message.
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'another password' },
+    });
+    expect(screen.getByText('This value has an invalid format.')).toBeTruthy();
+
+    fireEvent.change(email, { target: { value: 'milo@example.org' } });
+    expect(screen.queryByText('This value has an invalid format.')).toBeNull();
+  });
+
+  it('disables the submit button only while signing in', async () => {
+    // Never settles, so the request stays in progress.
+    vi.mocked(login).mockReturnValue(new Promise(() => undefined));
+    renderLoginPage();
+    await screen.findByLabelText('Email');
+    const button = () =>
+      screen.getByRole('button', {
+        name: /Sign(ing)? in/,
+      }) as HTMLButtonElement;
+
+    // Enabled on the empty, invalid form.
+    expect(button().disabled).toBe(false);
+
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    await waitFor(() => expect(button().disabled).toBe(true));
+    fireEvent.click(button());
+    expect(login).toHaveBeenCalledTimes(1);
+  });
+
   it('stores the user and navigates to the pet list on success', async () => {
     vi.mocked(login).mockResolvedValue(user);
     const { queryClient, router } = renderLoginPage();

@@ -6,14 +6,13 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { APPLICATION_MESSAGE_MAX_LENGTH, type Pet } from '@pet-adoption/models';
 
+import { FieldError } from '@/components/field-error';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-import {
-  getErrorMessage,
-  getFieldErrors,
-} from '../../../lib/get-error-message';
+import { getErrorMessage } from '../../../lib/get-error-message';
+import { useFormValidation } from '../../../lib/use-form-validation';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { isPetOwner } from '../../pets/utils/is-pet-owner';
 import {
@@ -24,11 +23,13 @@ import {
 import { ApplicationActions } from './application-actions';
 import { ApplicationStatusBadge } from './application-status-badge';
 
-const messageSchema = z
-  .string()
-  .trim()
-  .min(1, 'form.messageRequired')
-  .max(APPLICATION_MESSAGE_MAX_LENGTH, 'form.messageTooLong');
+const applicationFormSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .min(1, 'form.messageRequired')
+    .max(APPLICATION_MESSAGE_MAX_LENGTH, 'form.messageTooLong'),
+});
 
 type PetApplicationSectionProps = {
   pet: Pet;
@@ -46,7 +47,6 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   const isOwner = isPetOwner(pet, currentUser);
 
   const [message, setMessage] = useState('');
-  const [messageError, setMessageError] = useState<string>();
 
   // Only the newest application for this pet matters: while one is pending,
   // accepted or rejected, the API allows no newer one, so if the newest is
@@ -67,9 +67,19 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
         queryClient.invalidateQueries({ queryKey: ['pets'] }),
       ]);
       setMessage('');
+      // If the form returns (after a withdrawal), it starts untouched.
+      resetValidation();
       toast.success(t('form.success'));
     },
   });
+
+  const validation = useFormValidation({
+    schema: applicationFormSchema,
+    values: { message },
+    serverError: mutation.error,
+    translate: (key) => t(key),
+  });
+  const { reset: resetValidation } = validation;
 
   if (isUserPending) {
     return null;
@@ -154,27 +164,25 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
     event.preventDefault();
     mutation.reset();
 
-    const result = messageSchema.safeParse(message);
+    const data = validation.validateForSubmit();
 
-    if (!result.success) {
-      // A translation key; translated on render so a language change applies.
-      setMessageError(result.error.issues[0].message);
-      return;
+    if (data) {
+      mutation.mutate(data.message);
     }
-
-    setMessageError(undefined);
-    mutation.mutate(result.data);
   };
 
-  const fieldError = messageError
-    ? t(messageError)
-    : getFieldErrors(mutation.error).message;
+  const fieldError = validation.getError('message');
   const errorMessage = mutation.error
     ? getErrorMessage(mutation.error, t('form.error'))
     : null;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+    <form
+      ref={validation.formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      className="space-y-4"
+    >
       <h2 className="text-xl">{t('form.title', { name: pet.name })}</h2>
 
       <div className="space-y-2">
@@ -192,9 +200,11 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
           value={message}
           onChange={(event) => {
             setMessage(event.target.value);
-            setMessageError(undefined);
+            validation.fieldChanged('message', { message: event.target.value });
+            // Clears the form-level error; field errors are kept per field.
             mutation.reset();
           }}
+          onBlur={() => validation.fieldBlurred('message')}
           maxLength={APPLICATION_MESSAGE_MAX_LENGTH}
           rows={5}
           required
@@ -207,12 +217,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
         />
         <div className="flex items-start justify-between gap-3">
           {fieldError ? (
-            <p
-              id="application-message-error"
-              className="text-sm text-destructive"
-            >
-              {fieldError}
-            </p>
+            <FieldError id="application-message-error" message={fieldError} />
           ) : (
             <span />
           )}

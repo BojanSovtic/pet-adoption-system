@@ -7,15 +7,13 @@ import { toast } from 'sonner';
 import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 
-import {
-  getErrorMessage,
-  getFieldErrors,
-} from '../../../lib/get-error-message';
+import { getErrorMessage } from '../../../lib/get-error-message';
+import { useFormValidation } from '../../../lib/use-form-validation';
 import { setCurrentUser } from '../utils/set-current-user';
 import { login } from '../api/login';
 import { FormField } from '../components/form-field';
 import { useCurrentUser } from '../hooks/use-current-user';
-import { getFormErrors, loginFormSchema } from '../utils/auth-schemas';
+import { loginFormSchema } from '../utils/auth-schemas';
 
 type LoginValues = { email: string; password: string };
 
@@ -47,7 +45,6 @@ const LoginPage = () => {
     email: '',
     password: '',
   });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
     meta: { skipGlobalErrorToast: true },
@@ -57,6 +54,13 @@ const LoginPage = () => {
       toast.success(t('login.success', { name: user.name }));
       navigate(returnPath, { replace: true });
     },
+  });
+
+  const validation = useFormValidation({
+    schema: loginFormSchema,
+    values,
+    serverError: mutation.error,
+    translate: (key) => t(key),
   });
 
   // Render nothing until the session is known, so a signed-in user is
@@ -70,8 +74,10 @@ const LoginPage = () => {
   }
 
   const updateField = (field: keyof LoginValues, value: string) => {
-    setValues((current) => ({ ...current, [field]: value }));
-    setFieldErrors((current) => ({ ...current, [field]: '' }));
+    const nextValues = { ...values, [field]: value };
+    setValues(nextValues);
+    validation.fieldChanged(field, nextValues);
+    // Clears the form-level error; server field errors are kept per field.
     mutation.reset();
   };
 
@@ -79,21 +85,12 @@ const LoginPage = () => {
     event.preventDefault();
     mutation.reset();
 
-    const result = loginFormSchema.safeParse(values);
+    const data = validation.validateForSubmit();
 
-    if (!result.success) {
-      // Translation keys; translated on render so a language change applies.
-      setFieldErrors(getFormErrors(result.error));
-      return;
+    if (data) {
+      mutation.mutate(data);
     }
-
-    setFieldErrors({});
-    mutation.mutate(result.data);
   };
-
-  const serverFieldErrors = getFieldErrors(mutation.error);
-  const getFieldError = (field: keyof LoginValues) =>
-    (fieldErrors[field] && t(fieldErrors[field])) || serverFieldErrors[field];
 
   const errorMessage = mutation.error
     ? getErrorMessage(mutation.error, t('login.error'))
@@ -105,7 +102,12 @@ const LoginPage = () => {
         {t('login.title')}
       </h1>
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+      <form
+        ref={validation.formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-6"
+      >
         <RequiredFieldsNote />
 
         <FormField
@@ -116,7 +118,8 @@ const LoginPage = () => {
           label={t('fields.email')}
           value={values.email}
           onChange={(event) => updateField('email', event.target.value)}
-          error={getFieldError('email')}
+          onBlur={() => validation.fieldBlurred('email')}
+          error={validation.getError('email')}
         />
 
         <FormField
@@ -127,7 +130,8 @@ const LoginPage = () => {
           label={t('fields.password')}
           value={values.password}
           onChange={(event) => updateField('password', event.target.value)}
-          error={getFieldError('password')}
+          onBlur={() => validation.fieldBlurred('password')}
+          error={validation.getError('password')}
         />
 
         {errorMessage && (

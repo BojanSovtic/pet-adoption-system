@@ -29,7 +29,8 @@ The app already used Tailwind CSS 4 + shadcn/ui, with tokens as CSS custom prope
 | `apps/web/src/styles/base.css`        | Document defaults: font, heading weight, global focus outline, selection colour, reduced motion.                               |
 | `apps/web/src/main.tsx`               | Imports the font, then `index.css`.                                                                                            |
 | `apps/web/src/components/ui/`         | Primitives: `button`, `badge`, `card`, `input`, `textarea`, `native-select`, `label`, `skeleton`, `field-control.ts` (shared form-control classes). |
-| `apps/web/src/components/`            | App-level building blocks: `page-header`, `state-message`, `pagination`.                                                       |
+| `apps/web/src/components/`            | App-level building blocks: `page-header`, `state-message`, `pagination`, `field-error`.                                        |
+| `apps/web/src/lib/use-form-validation.ts` | Shared form validation timing, server field errors and focus on failed submit (uses `focus-first-invalid-field.ts`).     |
 | `apps/web/src/features/*/components/` | Feature components (`pet-card`, `pet-status-badge`…).                                                                          |
 
 ## Tokens
@@ -77,7 +78,20 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 - **Unknown answers:** profile facts can be "unknown". Cards and fact tiles leave unknown facts out (no "Unknown" noise); the "Home and lifestyle" list shows them as "Not known yet", so adopters see what still needs asking. Positive answers get a ✓ chip on cards.
 - **Long forms are grouped** into `fieldset`s with a `legend` (e.g. "Basics", "Home and lifestyle"), and related selects (children/dogs/cats) share an inner `fieldset`.
 - **Data lists (admin area) are rows, not tables:** a `Card` holding a `ul.divide-y`, one `li` per record with `flex-wrap`, so they reflow on phones without horizontal scrolling. Filters sit in a `role="search"` panel and live in the URL; section navigation uses `NavLink` tabs (`aria-current="page"`). Per-row actions name their target in the accessible name ("Make admin: Ana") when the visible label repeats on every row. Consequential admin actions use `ConfirmAction` (`features/admin/components/confirm-action.tsx`), a `ConfirmDialog` titled with the row's accessible name, with an optional reason field. Status badges for moderation use `destructive` ("Suspended", "Hidden").
-- **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field, and a character counter when there's a limit.
+- **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field (`FieldError`, linked with `aria-describedby`, `aria-invalid` on the control), and a character counter when there's a limit.
+
+### Form validation and errors
+
+Every form uses `useFormValidation` (`lib/use-form-validation.ts`) with its zod schema, so they all behave the same:
+
+- **Submit stays enabled** while the form is invalid. It's disabled only while the request runs, with the "…ing" label; that also prevents double submits. The API validates everything again; client checks only give faster feedback.
+- **No field errors before the first submit attempt**, even when a field is left.
+- **A failed submit** shows every field error, then focuses the first invalid control in page order (`focusFirstInvalidField`). It scrolls only when that control isn't fully visible, centres it so the label and message show, and never scrolls smoothly. Focus goes to the control, not the message: screen readers read its label, "invalid" and the message (through `aria-describedby`).
+- **After the first attempt:** an error clears on change as soon as the field is valid; a new or different error shows only on blur or the next submit, never while typing. Linked fields are re-checked together (`dependentFields`, e.g. password → confirm password).
+- **Server `VALIDATION_FAILED` with field details:** shown on those fields and focused the same way. Each stays until its own field is edited or the form is submitted again; editing another field doesn't clear it. Other API errors stay as a `role="alert"` message above the submit button and don't move focus.
+- **No live regions on field errors** (they would announce while typing). Only the form-level API error uses `role="alert"`.
+- **Exceptions:** photo-file problems (type, size, count) show as soon as files are picked, and character counters update live.
+- There's no error summary: the forms are short enough that focusing the first invalid field is enough. Consider one (GOV.UK pattern) if a form grows much longer or is split into steps.
 
 ## Responsive layout
 
