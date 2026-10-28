@@ -236,9 +236,9 @@ Accounts: see [Demo data](#demo-data).
 ## Tests
 
 ```sh
-pnpm nx run-many -t lint typecheck test build   # everything CI runs (API tests use an in-memory MongoDB)
+pnpm nx run-many -t lint typecheck test build   # CI's check job (API tests use an in-memory MongoDB)
 pnpm nx test @pet-adoption/api                  # one project's tests
-pnpm nx e2e @pet-adoption/web-e2e               # Playwright end-to-end tests (starts its own servers)
+pnpm nx e2e @pet-adoption/web-e2e               # Playwright E2E against a production build (CI's e2e job; starts its own servers)
 ```
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. The E2E tests are not part of CI yet. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).

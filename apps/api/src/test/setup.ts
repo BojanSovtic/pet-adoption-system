@@ -2,10 +2,15 @@ import { rm } from 'node:fs/promises';
 import { afterAll, afterEach, beforeAll, inject } from 'vitest';
 import mongoose from 'mongoose';
 
+import { enableTestPasswordHashing } from '../auth/password';
 import { resetRateLimits } from '../middleware/rate-limit';
 
 // Runs before the test file imports the app, so `env` picks it up.
 process.env.UPLOADS_DIR = inject('uploadsDir');
+
+// Cheap Argon2 parameters, so concurrent sign-ups can't push tests past their
+// timeout. Production parameters are checked in auth/password.spec.ts.
+enableTestPasswordHashing();
 
 beforeAll(async () => {
   // The in-memory replica set started by global-setup.ts (supports transactions).

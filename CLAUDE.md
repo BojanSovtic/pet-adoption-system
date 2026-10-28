@@ -25,6 +25,7 @@ Before running anything expensive, look at what changed and pick the checks that
 - Don't rerun the full E2E suite for routine, unrelated changes. When skipping it, say why in one line.
 - Rerun a check only after a failure or a further code change.
 - Risk-based means choosing the right tests, not avoiding them: never skip a check a change actually needs.
+- API tests hash passwords with cheap Argon2 parameters (`enableTestPasswordHashing` in `src/test/setup.ts`; refused outside Vitest and in production). Production parameters are pinned in `auth/password.ts` and checked in `password.spec.ts`; E2E uses them too.
 
 ## Architecture
 
@@ -62,7 +63,7 @@ Run tasks through Nx with pnpm:
 pnpm nx run-many -t lint typecheck test   # full check (CI also runs build: .github/workflows/ci.yml)
 pnpm nx test @pet-adoption/api            # uses an in-memory replica set
 pnpm nx test @pet-adoption/api -- src/pets/pet.controller.spec.ts   # one spec (run from the repo root)
-pnpm nx e2e @pet-adoption/web-e2e         # Playwright; starts its own API (:3334, in-memory DB) and web (:4201)
+pnpm nx e2e @pet-adoption/web-e2e         # Playwright; starts its own API (:3334, in-memory DB) and a production build of the web (:4201, dist/e2e/web); failure traces in apps/web-e2e/test-results
 pnpm nx serve @pet-adoption/api           # http://localhost:3333/api
 pnpm nx dev @pet-adoption/web             # http://localhost:4200
 pnpm dev:seed                             # demo data into the dev database (dev API must run)

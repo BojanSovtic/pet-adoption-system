@@ -46,6 +46,10 @@ blob-report/
 .DS_Store
 Thumbs.db
 
+# Office lock files (LibreOffice, Excel) while a document is open
+.~lock.*#
+~$*
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

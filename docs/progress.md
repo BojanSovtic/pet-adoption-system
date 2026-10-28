@@ -447,7 +447,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 ## Next task
 
-0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1, P0-2, P0-3, P0-8 (one API instance) and P0-9 (route error boundary) are done; details in its §6. Next: P0-10 (test reliability; order in its §5). Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/5/6/7.
+0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1, P0-2, P0-3, P0-8 (one API instance) and P0-9 (route error boundary) are done; P0-10 (test reliability) is implemented and needs CI evidence (10 green runs incl. the new E2E job). Details in its §6; order in its §5. Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/5/6/7.
 1. **Finish the manual QA run on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): started 2026-10-28 (ENV-001 passed at `48dad22`). Continue with the smoke suite, then the release (incl. the new UPL-007 and ADMIN cases) and Docker suites, and record each result in `docs/manual-qa-log.csv`.
 2. **Merge `develop` into `master`** (a fast-forward; `master` has no commits of its own) once CI is green for the latest `develop` commit and the QA run has no open failures.
 3. Add screenshots to the README (instructions are in the README).

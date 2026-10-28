@@ -538,7 +538,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   pw["Playwright (Chromium)<br/>apps/web-e2e"]
-  web["Vite dev server<br/>localhost:4201"]
+  web["Production build of the web app<br/>(vite build → dist/e2e/web)<br/>served by vite preview, localhost:4201"]
   api["Real API from source (tsx)<br/>localhost:3334"]
   db[("In-memory MongoDB replica set<br/>127.0.0.1:27031, empty on every run")]
   tmp[("Temporary uploads directory")]
@@ -556,5 +556,7 @@ flowchart LR
 - **Admins in E2E** are created exactly like in production: the test registers a user through the API, then runs the real `admin:grant` command against the run's database (fixed port 27031, `E2E_MONGODB_URI` in `support/config.ts`). There is no test-only way to become an admin.
 
 - **Isolated:** Playwright starts both servers itself (`reuseExistingServer: false`), so dev servers, Docker containers and dev data are never used.
+- **Production build:** the web app is built with the same `vite build` as `nx build` and the web image, with `VITE_API_URL` set to the E2E API, into its own folder (`dist/e2e/web`, so `dist/apps/web` is never replaced). The API runs from source without `NODE_ENV=production`, because production mode needs HTTPS (secure cookie) and a proxy (`trust proxy`); it uses the production Argon2 parameters.
+- **Failure artifacts:** a trace and a screenshot per failed test in `apps/web-e2e/test-results/`; in CI also an HTML report in `apps/web-e2e/playwright-report/`. The CI `e2e` job uploads both only when it fails (14 days). Open a trace with `pnpm exec playwright show-trace <trace.zip>`.
 - **No seed data:** each test creates uniquely named users and pets through the API, then checks the journeys in the UI.
 - **No retries:** login and register share the per-IP rate limit, and retries would add attempts against the same API process.
