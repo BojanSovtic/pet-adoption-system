@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Check, PawPrint } from 'lucide-react';
 import { PET_COMPATIBILITY_TARGETS, type Pet } from '@pet-adoption/models';
 
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
+import { toPetListReturnState } from '../utils/pet-list-params';
 import { PetStatusBadge } from './pet-status-badge';
 
 type PetCardProps = {
@@ -20,6 +21,8 @@ type PetCardProps = {
  */
 const PetCard = ({ pet }: PetCardProps) => {
   const { t } = useTranslation('pets');
+  // The list's page, search and filters, so "Back to pets" can return to them.
+  const location = useLocation();
   // Only confirmed matches become chips; "no" and "not known" are on the details page.
   const goodWith = PET_COMPATIBILITY_TARGETS.filter(
     (target) => pet.compatibility[target] === 'yes',
@@ -59,6 +62,7 @@ const PetCard = ({ pet }: PetCardProps) => {
         <h2 className="text-lg">
           <Link
             to={`/pets/${pet._id}`}
+            state={toPetListReturnState(location.search)}
             className="outline-none after:absolute after:inset-0 hover:text-primary"
           >
             {pet.name}

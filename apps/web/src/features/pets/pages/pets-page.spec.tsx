@@ -174,6 +174,26 @@ describe('PetsPage', () => {
     expect(router.state.location.search).toBe('?page=2');
   });
 
+  it('remembers the list state when a pet is opened', async () => {
+    vi.mocked(getPets).mockResolvedValue(
+      page({ page: 2, totalItems: 30, totalPages: 3 }),
+    );
+    const router = renderPage('/pets?species=dog&page=2');
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Pet 1' }));
+
+    expect(await screen.findByText('Pet details')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/pets/pet-1');
+    expect(router.state.location.state).toEqual({
+      petListSearch: '?species=dog&page=2',
+    });
+
+    // The browser Back button still returns to the same page.
+    await router.navigate(-1);
+    expect(await screen.findByText('Page 2 of 3')).toBeTruthy();
+    expect(router.state.location.search).toBe('?species=dog&page=2');
+  });
+
   it('distinguishes "no pets yet" from "no matches"', async () => {
     vi.mocked(getPets).mockResolvedValue(
       page({ items: [], totalItems: 0, totalPages: 0 }),

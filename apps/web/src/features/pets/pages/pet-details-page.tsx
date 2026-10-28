@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, PawPrint, SearchX, TriangleAlert } from 'lucide-react';
 import type { Pet } from '@pet-adoption/models';
@@ -22,13 +22,16 @@ import { PetGallery } from '../components/pet-gallery';
 import { PetLifestyle } from '../components/pet-lifestyle';
 import { PetStatusBadge } from '../components/pet-status-badge';
 import { isPetOwner } from '../utils/is-pet-owner';
+import { getPetListReturnPath } from '../utils/pet-list-params';
 
+/** Returns to the list page, search and filters the pet was opened from. */
 const BackToPets = () => {
   const { t } = useTranslation('pets');
+  const location = useLocation();
 
   return (
     <Button asChild variant="ghost" size="sm" className="-ml-3">
-      <Link to="/pets">
+      <Link to={getPetListReturnPath(location.state)}>
         <ArrowLeft aria-hidden="true" />
         {t('backToPets')}
       </Link>
@@ -92,6 +95,7 @@ const PetDetailsPage = () => {
   const { id } = useParams();
   const { t } = useTranslation('pets');
   const { data: currentUser } = useCurrentUser();
+  const location = useLocation();
 
   const {
     data: pet,
@@ -157,6 +161,8 @@ const PetDetailsPage = () => {
   }
 
   const isOwner = isPetOwner(pet, currentUser);
+  // Passed on to the edit page, so "Back to pets" still works after a save.
+  const listReturnState = location.state;
 
   return (
     <section className="space-y-6">
@@ -198,7 +204,9 @@ const PetDetailsPage = () => {
           {isOwner && (
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline">
-                <Link to={`/pets/${pet._id}/edit`}>{t('form.editTitle')}</Link>
+                <Link to={`/pets/${pet._id}/edit`} state={listReturnState}>
+                  {t('form.editTitle')}
+                </Link>
               </Button>
               <DeletePetButton pet={pet} />
             </div>

@@ -72,7 +72,7 @@ const profiledPet: Pet = {
   aloneTime: 'part-day',
 };
 
-const renderAt = (path: string, user: User | null) => {
+const renderAt = (path: string, user: User | null, state?: unknown) => {
   vi.mocked(getCurrentUser).mockResolvedValue(user);
 
   const router = createMemoryRouter(
@@ -81,8 +81,9 @@ const renderAt = (path: string, user: User | null) => {
       { path: '/pets/:id/edit', element: <PetFormPage /> },
       { path: '/pets/new', element: <PetFormPage /> },
       { path: '/login', element: <p>Login page</p> },
+      { path: '/pets', element: <p>Pet list</p> },
     ],
-    { initialEntries: [path] },
+    { initialEntries: [{ pathname: path, state }] },
   );
 
   render(
@@ -101,6 +102,29 @@ const renderAt = (path: string, user: User | null) => {
 describe('PetDetailsPage', () => {
   beforeEach(() => {
     vi.mocked(getPet).mockResolvedValue(pet);
+  });
+
+  it('goes back to the list page, search and filters it was opened from', async () => {
+    const router = renderAt('/pets/pet-1', null, {
+      petListSearch: '?search=mil&species=dog&page=2',
+    });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Back to pets' }));
+
+    expect(await screen.findByText('Pet list')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/pets');
+    expect(router.state.location.search).toBe(
+      '?search=mil&species=dog&page=2',
+    );
+  });
+
+  it('goes back to the first list page when opened directly', async () => {
+    const router = renderAt('/pets/pet-1', null);
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Back to pets' }));
+
+    expect(await screen.findByText('Pet list')).toBeTruthy();
+    expect(router.state.location.search).toBe('');
   });
 
   it('shows edit and delete to the owner', async () => {
@@ -266,5 +290,25 @@ describe('PetFormPage', () => {
         aloneTime: 'part-day',
       });
     });
+  });
+
+  it('keeps the list state through edit and save, for "Back to pets"', async () => {
+    vi.mocked(getPet).mockResolvedValue(pet);
+    vi.mocked(updatePet).mockResolvedValue(pet);
+    const router = renderAt('/pets/pet-1', owner, { petListSearch: '?page=2' });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit pet' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Save changes' }),
+    );
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/pets/pet-1');
+    });
+    expect(
+      (await screen.findByRole('link', { name: 'Back to pets' })).getAttribute(
+        'href',
+      ),
+    ).toBe('/pets?page=2');
   });
 });

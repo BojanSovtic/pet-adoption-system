@@ -75,3 +75,36 @@ export const hasActiveFilters = ({
   species,
   status,
 }: PetListParams): boolean => Boolean(search || species || status);
+
+/**
+ * Router state a pet link carries so "Back to pets" returns to the same list
+ * page, search and filters. Kept in history state, not the details URL, so
+ * shared details links stay clean.
+ */
+export type PetListReturnState = { petListSearch: string };
+
+export const toPetListReturnState = (search: string): PetListReturnState => ({
+  petListSearch: search,
+});
+
+/**
+ * Where "Back to pets" leads. Without state (a direct or shared link, or a
+ * link from another page) it is the first list page. The saved query goes
+ * through the normal parser, so only known, valid params are kept.
+ */
+export const getPetListReturnPath = (state: unknown): string => {
+  const search =
+    typeof state === 'object' && state !== null && 'petListSearch' in state
+      ? state.petListSearch
+      : undefined;
+
+  if (typeof search !== 'string') {
+    return '/pets';
+  }
+
+  const query = toPetListSearchParams(
+    parsePetListParams(new URLSearchParams(search)),
+  ).toString();
+
+  return query ? `/pets?${query}` : '/pets';
+};

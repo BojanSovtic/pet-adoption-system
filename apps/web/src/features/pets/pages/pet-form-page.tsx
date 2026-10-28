@@ -226,7 +226,8 @@ const PetFormPage = () => {
         );
       }
 
-      navigate(`/pets/${pet._id}`);
+      // Keep the list state the edit page was opened with (see "Back to pets").
+      navigate(`/pets/${pet._id}`, { state: location.state });
     },
   });
 
@@ -347,7 +348,9 @@ const PetFormPage = () => {
         <p>{t('form.notOwner')}</p>
 
         <Button asChild variant="outline">
-          <Link to={`/pets/${existingPet._id}`}>{t('form.cancel')}</Link>
+          <Link to={`/pets/${existingPet._id}`} state={location.state}>
+            {t('form.cancel')}
+          </Link>
         </Button>
       </section>
     );
@@ -547,7 +550,10 @@ const PetFormPage = () => {
           </Button>
 
           <Button asChild variant="outline">
-            <Link to={isEditing ? `/pets/${id}` : '/pets'}>
+            <Link
+              to={isEditing ? `/pets/${id}` : '/pets'}
+              state={isEditing ? location.state : undefined}
+            >
               {t('form.cancel')}
             </Link>
           </Button>

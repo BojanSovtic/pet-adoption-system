@@ -40,7 +40,7 @@ const LoginPage = () => {
   const location = useLocation();
   const returnPath = getReturnPath(location.state);
   const queryClient = useQueryClient();
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isPending: isUserPending } = useCurrentUser();
 
   const [values, setValues] = useState<LoginValues>({
     email: '',
@@ -57,6 +57,12 @@ const LoginPage = () => {
       navigate(returnPath, { replace: true });
     },
   });
+
+  // Render nothing until the session is known, so a signed-in user is
+  // redirected without first seeing the form flash.
+  if (isUserPending) {
+    return null;
+  }
 
   if (currentUser) {
     return <Navigate to={returnPath} replace />;

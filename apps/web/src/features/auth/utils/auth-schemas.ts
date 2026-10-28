@@ -22,18 +22,31 @@ export const loginFormSchema = z.object({
     .max(PASSWORD_MAX_LENGTH, 'validation.passwordTooLong'),
 });
 
-export const registerFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'validation.nameRequired')
-    .max(USER_NAME_MAX_LENGTH, 'validation.nameTooLong'),
-  email: emailSchema,
-  password: z
-    .string()
-    .min(PASSWORD_MIN_LENGTH, 'validation.passwordTooShort')
-    .max(PASSWORD_MAX_LENGTH, 'validation.passwordTooLong'),
-});
+// "confirmPassword" is checked here only; it is never sent to the API.
+export const registerFormSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'validation.nameRequired')
+      .max(USER_NAME_MAX_LENGTH, 'validation.nameTooLong'),
+    email: emailSchema,
+    password: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, 'validation.passwordTooShort')
+      .max(PASSWORD_MAX_LENGTH, 'validation.passwordTooLong'),
+    confirmPassword: z.string().min(1, 'validation.confirmPasswordRequired'),
+  })
+  .refine(
+    ({ password, confirmPassword }) =>
+      !confirmPassword || password === confirmPassword,
+    {
+      path: ['confirmPassword'],
+      message: 'validation.passwordsMismatch',
+      // Report a mismatch even while another field still has an error.
+      when: () => true,
+    },
+  );
 
 /** Maps zod issues to `{ field: translationKey }`, first issue per field. */
 export const getFormErrors = (error: z.ZodError): Record<string, string> => {

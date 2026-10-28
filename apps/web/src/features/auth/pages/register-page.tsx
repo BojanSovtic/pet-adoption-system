@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PASSWORD_MIN_LENGTH } from '@pet-adoption/models';
+import { PASSWORD_MIN_LENGTH, type RegisterInput } from '@pet-adoption/models';
 
 import { Button } from '@/components/ui/button';
 
@@ -17,24 +17,30 @@ import { FormField } from '../components/form-field';
 import { useCurrentUser } from '../hooks/use-current-user';
 import { getFormErrors, registerFormSchema } from '../utils/auth-schemas';
 
-type RegisterValues = { name: string; email: string; password: string };
+type RegisterValues = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 const RegisterPage = () => {
   const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isPending: isUserPending } = useCurrentUser();
 
   const [values, setValues] = useState<RegisterValues>({
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
     meta: { skipGlobalErrorToast: true },
-    mutationFn: (input: RegisterValues) => register(input),
+    mutationFn: (input: RegisterInput) => register(input),
     onSuccess: (user) => {
       // The API signs the user in as part of registration.
       setCurrentUser(queryClient, user);
@@ -43,13 +49,24 @@ const RegisterPage = () => {
     },
   });
 
+  // Render nothing until the session is known, so a signed-in user is
+  // redirected without first seeing the form flash.
+  if (isUserPending) {
+    return null;
+  }
+
   if (currentUser) {
     return <Navigate to="/pets" replace />;
   }
 
   const updateField = (field: keyof RegisterValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
-    setFieldErrors((current) => ({ ...current, [field]: '' }));
+    setFieldErrors((current) => ({
+      ...current,
+      [field]: '',
+      // Editing either password can resolve a mismatch.
+      ...(field === 'password' && { confirmPassword: '' }),
+    }));
     mutation.reset();
   };
 
@@ -66,7 +83,9 @@ const RegisterPage = () => {
     }
 
     setFieldErrors({});
-    mutation.mutate(result.data);
+    // Only the API's fields: the confirmation stays in the form.
+    const { name, email, password } = result.data;
+    mutation.mutate({ name, email, password });
   };
 
   const serverFieldErrors = getFieldErrors(mutation.error);
@@ -113,6 +132,18 @@ const RegisterPage = () => {
           value={values.password}
           onChange={(event) => updateField('password', event.target.value)}
           error={getFieldError('password')}
+        />
+
+        <FormField
+          id="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          label={t('fields.confirmPassword')}
+          value={values.confirmPassword}
+          onChange={(event) =>
+            updateField('confirmPassword', event.target.value)
+          }
+          error={getFieldError('confirmPassword')}
         />
 
         {errorMessage && (
