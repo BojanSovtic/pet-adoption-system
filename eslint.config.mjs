@@ -10,7 +10,7 @@ export default [
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
       '**/test-output',
-      '**/out-tsc'
+      '**/out-tsc',
     ],
   },
   {
@@ -42,7 +42,5 @@ export default [
       '**/*.cjs',
       '**/*.mjs',
     ],
-    // Override or add rules here
-    rules: {},
   },
 ];

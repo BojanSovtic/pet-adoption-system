@@ -1,0 +1,186 @@
+{
+  "title": "Ljubimci",
+  "subtitle": "Upoznaj pse, mačke i druge životinje koje čekaju novi dom.",
+  "loading": "Učitavanje ljubimaca...",
+  "error": "Došlo je do greške pri učitavanju ljubimaca.",
+  "empty": "Trenutno nema dostupnih ljubimaca.",
+  "emptyHint": "Navrati uskoro ili objavi ljubimca kome je potreban dom.",
+  "age_one": "{{count}} godina",
+  "age_few": "{{count}} godine",
+  "age_other": "{{count}} godina",
+  "species": {
+    "dog": "Pas",
+    "cat": "Mačka",
+    "rabbit": "Kunić",
+    "bird": "Ptica",
+    "rodent": "Glodar",
+    "other": "Drugo"
+  },
+  "status": {
+    "available": "Dostupan",
+    "pending": "Na čekanju",
+    "adopted": "Udomljen"
+  },
+  "noImage": "Slika nije dostupna",
+  "backToPets": "Nazad na ljubimce",
+  "notFound": "Ljubimac nije pronađen",
+  "searchPlaceholder": "Pretraži ljubimce po imenu...",
+  "filterBySpecies": "Filtriraj po vrsti",
+  "speciesFilter": {
+    "all": "Sve vrste"
+  },
+  "noMatchingPets": "Nema ljubimaca koji odgovaraju pretrazi.",
+  "noMatchingPetsHint": "Pokušaj sa drugim imenom ili ukloni neke filtere.",
+  "filterByStatus": "Filtriraj po statusu",
+  "statusFilter": {
+    "all": "Svi statusi"
+  },
+  "form": {
+    "title": "Dodaj ljubimca",
+    "subtitle": "Unesi podatke o ljubimcu kojeg želiš da ponudiš za udomljavanje.",
+    "fields": {
+      "name": "Ime",
+      "species": "Vrsta",
+      "age": "Starost (godine)",
+      "description": "Opis",
+      "images": "Fotografije (opciono)",
+      "sex": "Pol",
+      "breed": "Rasa ili vrsta (nije obavezno)",
+      "goodWith": "Slaže se sa",
+      "aloneTime": "Može da ostane sam"
+    },
+    "placeholders": {
+      "name": "npr. Bubi",
+      "age": "npr. 3",
+      "description": "Opiši ljubimca potencijalnim udomiteljima..."
+    },
+    "submit": "Dodaj ljubimca",
+    "submitting": "Dodavanje...",
+    "cancel": "Otkaži",
+    "submitError": "Ljubimac nije dodat. Pokušaj ponovo.",
+    "validation": {
+      "nameRequired": "Ime je obavezno.",
+      "nameTooLong": "Ime može imati najviše 100 karaktera.",
+      "ageRequired": "Starost je obavezna.",
+      "ageInvalid": "Starost mora biti nenegativan ceo broj.",
+      "descriptionRequired": "Opis je obavezan.",
+      "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
+      "imageType": "Izaberi JPEG, PNG ili WebP sliku.",
+      "imageTooLarge": "Fotografija može imati najviše 5 MB.",
+      "tooManyImages": "Nije dodato: ljubimac može imati najviše {{max}} fotografija.",
+      "breedTooLong": "Rasa može imati najviše 60 znakova."
+    },
+    "editTitle": "Izmeni ljubimca",
+    "saveChanges": "Sačuvaj izmene",
+    "createSuccess": "Ljubimac je uspešno dodat.",
+    "updateSuccess": "Ljubimac je uspešno izmenjen.",
+    "updateError": "Ljubimac nije izmenjen. Pokušaj ponovo.",
+    "notOwner": "Možeš da menjaš samo svoje ljubimce.",
+    "imageHint": "JPEG, PNG ili WebP, najviše 5 MB po fotografiji, najviše {{max}} fotografija.",
+    "removeImage": "Ukloni",
+    "imageSaveFailed": "Ljubimac je sačuvan, ali fotografije nisu: {{reason}}",
+    "imageSaveError": "Došlo je do greške.",
+    "loadError": "Podatke o ljubimcu nije moguće učitati.",
+    "addImages": "Dodaj fotografije",
+    "imageCount": "Fotografije: {{current}} od {{max}}.",
+    "imageAlt": "Fotografija {{number}}",
+    "primaryImage": "Glavna fotografija",
+    "removeImageNumber": "Ukloni fotografiju {{number}}",
+    "sections": {
+      "basics": "Osnovno",
+      "lifestyle": "Dom i način života"
+    },
+    "hints": {
+      "breed": "Na primer „labrador mešanac“ ili „sirijski hrčak“.",
+      "lifestyle": "Izaberi „Ne znam“ ako nisi siguran. Udomitelji pomoću ovih odgovora traže ljubimca koji odgovara njihovom domu."
+    },
+    "compatibilityOptions": {
+      "yes": "Da",
+      "no": "Ne",
+      "unknown": "Ne znam"
+    }
+  },
+  "delete": {
+    "button": "Obriši",
+    "confirmQuestion": "Obrisati ljubimca {{name}}? Ovo se ne može poništiti.",
+    "confirm": "Da, obriši",
+    "cancel": "Otkaži",
+    "deleting": "Brisanje...",
+    "success": "Ljubimac {{name}} je obrisan."
+  },
+  "sortBy": "Sortiraj",
+  "sort": {
+    "newest": "Najnovije prvo",
+    "oldest": "Najstarije prvo",
+    "name": "Ime (A–Ž)",
+    "age": "Najmlađi prvo"
+  },
+  "resultCount_one": "Pronađen {{count}} ljubimac",
+  "resultCount_few": "Pronađena {{count}} ljubimca",
+  "resultCount_other": "Pronađeno {{count}} ljubimaca",
+  "clearFilters": "Obriši filtere",
+  "pageOutOfRange": "Na ovoj strani nema ljubimaca.",
+  "firstPage": "Idi na prvu stranu",
+  "gallery": {
+    "label": "Fotografije: {{name}}",
+    "show": "Prikaži fotografiju {{number}} od {{total}}",
+    "photoAlt": "{{name}}, fotografija {{number}} od {{total}}"
+  },
+  "loadingPet": "Učitavanje ljubimca...",
+  "notFoundHint": "Vlasnik je možda uklonio ovog ljubimca.",
+  "browsePets": "Pregledaj ljubimce",
+  "facts": {
+    "species": "Vrsta",
+    "age": "Starost",
+    "listed": "Objavljen",
+    "sex": "Pol",
+    "breed": "Rasa"
+  },
+  "about": "O ljubimcu",
+  "steps": {
+    "title": "Kako funkcioniše udomljavanje",
+    "apply": {
+      "title": "Pošalji zahtev",
+      "text": "Napiši vlasniku nešto o sebi, svom domu i zašto bi bio dobar izbor za ljubimca {{name}}."
+    },
+    "review": {
+      "title": "Vlasnik razmatra zahteve",
+      "text": "Vlasnik čita svaki zahtev i prihvata jedan. Status pratiš u odeljku Zahtevi."
+    },
+    "home": {
+      "title": "Dogovor o preuzimanju",
+      "text": "Ako tvoj zahtev bude prihvaćen, ljubimac {{name}} biće označen kao udomljen, a vlasnik će te kontaktirati imejlom oko daljih koraka."
+    },
+    "withdraw": "Zahtev na čekanju možeš da povučeš u bilo kom trenutku."
+  },
+  "sex": {
+    "male": "Mužjak",
+    "female": "Ženka",
+    "unknown": "Nepoznato"
+  },
+  "lifestyle": {
+    "title": "Dom i način života",
+    "subtitle": "Da li je {{name}} dobar izbor za tvoj dom?",
+    "children": "Deca",
+    "dogs": "Psi",
+    "cats": "Mačke",
+    "aloneTime": "Sam kod kuće"
+  },
+  "compatibilityValue": {
+    "yes": "Dobro se slaže",
+    "no": "Bolje bez njih",
+    "unknown": "Još nije poznato"
+  },
+  "aloneTime": {
+    "short": "Do oko 2 sata",
+    "part-day": "Do oko 5 sati",
+    "full-day": "Ceo radni dan",
+    "unknown": "Još nije poznato"
+  },
+  "goodWith": {
+    "children": "Dobar sa decom",
+    "dogs": "Dobar sa psima",
+    "cats": "Dobar sa mačkama"
+  },
+  "hiddenNotice": "Administratori su sakrili ovaj oglas. Vidiš ga samo ti i administratori i ne prima nove zahteve. Postojeće zahteve i dalje možeš da rešiš."
+}

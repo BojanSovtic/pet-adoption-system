@@ -1,0 +1,184 @@
+{
+  "title": "Pets",
+  "subtitle": "Meet the dogs, cats and other animals waiting for a new home.",
+  "loading": "Loading pets...",
+  "error": "Something went wrong while loading the pets.",
+  "empty": "No pets are currently available.",
+  "emptyHint": "Check back soon, or list a pet that needs a home.",
+  "age_one": "{{count}} year",
+  "age_other": "{{count}} years",
+  "species": {
+    "dog": "Dog",
+    "cat": "Cat",
+    "rabbit": "Rabbit",
+    "bird": "Bird",
+    "rodent": "Rodent",
+    "other": "Other"
+  },
+  "status": {
+    "available": "Available",
+    "pending": "Pending",
+    "adopted": "Adopted"
+  },
+  "noImage": "No image available",
+  "backToPets": "Back to pets",
+  "notFound": "Pet not found",
+  "searchPlaceholder": "Search pets by name...",
+  "filterBySpecies": "Filter by species",
+  "speciesFilter": {
+    "all": "All species"
+  },
+  "noMatchingPets": "No pets match your search.",
+  "noMatchingPetsHint": "Try a different name or remove some filters.",
+  "filterByStatus": "Filter by status",
+  "statusFilter": {
+    "all": "All statuses"
+  },
+  "form": {
+    "title": "Add a pet",
+    "subtitle": "Enter the details of the pet you want to list for adoption.",
+    "fields": {
+      "name": "Name",
+      "species": "Species",
+      "age": "Age (years)",
+      "description": "Description",
+      "images": "Photos (optional)",
+      "sex": "Sex",
+      "breed": "Breed or type (optional)",
+      "goodWith": "Gets along with",
+      "aloneTime": "Comfortable alone for"
+    },
+    "placeholders": {
+      "name": "e.g. Buddy",
+      "age": "e.g. 3",
+      "description": "Tell potential adopters about this pet..."
+    },
+    "submit": "Create pet",
+    "submitting": "Creating...",
+    "cancel": "Cancel",
+    "submitError": "The pet could not be created. Please try again.",
+    "validation": {
+      "nameRequired": "Name is required.",
+      "nameTooLong": "Name must be at most 100 characters.",
+      "ageRequired": "Age is required.",
+      "ageInvalid": "Age must be a non-negative whole number.",
+      "descriptionRequired": "Description is required.",
+      "descriptionTooLong": "Description must be at most 2000 characters.",
+      "imageType": "Choose a JPEG, PNG or WebP image.",
+      "imageTooLarge": "The photo must be at most 5 MB.",
+      "tooManyImages": "Not added: a pet can have at most {{max}} photos.",
+      "breedTooLong": "Breed must be at most 60 characters."
+    },
+    "editTitle": "Edit pet",
+    "saveChanges": "Save changes",
+    "createSuccess": "Pet created successfully.",
+    "updateSuccess": "Pet updated successfully.",
+    "updateError": "The pet could not be updated. Please try again.",
+    "notOwner": "You can only edit pets you posted.",
+    "imageHint": "JPEG, PNG or WebP, up to 5 MB each, at most {{max}} photos.",
+    "removeImage": "Remove",
+    "imageSaveFailed": "The pet was saved, but the photos were not: {{reason}}",
+    "imageSaveError": "Something went wrong.",
+    "loadError": "The pet could not be loaded.",
+    "addImages": "Add photos",
+    "imageCount": "Photos: {{current}} of {{max}}.",
+    "imageAlt": "Photo {{number}}",
+    "primaryImage": "Main photo",
+    "removeImageNumber": "Remove photo {{number}}",
+    "sections": {
+      "basics": "Basics",
+      "lifestyle": "Home and lifestyle"
+    },
+    "hints": {
+      "breed": "For example \"Labrador mix\" or \"Syrian hamster\".",
+      "lifestyle": "Choose \"Not sure\" if you don't know. Adopters use these answers to find a pet that suits their home."
+    },
+    "compatibilityOptions": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  "delete": {
+    "button": "Delete",
+    "confirmQuestion": "Delete {{name}}? This cannot be undone.",
+    "confirm": "Yes, delete",
+    "cancel": "Cancel",
+    "deleting": "Deleting...",
+    "success": "{{name}} was deleted."
+  },
+  "sortBy": "Sort by",
+  "sort": {
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "name": "Name (A–Z)",
+    "age": "Youngest first"
+  },
+  "resultCount_one": "{{count}} pet found",
+  "resultCount_other": "{{count}} pets found",
+  "clearFilters": "Clear filters",
+  "pageOutOfRange": "There are no pets on this page.",
+  "firstPage": "Go to the first page",
+  "gallery": {
+    "label": "Photos of {{name}}",
+    "show": "Show photo {{number}} of {{total}}",
+    "photoAlt": "{{name}}, photo {{number}} of {{total}}"
+  },
+  "loadingPet": "Loading pet...",
+  "notFoundHint": "This pet may have been removed by its owner.",
+  "browsePets": "Browse pets",
+  "facts": {
+    "species": "Species",
+    "age": "Age",
+    "listed": "Listed",
+    "sex": "Sex",
+    "breed": "Breed"
+  },
+  "about": "About {{name}}",
+  "steps": {
+    "title": "How adoption works",
+    "apply": {
+      "title": "Send an application",
+      "text": "Tell the owner about yourself, your home and why you would be a good match for {{name}}."
+    },
+    "review": {
+      "title": "The owner reviews applications",
+      "text": "The owner reads each application and accepts one. You can follow the status under Applications."
+    },
+    "home": {
+      "title": "Arrange the handover",
+      "text": "If your application is accepted, {{name}} is marked as adopted and the owner contacts you by email about the next steps."
+    },
+    "withdraw": "You can withdraw a pending application at any time."
+  },
+  "sex": {
+    "male": "Male",
+    "female": "Female",
+    "unknown": "Unknown"
+  },
+  "lifestyle": {
+    "title": "Home and lifestyle",
+    "subtitle": "Is {{name}} a good match for your home?",
+    "children": "Children",
+    "dogs": "Dogs",
+    "cats": "Cats",
+    "aloneTime": "Time alone"
+  },
+  "compatibilityValue": {
+    "yes": "Gets along well",
+    "no": "Better without",
+    "unknown": "Not known yet"
+  },
+  "aloneTime": {
+    "short": "Up to about 2 hours",
+    "part-day": "Up to about 5 hours",
+    "full-day": "A full working day",
+    "unknown": "Not known yet"
+  },
+  "goodWith": {
+    "children": "Good with children",
+    "dogs": "Good with dogs",
+    "cats": "Good with cats"
+  },
+  "hiddenNotice": "Administrators hid this listing. Only you and the administrators can see it, and it takes no new applications. You can still decide existing applications."
+}

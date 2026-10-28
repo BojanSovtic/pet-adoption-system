@@ -1,0 +1,77 @@
+{
+  "actions": {
+    "save": "Sačuvaj",
+    "cancel": "Otkaži",
+    "delete": "Obriši",
+    "retry": "Pokušaj ponovo"
+  },
+  "unexpectedError": "Došlo je do greške. Pokušaj ponovo.",
+  "notFound": {
+    "title": "Stranica nije pronađena",
+    "description": "Stranica koju tražiš ne postoji ili je premeštena.",
+    "backToPets": "Nazad na ljubimce"
+  },
+  "errors": {
+    "INTERNAL_SERVER_ERROR": "Došlo je do greške.",
+    "NETWORK_ERROR": "Server nije dostupan. Proveri vezu i pokušaj ponovo.",
+    "VALIDATION_FAILED": "Neka polja nisu ispravna. Proveri formu.",
+    "INVALID_JSON": "Zahtev nije moguće pročitati.",
+    "INVALID_REQUEST_BODY": "Zahtev nije moguće pročitati.",
+    "PAYLOAD_TOO_LARGE": "Zahtev je prevelik.",
+    "UNSUPPORTED_ENCODING": "Zahtev koristi nepodržano kodiranje.",
+    "ROUTE_NOT_FOUND": "Ova adresa ne postoji.",
+    "INVALID_PET_ID": "ID ljubimca nije ispravan.",
+    "PET_NOT_FOUND": "Ljubimac nije pronađen.",
+    "UNAUTHENTICATED": "Prijavi se da bi nastavio.",
+    "INVALID_CREDENTIALS": "Pogrešan email ili lozinka.",
+    "EMAIL_ALREADY_REGISTERED": "Nalog sa ovim email-om već postoji.",
+    "UNTRUSTED_ORIGIN": "Zahtev je blokiran iz bezbednosnih razloga.",
+    "RATE_LIMITED": "Previše pokušaja. Sačekaj nekoliko minuta i pokušaj ponovo.",
+    "NOT_PET_OWNER": "To može samo osoba koja je dodala ovog ljubimca.",
+    "CANNOT_APPLY_TO_OWN_PET": "Ne možeš poslati zahtev za svog ljubimca.",
+    "PET_NOT_AVAILABLE": "Ovaj ljubimac više nije dostupan za udomljavanje.",
+    "ALREADY_APPLIED": "Zahtev za ovog ljubimca je već poslat.",
+    "INVALID_STATUS_TRANSITION": "O ovom zahtevu je već odlučeno ili je povučen.",
+    "PET_HAS_ACTIVE_APPLICATIONS": "Ovaj ljubimac ima otvorene ili prihvaćene zahteve i ne može se obrisati.",
+    "APPLICATION_NOT_FOUND": "Zahtev nije pronađen.",
+    "INVALID_APPLICATION_ID": "ID zahteva nije ispravan.",
+    "NOT_APPLICANT": "To može samo podnosilac zahteva.",
+    "IMAGE_REQUIRED": "Izaberi fotografiju za otpremanje.",
+    "IMAGE_TOO_LARGE": "Fotografija je prevelika (najviše 5 MB).",
+    "UNSUPPORTED_IMAGE_TYPE": "Podržane su samo statične JPEG, PNG i WebP fotografije.",
+    "INVALID_IMAGE": "Fotografiju nije moguće pročitati. Datoteka je možda oštećena.",
+    "IMAGE_DIMENSIONS_TOO_LARGE": "Fotografija ima previše piksela (najviše 40 megapiksela).",
+    "INVALID_IMAGE_UPLOAD": "Fotografiju nije moguće otpremiti.",
+    "TOO_MANY_IMAGES": "Ljubimac može imati najviše 5 fotografija.",
+    "IMAGE_NOT_FOUND": "Fotografija nije pronađena.",
+    "ADMIN_REQUIRED": "Ovo mogu samo administratori.",
+    "CANNOT_CHANGE_OWN_ROLE": "Ne možeš da promeniš svoju ulogu.",
+    "LAST_ADMIN": "Ovo je poslednji administrator. Prvo postavi nekog drugog za administratora.",
+    "USER_NOT_FOUND": "Korisnik nije pronađen.",
+    "INVALID_USER_ID": "ID korisnika nije ispravan.",
+    "ACCOUNT_SUSPENDED": "Ovaj nalog je suspendovan. Obrati se administratorima ako misliš da je u pitanju greška.",
+    "APPLICANT_SUSPENDED": "Nalog podnosioca je suspendovan, pa se zahtev ne može prihvatiti. Možeš da ga odbiješ.",
+    "CANNOT_SUSPEND_ADMIN": "Administratori ne mogu biti suspendovani. Prvo ukloni administratorsku ulogu.",
+    "CANNOT_SUSPEND_SELF": "Ne možeš da suspenduješ svoj nalog.",
+    "USER_SUSPENDED": "Nalog je suspendovan. Prvo vrati pristup."
+  },
+  "validation": {
+    "invalid": "Vrednost nije ispravna.",
+    "invalid_type": "Vrednost je pogrešnog tipa.",
+    "too_small": "Vrednost je prekratka ili premala.",
+    "too_big": "Vrednost je predugačka ili prevelika.",
+    "invalid_format": "Vrednost nije u ispravnom formatu.",
+    "invalid_value": "Vrednost nije dozvoljena."
+  },
+  "pagination": {
+    "label": "Stranice",
+    "previous": "Prethodna",
+    "next": "Sledeća",
+    "pageOf": "Strana {{page}} od {{totalPages}}"
+  },
+  "appTitle": "Udomljavanje ljubimaca",
+  "skipToContent": "Pređi na glavni sadržaj",
+  "language": {
+    "label": "Jezik"
+  }
+}

@@ -1,0 +1,25 @@
+/* Global stylesheet entry, imported once in main.tsx. See docs/design-system.md. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@import './styles/tokens.css';
+@import './styles/base.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Centered page column with the standard side padding. */
+@utility page-container {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--container-page);
+  padding-inline: 1rem;
+
+  @variant sm {
+    padding-inline: 1.5rem;
+  }
+
+  @variant lg {
+    padding-inline: 2rem;
+  }
+}

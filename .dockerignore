@@ -1,0 +1,20 @@
+# Installed and generated in the image instead
+**/node_modules
+**/dist
+**/out-tsc
+.nx
+
+# Local data, secrets and tooling
+apps/api/uploads
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.vscode
+.idea
+
+# Test and coverage output
+coverage
+**/test-output
+**/test-results
+**/playwright-report

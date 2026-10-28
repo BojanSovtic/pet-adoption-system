@@ -1,0 +1,33 @@
+# MongoDB for local development (`docker compose up -d`); the API and web app
+# run with Nx (see README.md). The built Docker images run in the isolated QA
+# stack instead: docker-compose.qa.yml, `pnpm qa:up`.
+
+services:
+  mongodb:
+    image: mongo:8
+    container_name: pet-adoption-mongodb
+    restart: unless-stopped
+    # Single-node replica set: the API needs transactions, which a standalone
+    # server does not support.
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      # 27018 on the host avoids clashing with a locally installed MongoDB.
+      - '27018:27017'
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      # Initiates the replica set on the first start (a no-op afterwards) and
+      # reports healthy once this node accepts writes.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  mongodb_data:

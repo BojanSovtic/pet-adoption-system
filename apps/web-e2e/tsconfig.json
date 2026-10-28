@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out-tsc",
+    "tsBuildInfoFile": "out-tsc/tsconfig.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts", "src/**/*.ts"],
+  "exclude": ["out-tsc", "test-results", "playwright-report"],
+  "references": []
+}

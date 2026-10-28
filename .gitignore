@@ -1,54 +1,65 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# Dependencies
+node_modules/
 
-# compiled output
-dist
-tmp
-out-tsc
+# Build output
+dist/
+tmp/
+out-tsc/
 
-# dependencies
-node_modules
+# Environment files
+.env
+.env.*
+!.env.example
 
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
+# User-uploaded files (local file storage)
+apps/api/uploads/
 
-# IDE - VSCode
+# Test / coverage output
+coverage/
+test-output/
+playwright-report/
+test-results/
+blob-report/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Nx
+.nx/cache/
+.nx/workspace-data/
+.nx/polygraph/
+.nx/self-healing/
+.nx/migrate-runs/
+
+# Vite / Vitest
+*.timestamp*
+
+# IDEs
+.idea/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# misc
-/.sass-cache
-/connect.lock
-/coverage
-/libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-/typings
-
-# System Files
+# OS files
 .DS_Store
 Thumbs.db
 
-.nx/cache
-.nx/workspace-data
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-vite.config.*.timestamp*
+# Personal learning notes
+docs/learning/
+
+# Misc
+.sass-cache/
+*.sublime-workspace
 vitest.config.*.timestamp*
-test-output
+vite.config.*.timestamp*
 
-.claude/worktrees
+# Claude Code local settings
 .claude/settings.local.json
-.nx/polygraph
-.nx/self-healing
-.nx/migrate-runs

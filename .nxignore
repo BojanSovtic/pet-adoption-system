@@ -1,0 +1,5 @@
+# pnpm creates and immediately deletes a `_tmp_<pid>_<hash>` file in the
+# workspace root on every invocation (`pnpm nx ...`, and Nx's own
+# `pnpm --version` check). Without this, each one makes the Nx daemon
+# recompute the project graph.
+/_tmp_*

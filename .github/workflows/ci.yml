@@ -2,40 +2,60 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [master, develop]
   pull_request:
+    branches: [master, develop]
+
+# A newer push to the same branch or PR cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
-  main:
+  check:
+    name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NX_DAEMON: 'false'
+      NX_NO_CLOUD: 'true'
+      # The API validates its environment on import. Tests connect to their own
+      # in-memory MongoDB replica set (src/test/global-setup.ts), so this URI is
+      # never used; it only has to be present.
+      MONGODB_URI: mongodb://localhost:27017/unused
+      CORS_ORIGIN: http://localhost:4200
+      SESSION_SECRET: ci-only-session-secret-at-least-32-characters
+      VITE_API_URL: http://localhost:3333/api
+
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
         with:
-          filter: tree:0
-          fetch-depth: 0
+          version: 12.3.4
 
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/docs/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      - run: npx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="e2e"
-
-      # Cache node_modules
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: 'npm'
+          node-version: 22
+          cache: pnpm
 
-      - run: npm ci
-      - run: npx playwright install --with-deps
+      - run: pnpm install --frozen-lockfile
 
-      # Prepend any command with "nx record --" to record its logs to Nx Cloud
-      - run: npx nx record -- npx nx format:check --base="remotes/origin/main"
-      - run: npx nx run-many -t lint test build typecheck e2e
-      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/docs/features/ci-features/self-healing-ci
-      - run: npx nx fix-ci
-        if: always()
+      # Fails on high or critical advisories in shipped (production)
+      # dependencies. Dev tooling is not audited here; see production-readiness.md.
+      - run: pnpm audit --prod --audit-level high
+
+      # mongodb-memory-server downloads the MongoDB binary on first use.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+
+      # Every project that defines one of these targets runs it (the shared
+      # models library has lint and typecheck only). Any failure fails the job.
+      # E2E tests (Playwright) are not run here yet.
+      - run: pnpm nx run-many -t lint typecheck test build --outputStyle=static

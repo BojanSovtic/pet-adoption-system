@@ -1,5 +1,5 @@
 {
-  "name": "@org/api",
+  "name": "@pet-adoption/api",
   "version": "0.0.1",
   "private": true,
   "nx": {
@@ -18,6 +18,7 @@
             "cjs"
           ],
           "bundle": true,
+          "skipTypeCheck": true,
           "main": "apps/api/src/main.ts",
           "tsConfig": "apps/api/tsconfig.app.json",
           "assets": [
@@ -97,15 +98,15 @@
           "build"
         ],
         "options": {
-          "buildTarget": "@org/api:build",
+          "buildTarget": "@pet-adoption/api:build",
           "runBuildTargetDependencies": false
         },
         "configurations": {
           "development": {
-            "buildTarget": "@org/api:build:development"
+            "buildTarget": "@pet-adoption/api:build:development"
           },
           "production": {
-            "buildTarget": "@org/api:build:production"
+            "buildTarget": "@pet-adoption/api:build:production"
           }
         }
       },
@@ -135,8 +136,19 @@
     ]
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "@org/api-products": "*",
-    "@org/models": "*"
+    "@pet-adoption/models": "workspace:*",
+    "argon2": "^0.45.1",
+    "connect-mongo": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "~8.6.2",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "mongodb": "~7.5.0",
+    "mongoose": "^9.9.5",
+    "multer": "~2.5.0",
+    "sharp": "~0.35.5",
+    "zod": "^4.6.7"
   }
 }

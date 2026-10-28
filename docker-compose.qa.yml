@@ -1,0 +1,124 @@
+# Isolated Docker QA stack: its own Compose project, MongoDB server, network
+# and volumes, so manual QA never touches development or demo data.
+# Use the pnpm qa:* scripts (see README, "Docker QA environment"); they always
+# pass `-f docker-compose.qa.yml`. The names below are checked by
+# apps/api/src/scripts/qa-config.ts; change both together.
+#
+# Browser: http://127.0.0.1:4203 (not localhost: the session cookie and the
+# API's allowed origin are bound to 127.0.0.1).
+
+name: pet-adoption-qa
+
+# Docker Desktop resolves these names to the host computer, where the
+# development MongoDB is published on port 27018. Pointing them at the
+# container's own loopback makes them unusable from the QA containers.
+x-no-host-access: &no-host-access
+  extra_hosts:
+    - 'host.docker.internal:127.0.0.1'
+    - 'gateway.docker.internal:127.0.0.1'
+
+services:
+  mongodb:
+    image: mongo:8
+    container_name: pet-adoption-qa-mongodb
+    restart: unless-stopped
+    # Single-node replica set: the API needs transactions.
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      # Only for local tools such as MongoDB Compass; not reachable from
+      # other machines.
+      - '127.0.0.1:27019:27017'
+    volumes:
+      - mongodb_data:/data/db
+      # Named too, so restarts don't leave unnamed volumes behind (the mongo
+      # image declares /data/configdb as a volume).
+      - mongodb_config:/data/configdb
+    networks:
+      - qa
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: pet-adoption-qa-api
+    restart: unless-stopped
+    <<: *no-host-access
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3333
+      # The QA MongoDB service on the QA network, and the QA database. Never
+      # the development connection string.
+      MONGODB_URI: mongodb://mongodb:27017/pet-adoption-qa?directConnection=true
+      CORS_ORIGIN: http://127.0.0.1:4203
+      UPLOADS_BASE_URL: http://127.0.0.1:3336/uploads
+      UPLOADS_DIR: /app/uploads
+      # From the untracked root .env (see .env.example); Compose refuses to
+      # start without it.
+      SESSION_SECRET: ${QA_SESSION_SECRET:?Set QA_SESSION_SECRET (32+ random characters) in the root .env file}
+      # Plain http on 127.0.0.1, so session cookies must not be Secure.
+      NODE_ENV: development
+    ports:
+      - '127.0.0.1:3336:3333'
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - qa
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3333/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked into the bundle: the address the browser uses for the QA API.
+        VITE_API_URL: http://127.0.0.1:3336/api
+    container_name: pet-adoption-qa-web
+    restart: unless-stopped
+    <<: *no-host-access
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:4203:80'
+    networks:
+      - qa
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  qa:
+    name: pet-adoption-qa
+
+volumes:
+  mongodb_data:
+    name: pet-adoption-qa_mongodb_data
+  mongodb_config:
+    name: pet-adoption-qa_mongodb_config
+  uploads_data:
+    name: pet-adoption-qa_uploads_data

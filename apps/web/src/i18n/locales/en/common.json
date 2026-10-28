@@ -1,0 +1,77 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "retry": "Try again"
+  },
+  "unexpectedError": "Something went wrong. Please try again.",
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you are looking for does not exist or has been moved.",
+    "backToPets": "Back to pets"
+  },
+  "errors": {
+    "INTERNAL_SERVER_ERROR": "Something went wrong.",
+    "NETWORK_ERROR": "The server could not be reached. Check your connection and try again.",
+    "VALIDATION_FAILED": "Some fields are invalid. Please check the form.",
+    "INVALID_JSON": "The request could not be read.",
+    "INVALID_REQUEST_BODY": "The request could not be read.",
+    "PAYLOAD_TOO_LARGE": "The request is too large.",
+    "UNSUPPORTED_ENCODING": "The request uses an unsupported encoding.",
+    "ROUTE_NOT_FOUND": "This address does not exist.",
+    "INVALID_PET_ID": "The pet ID is invalid.",
+    "PET_NOT_FOUND": "The pet could not be found.",
+    "UNAUTHENTICATED": "Please sign in to continue.",
+    "INVALID_CREDENTIALS": "Incorrect email or password.",
+    "EMAIL_ALREADY_REGISTERED": "An account with this email already exists.",
+    "UNTRUSTED_ORIGIN": "This request was blocked for security reasons.",
+    "RATE_LIMITED": "Too many attempts. Please wait a few minutes and try again.",
+    "NOT_PET_OWNER": "Only the person who posted this pet can do that.",
+    "CANNOT_APPLY_TO_OWN_PET": "You cannot apply to adopt your own pet.",
+    "PET_NOT_AVAILABLE": "This pet is no longer available for adoption.",
+    "ALREADY_APPLIED": "You have already applied for this pet.",
+    "INVALID_STATUS_TRANSITION": "This application has already been decided or withdrawn.",
+    "PET_HAS_ACTIVE_APPLICATIONS": "This pet has open or accepted adoption applications and cannot be deleted.",
+    "APPLICATION_NOT_FOUND": "The application could not be found.",
+    "INVALID_APPLICATION_ID": "The application ID is invalid.",
+    "NOT_APPLICANT": "Only the applicant can do that.",
+    "IMAGE_REQUIRED": "Choose a photo to upload.",
+    "IMAGE_TOO_LARGE": "The photo is too large (maximum 5 MB).",
+    "UNSUPPORTED_IMAGE_TYPE": "Only still JPEG, PNG and WebP photos are supported.",
+    "INVALID_IMAGE": "The photo could not be read. The file may be damaged.",
+    "IMAGE_DIMENSIONS_TOO_LARGE": "The photo has too many pixels (maximum 40 megapixels).",
+    "INVALID_IMAGE_UPLOAD": "The photo could not be uploaded.",
+    "TOO_MANY_IMAGES": "A pet can have at most 5 photos.",
+    "IMAGE_NOT_FOUND": "The photo could not be found.",
+    "ADMIN_REQUIRED": "Only administrators can do that.",
+    "CANNOT_CHANGE_OWN_ROLE": "You can't change your own role.",
+    "LAST_ADMIN": "This is the last administrator. Make someone else an administrator first.",
+    "USER_NOT_FOUND": "The user could not be found.",
+    "INVALID_USER_ID": "The user ID is invalid.",
+    "ACCOUNT_SUSPENDED": "This account is suspended. Contact the site administrators if you think this is a mistake.",
+    "APPLICANT_SUSPENDED": "The applicant's account is suspended, so this application can't be accepted. You can reject it.",
+    "CANNOT_SUSPEND_ADMIN": "Administrators can't be suspended. Remove their admin role first.",
+    "CANNOT_SUSPEND_SELF": "You can't suspend your own account.",
+    "USER_SUSPENDED": "The account is suspended. Reinstate it first."
+  },
+  "validation": {
+    "invalid": "This value is invalid.",
+    "invalid_type": "This value has the wrong type.",
+    "too_small": "This value is too short or too small.",
+    "too_big": "This value is too long or too large.",
+    "invalid_format": "This value has an invalid format.",
+    "invalid_value": "This value is not allowed."
+  },
+  "pagination": {
+    "label": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{totalPages}}"
+  },
+  "appTitle": "Pet Adoption",
+  "skipToContent": "Skip to main content",
+  "language": {
+    "label": "Language"
+  }
+}

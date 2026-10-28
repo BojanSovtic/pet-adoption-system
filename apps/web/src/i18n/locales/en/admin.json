@@ -1,0 +1,150 @@
+{
+  "title": "Administration",
+  "nav": {
+    "label": "Administration sections",
+    "overview": "Overview",
+    "users": "Users",
+    "pets": "Pets",
+    "applications": "Applications",
+    "audit": "Audit log"
+  },
+  "loading": "Loading...",
+  "error": "The data could not be loaded.",
+  "forbidden": {
+    "title": "Admins only",
+    "description": "This area is only for administrators. If you think you need access, ask an administrator.",
+    "back": "Back to pets"
+  },
+  "roles": {
+    "user": "User",
+    "admin": "Admin"
+  },
+  "dashboard": {
+    "description": "What is happening on the platform right now.",
+    "users": "Users",
+    "pets": "Pets",
+    "applications": "Applications",
+    "viewAll": "View all",
+    "recentActivity": "Recent admin activity",
+    "noActivity": "No admin actions yet.",
+    "adminsLabel": "Admins",
+    "suspendedLabel": "Suspended",
+    "hiddenLabel": "Hidden",
+    "viewAudit": "Open the audit log"
+  },
+  "users": {
+    "description": "Everyone with an account. Admins can change roles here.",
+    "searchPlaceholder": "Search by name or email...",
+    "filterByRole": "Filter by role",
+    "allRoles": "All roles",
+    "resultCount_one": "{{count}} user",
+    "resultCount_other": "{{count}} users",
+    "empty": "No users match these filters.",
+    "joined": "Joined {{date}}",
+    "petCount_one": "{{count}} pet",
+    "petCount_other": "{{count}} pets",
+    "applicationCount_one": "{{count}} application",
+    "applicationCount_other": "{{count}} applications",
+    "you": "You",
+    "ownRoleHint": "You can't change or suspend your own account.",
+    "makeAdmin": "Make admin",
+    "removeAdmin": "Remove admin",
+    "confirmMakeAdmin": "Give {{name}} admin access? They will see all users, pets and applications and can change roles.",
+    "confirmRemoveAdmin": "Remove admin access from {{name}}? It ends with their next request.",
+    "confirm": "Yes, change role",
+    "madeAdmin": "{{name}} is now an admin.",
+    "removedAdmin": "{{name}} is no longer an admin.",
+    "filterByStatus": "Filter by status",
+    "allStatuses": "All statuses",
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "suspendedOn": "Suspended {{date}}",
+    "suspend": "Suspend",
+    "reinstate": "Reinstate",
+    "confirmSuspend": "Suspend {{name}}? They are signed out at once and can't sign in. Their pets and applications stay; their pending applications can be rejected but not accepted.",
+    "confirmSuspendButton": "Yes, suspend",
+    "confirmReinstate": "Reinstate {{name}}? They can sign in again.",
+    "confirmReinstateButton": "Yes, reinstate",
+    "suspended": "{{name}} is suspended.",
+    "reinstated": "{{name}} can sign in again."
+  },
+  "pets": {
+    "description": "Every pet on the platform, with its owner.",
+    "searchPlaceholder": "Search pets by name...",
+    "filterByStatus": "Filter by status",
+    "allStatuses": "All statuses",
+    "resultCount_one": "{{count}} pet",
+    "resultCount_other": "{{count}} pets",
+    "empty": "No pets match these filters.",
+    "owner": "Owner",
+    "noOwner": "No owner",
+    "listed": "Listed {{date}}",
+    "filterByVisibility": "Filter by visibility",
+    "allVisibilities": "Visible and hidden",
+    "visibility": {
+      "visible": "Visible",
+      "hidden": "Hidden"
+    },
+    "hiddenOn": "Hidden {{date}}",
+    "hide": "Hide listing",
+    "restore": "Restore listing",
+    "confirmHide": "Hide {{name}} from everyone but its owner? New applications are refused; existing ones stay with the owner.",
+    "confirmHideButton": "Yes, hide",
+    "confirmRestore": "Make {{name}} public again?",
+    "confirmRestoreButton": "Yes, restore",
+    "hidden": "{{name}} is hidden.",
+    "restored": "{{name}} is public again."
+  },
+  "applications": {
+    "description": "Every adoption application. Decisions stay with the pet's owner.",
+    "filterByStatus": "Filter by status",
+    "allStatuses": "All statuses",
+    "resultCount_one": "{{count}} application",
+    "resultCount_other": "{{count}} applications",
+    "empty": "No applications match this filter.",
+    "applicant": "Applicant",
+    "owner": "Owner",
+    "submitted": "Submitted {{date}}"
+  },
+  "cancel": "Cancel",
+  "reasonLabel": "Reason (optional, kept in the audit log)",
+  "audit": {
+    "description": "Every admin change, refused attempt and view of lists with personal data. Entries cannot be changed in the app.",
+    "filterByAction": "Filter by action",
+    "allActions": "All actions",
+    "empty": "No entries match this filter.",
+    "resultCount_one": "{{count}} entry",
+    "resultCount_other": "{{count}} entries",
+    "commandLine": "The command line",
+    "deletedUser": "a deleted user",
+    "deletedPet": "a deleted pet",
+    "reason": "Reason: {{reason}}",
+    "viewDetails": "page {{page}}, {{count}} rows",
+    "outcome": {
+      "succeeded": "Done",
+      "denied": "Refused"
+    },
+    "actions": {
+      "user_role_changed": "Role changes",
+      "user_suspended": "Suspensions",
+      "user_reinstated": "Reinstatements",
+      "pet_hidden": "Hidden listings",
+      "pet_restored": "Restored listings",
+      "users_viewed": "User list views",
+      "pets_viewed": "Pet list views",
+      "applications_viewed": "Application list views"
+    },
+    "events": {
+      "user_role_changed": "{{actor}} changed {{target}} from {{from}} to {{to}}",
+      "user_suspended": "{{actor}} suspended {{target}}",
+      "user_reinstated": "{{actor}} reinstated {{target}}",
+      "pet_hidden": "{{actor}} hid the listing {{pet}}",
+      "pet_restored": "{{actor}} restored the listing {{pet}}",
+      "users_viewed": "{{actor}} viewed the user list",
+      "pets_viewed": "{{actor}} viewed the pet list",
+      "applications_viewed": "{{actor}} viewed the application list"
+    }
+  }
+}
