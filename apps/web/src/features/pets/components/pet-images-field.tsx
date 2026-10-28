@@ -10,18 +10,28 @@ import {
 
 import { Button } from '@/components/ui/button';
 
+/** The photo chosen as the main one: a saved photo or a newly chosen file. */
+export type MainImageChoice =
+  { kind: 'existing'; id: string } | { kind: 'new'; file: File };
+
 /** What should happen to the photos when the form is saved. */
 export type PetImagesChange = {
   /** Ids of existing photos to remove. */
   removeIds: string[];
   /** New files to add after the remaining photos. */
   add: File[];
+  /** Moved to the front on save. Without it, the first photo stays main. */
+  main?: MainImageChoice;
 };
 
 export const NO_IMAGE_CHANGE: PetImagesChange = { removeIds: [], add: [] };
 
-export const hasImageChange = ({ removeIds, add }: PetImagesChange): boolean =>
-  removeIds.length > 0 || add.length > 0;
+export const hasImageChange = ({
+  removeIds,
+  add,
+  main,
+}: PetImagesChange): boolean =>
+  removeIds.length > 0 || add.length > 0 || Boolean(main);
 
 type PetImagesFieldProps = {
   /** The pet's current photos (when editing). */
@@ -82,22 +92,47 @@ const PetImagesField = ({
   const total = keptImages.length + change.add.length;
   const isFull = total >= PET_IMAGE_MAX_COUNT;
 
-  const tiles = [
+  // A removed photo can't stay the main one; the first photo takes over.
+  const clearMainIf = (isRemoved: boolean) =>
+    isRemoved ? { main: undefined } : {};
+
+  const allTiles = [
     ...keptImages.map((image) => ({
       key: image._id,
       url: image.url,
+      isChosenMain:
+        change.main?.kind === 'existing' && change.main.id === image._id,
+      setMain: () =>
+        onChange({ ...change, main: { kind: 'existing', id: image._id } }),
       remove: () =>
-        onChange({ ...change, removeIds: [...change.removeIds, image._id] }),
+        onChange({
+          ...change,
+          removeIds: [...change.removeIds, image._id],
+          ...clearMainIf(
+            change.main?.kind === 'existing' && change.main.id === image._id,
+          ),
+        }),
     })),
     ...change.add.map((file, index) => ({
       key: `new-${index}-${file.name}`,
       url: previewUrls[index],
+      isChosenMain: change.main?.kind === 'new' && change.main.file === file,
+      setMain: () => onChange({ ...change, main: { kind: 'new', file } }),
       remove: () =>
         onChange({
           ...change,
           add: change.add.filter((_, fileIndex) => fileIndex !== index),
+          ...clearMainIf(
+            change.main?.kind === 'new' && change.main.file === file,
+          ),
         }),
     })),
+  ];
+
+  // Shown in the order they will have after saving: the main photo first.
+  const tiles = [
+    ...allTiles.filter((tile) => tile.isChosenMain),
+    ...allTiles.filter((tile) => !tile.isChosenMain),
   ];
 
   const handleFiles = (fileList: FileList | null) => {
@@ -147,9 +182,27 @@ const PetImagesField = ({
                 <div className={tileClassName} />
               )}
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {index === 0 ? t('form.primaryImage') : null}
-                </span>
+                {index === 0 ? (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {t('form.primaryImage')}
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-2"
+                    onClick={() => {
+                      setProblems([]);
+                      tile.setMain();
+                    }}
+                    aria-label={t('form.setMainImageNumber', {
+                      number: index + 1,
+                    })}
+                  >
+                    {t('form.setMainImage')}
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"

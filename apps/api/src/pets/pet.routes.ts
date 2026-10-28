@@ -15,6 +15,7 @@ import {
   createPetController,
   deletePetController,
   deletePetImageByIdController,
+  setMainPetImageController,
   deletePetImageController,
   getPetByIdController,
   getPetsController,
@@ -78,7 +79,8 @@ petRouter.delete(
 );
 
 // Photo gallery: POST adds 1-5 files in the field "images" (at most 5 photos
-// per pet); DELETE removes one photo by id.
+// per pet); DELETE removes one photo by id; POST .../main moves one photo to
+// the front, which makes it the main photo.
 petRouter.post(
   '/:id/images',
   requireAuth,
@@ -94,4 +96,11 @@ petRouter.delete(
   requireAuth,
   otherWriteRateLimit,
   asyncHandler(deletePetImageByIdController),
+);
+
+petRouter.post(
+  '/:id/images/:imageId/main',
+  requireAuth,
+  otherWriteRateLimit,
+  asyncHandler(setMainPetImageController),
 );

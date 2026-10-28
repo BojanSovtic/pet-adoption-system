@@ -51,10 +51,12 @@
   "noAccount": "No account yet?",
   "createAccount": "Create one",
   "confirm": {
-    "accept": "Accept this application? The pet will be marked as adopted and all other pending applications will be rejected. This cannot be undone.",
+    "accept": "The pet will be marked as adopted and all other pending applications will be rejected. This cannot be undone.",
     "acceptButton": "Yes, accept",
-    "reject": "Reject this application? The applicant will not be able to apply for this pet again.",
+    "reject": "The applicant will not be able to apply for this pet again.",
     "rejectButton": "Yes, reject",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "acceptTitle": "Accept this application?",
+    "rejectTitle": "Reject this application?"
   }
 }

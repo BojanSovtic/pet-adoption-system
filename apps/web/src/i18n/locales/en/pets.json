@@ -97,15 +97,18 @@
       "yes": "Yes",
       "no": "No",
       "unknown": "Not sure"
-    }
+    },
+    "setMainImage": "Set as main",
+    "setMainImageNumber": "Set photo {{number}} as the main photo"
   },
   "delete": {
     "button": "Delete",
-    "confirmQuestion": "Delete {{name}}? This cannot be undone.",
     "confirm": "Yes, delete",
     "cancel": "Cancel",
     "deleting": "Deleting...",
-    "success": "{{name}} was deleted."
+    "success": "{{name}} was deleted.",
+    "title": "Delete {{name}}?",
+    "description": "The listing and its photos are removed permanently. This cannot be undone."
   },
   "sortBy": "Sort by",
   "sort": {
@@ -183,5 +186,6 @@
   "hiddenNotice": "Administrators hid this listing. Only you and the administrators can see it, and it takes no new applications. You can still decide existing applications.",
   "statusHint": {
     "pending": "Someone has applied and the owner hasn't decided yet. You can still apply."
-  }
+  },
+  "yourPet": "Your pet"
 }

@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { Paginated, Pet } from '@pet-adoption/models';
 
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 
 import { deletePet } from '../api/delete-pet';
@@ -18,7 +18,6 @@ const DeletePetButton = ({ pet }: DeletePetButtonProps) => {
   const { t } = useTranslation('pets');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [isConfirming, setIsConfirming] = useState(false);
 
   // Errors are shown by the global mutation toast (see query-client.ts).
   const mutation = useMutation({
@@ -43,42 +42,18 @@ const DeletePetButton = ({ pet }: DeletePetButtonProps) => {
 
       toast.success(t('delete.success', { name: pet.name }));
     },
-
-    onError: () => {
-      setIsConfirming(false);
-    },
   });
 
-  if (!isConfirming) {
-    return (
-      <Button variant="destructive" onClick={() => setIsConfirming(true)}>
-        {t('delete.button')}
-      </Button>
-    );
-  }
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <p className="text-sm font-medium">
-        {t('delete.confirmQuestion', { name: pet.name })}
-      </p>
-
-      <Button
-        variant="destructive"
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-      >
-        {mutation.isPending ? t('delete.deleting') : t('delete.confirm')}
-      </Button>
-
-      <Button
-        variant="outline"
-        onClick={() => setIsConfirming(false)}
-        disabled={mutation.isPending}
-      >
-        {t('delete.cancel')}
-      </Button>
-    </div>
+    <ConfirmDialog
+      trigger={<Button variant="destructive">{t('delete.button')}</Button>}
+      title={t('delete.title', { name: pet.name })}
+      description={t('delete.description')}
+      confirmLabel={t('delete.confirm')}
+      pendingLabel={t('delete.deleting')}
+      cancelLabel={t('delete.cancel')}
+      onConfirm={() => mutation.mutateAsync()}
+    />
   );
 };
 

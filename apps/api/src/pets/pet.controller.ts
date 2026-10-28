@@ -14,6 +14,7 @@ import {
   petImageKeys,
   removePetImageById,
   removePetImages,
+  setMainPetImage,
   setPetImage,
   updateOwnedPet,
 } from './pet.service';
@@ -254,6 +255,31 @@ export const deletePetImageByIdController = async (
   }
 
   const pet = await removePetImageById(
+    petId,
+    getAuthenticatedUserId(req),
+    imageId,
+  );
+
+  if (!pet) {
+    return throwNotOwnedError(petId);
+  }
+
+  res.json(toPetView(pet));
+};
+
+/** `POST /api/pets/:id/images/:imageId/main`: makes this photo the main one. */
+export const setMainPetImageController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const petId = getPetId(req);
+  const { imageId } = req.params;
+
+  if (!mongoose.isValidObjectId(imageId)) {
+    throw new NotFoundError('IMAGE_NOT_FOUND');
+  }
+
+  const pet = await setMainPetImage(
     petId,
     getAuthenticatedUserId(req),
     imageId,

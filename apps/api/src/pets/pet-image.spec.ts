@@ -488,6 +488,84 @@ describe('pet photos', { timeout: 20_000 }, () => {
     });
   });
 
+  describe('POST /api/pets/:id/images/:imageId/main', () => {
+    it('moves the photo to the front and makes it the main photo', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const added = await addImages(owner.agent, petId, [PNG, JPEG, WEBP]);
+      const [first, second, third] = added.body.images;
+
+      const response = await owner.agent.post(
+        `/api/pets/${petId}/images/${third._id}/main`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.images).toEqual([third, first, second]);
+      expect(response.body.imageUrl).toBe(third.url);
+      // Nothing is stored or deleted.
+      expect(await storedFiles()).toHaveLength(3);
+      const stored = await PetModel.findById(petId).lean();
+      expect(stored?.images?.map((image) => String(image._id))).toEqual([
+        third._id,
+        first._id,
+        second._id,
+      ]);
+    });
+
+    it('keeps the order when the photo is already the main one', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      const added = await addImages(owner.agent, petId, [PNG, JPEG]);
+
+      const response = await owner.agent.post(
+        `/api/pets/${petId}/images/${added.body.images[0]._id}/main`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.images).toEqual(added.body.images);
+    });
+
+    it('returns 404 for a photo the pet does not have', async () => {
+      const owner = await createSignedInAgent();
+      const petId = await createPet(owner);
+      await addImages(owner.agent, petId, [PNG]);
+
+      const unknown = await owner.agent.post(
+        `/api/pets/${petId}/images/${missingPetId}/main`,
+      );
+      const invalid = await owner.agent.post(
+        `/api/pets/${petId}/images/banana/main`,
+      );
+      const missingPet = await owner.agent.post(
+        `/api/pets/${missingPetId}/images/${missingPetId}/main`,
+      );
+
+      expect(unknown.status).toBe(404);
+      expect(unknown.body).toEqual({ code: 'IMAGE_NOT_FOUND' });
+      expect(invalid.status).toBe(404);
+      expect(missingPet.status).toBe(404);
+      expect(missingPet.body).toEqual({ code: 'PET_NOT_FOUND' });
+    });
+
+    it('is only allowed for the owner', async () => {
+      const owner = await createSignedInAgent('owner@example.com');
+      const other = await createSignedInAgent('other@example.com');
+      const petId = await createPet(owner);
+      const added = await addImages(owner.agent, petId, [PNG, JPEG]);
+      const [first, second] = added.body.images;
+      const mainPath = `/api/pets/${petId}/images/${second._id}/main`;
+
+      const anonymous = await request(app).post(mainPath);
+      const notOwner = await other.agent.post(mainPath);
+
+      expect(anonymous.status).toBe(401);
+      expect(notOwner.status).toBe(403);
+      expect(notOwner.body).toEqual({ code: 'NOT_PET_OWNER' });
+      const stored = await PetModel.findById(petId).lean();
+      expect(String(stored?.images?.[0]._id)).toBe(first._id);
+    });
+  });
+
   describe('single-photo endpoints with several photos', () => {
     it('PUT /image replaces all photos with one and deletes the old files', async () => {
       const owner = await createSignedInAgent();

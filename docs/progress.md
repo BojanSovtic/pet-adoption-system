@@ -102,6 +102,12 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
+## Ownership badge, confirmation dialog, main photo (2026-10-28)
+
+- **"Your pet" badge** on pet cards for the signed-in owner (`isPetOwner` + the cached current user; no extra requests, no API change).
+- **`ConfirmDialog`** (new dependency `@radix-ui/react-alert-dialog`, the shadcn/ui dialog) replaces the three inline confirmations: delete pet, accept/reject application, admin `ConfirmAction` (props unchanged).
+- **Main photo:** `POST /api/pets/:id/images/:imageId/main` (owner only, "other changes" rate limit, 404 `IMAGE_NOT_FOUND`, 403 `NOT_PET_OWNER`) moves a photo to the front. The pet form shows "Set as main" on photos; the choice is saved with the other photo changes.
+
 ## UX consistency batch (2026-10-28)
 
 - **Blue palette:** `styles/tokens.css` now uses a blue brand colour (`#2368bd`) and cool neutrals; success, warning and destructive are unchanged. All pairs re-checked for WCAG AA. Only tokens changed, no component colours.

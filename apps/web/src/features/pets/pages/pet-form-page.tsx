@@ -21,6 +21,7 @@ import {
   PET_SEXES,
   PET_SPECIES,
   type CreatePetInput,
+  type Pet,
   type PetCompatibilityTarget,
 } from '@pet-adoption/models';
 
@@ -40,7 +41,11 @@ import {
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
-import { addPetImages, deletePetImage } from '../api/pet-image';
+import {
+  addPetImages,
+  deletePetImage,
+  setMainPetImage,
+} from '../api/pet-image';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { updatePet } from '../api/update-pet';
 import {
@@ -120,6 +125,27 @@ const isCompatibilityField = (
 // the card like a heading (the content after it uses `clear-both`).
 const legendClassName = 'float-left mb-4 w-full text-lg font-semibold';
 
+/**
+ * The saved id of the chosen main photo. New files are added after the
+ * existing photos in the order chosen, so a new file's photo is found by its
+ * position among the last `add.length` photos of the upload response.
+ */
+const getMainImageId = (
+  { add, main }: PetImagesChange,
+  saved: Pet,
+): string | undefined => {
+  if (main?.kind === 'existing') {
+    return main.id;
+  }
+
+  if (main?.kind === 'new') {
+    const uploaded = saved.images.slice(saved.images.length - add.length);
+    return uploaded[add.indexOf(main.file)]?._id;
+  }
+
+  return undefined;
+};
+
 const FieldError = ({ id, message }: { id: string; message?: string }) =>
   message ? (
     <p id={id} className="text-sm text-destructive">
@@ -185,8 +211,9 @@ const PetFormPage = () => {
     meta: { skipGlobalErrorToast: true },
 
     // The pet is saved first; photos need the pet's id. Removals run before
-    // additions, so freed slots can be reused within the 5-photo limit. If a photo
-    // step fails, the pet stays saved and the user is told about the photos.
+    // additions, so freed slots can be reused within the 5-photo limit; the
+    // chosen main photo is moved to the front last. If a photo step fails,
+    // the pet stays saved and the user is told about the photos.
     mutationFn: async ({
       input,
       images,
@@ -201,8 +228,16 @@ const PetFormPage = () => {
           await deletePetImage(pet._id, imageId);
         }
 
+        let saved = pet;
+
         if (images.add.length > 0) {
-          await addPetImages(pet._id, images.add);
+          saved = await addPetImages(pet._id, images.add);
+        }
+
+        const mainId = getMainImageId(images, saved);
+
+        if (mainId && saved.images[0]?._id !== mainId) {
+          await setMainPetImage(pet._id, mainId);
         }
       } catch (imageError) {
         return { pet, imageError };

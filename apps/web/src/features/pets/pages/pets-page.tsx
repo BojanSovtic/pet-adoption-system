@@ -23,9 +23,11 @@ import { cn } from '@/lib/utils';
 
 import { getErrorMessage } from '../../../lib/get-error-message';
 import { useDebouncedValue } from '../../../lib/use-debounced-value';
+import { useCurrentUser } from '../../auth/hooks/use-current-user';
 import { getPets } from '../api/get-pets';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { PetCard, PetCardSkeleton } from '../components/pet-card';
+import { isPetOwner } from '../utils/is-pet-owner';
 import {
   hasActiveFilters,
   parsePetListParams,
@@ -44,6 +46,9 @@ const gridClassName = 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
 const PetsPage = () => {
   const { t } = useTranslation('pets');
+  // One cached query for the whole list; undefined while loading, so no
+  // card is marked as yours until the session is known.
+  const { data: currentUser } = useCurrentUser();
 
   // The URL holds the list state, so back/forward and shared links restore
   // the same search, filters and page.
@@ -254,7 +259,7 @@ const PetsPage = () => {
             <ul className={gridClassName}>
               {data.items.map((pet) => (
                 <li key={pet._id}>
-                  <PetCard pet={pet} />
+                  <PetCard pet={pet} isOwn={isPetOwner(pet, currentUser)} />
                 </li>
               ))}
             </ul>

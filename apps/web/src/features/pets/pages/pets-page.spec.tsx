@@ -6,13 +6,29 @@ import {
   DEFAULT_PET_PROFILE,
   type Paginated,
   type Pet,
+  type User,
 } from '@pet-adoption/models';
 
 import '../../../i18n/config';
+import { getCurrentUser } from '../../auth/api/get-current-user';
 import { getPets } from '../api/get-pets';
 import { PetsPage } from './pets-page';
 
 vi.mock('../api/get-pets', () => ({ getPets: vi.fn() }));
+
+vi.mock('../../auth/api/get-current-user', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../auth/api/get-current-user')>()),
+  getCurrentUser: vi.fn(),
+}));
+
+const owner: User = {
+  _id: 'owner-1',
+  email: 'owner@example.com',
+  name: 'Owner',
+  role: 'user',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
 
 const makePet = (index: number): Pet => ({
   _id: `pet-${index}`,
@@ -68,6 +84,48 @@ describe('PetsPage', () => {
   beforeEach(() => {
     vi.mocked(getPets).mockReset();
     vi.mocked(getPets).mockResolvedValue(page());
+    vi.mocked(getCurrentUser).mockReset();
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+  });
+
+  describe('"Your pet" indicator', () => {
+    // makePet(1) and makePet(2) belong to owner-1; this one to someone else.
+    const mixedPage = () =>
+      page({
+        items: [makePet(1), { ...makePet(2), owner: 'other-1' }],
+      });
+
+    it("marks only the signed-in user's pets", async () => {
+      vi.mocked(getCurrentUser).mockResolvedValue(owner);
+      vi.mocked(getPets).mockResolvedValue(mixedPage());
+      renderPage();
+
+      const own = (await screen.findByText('Pet 1')).closest('li');
+      await waitFor(() => {
+        expect(own?.textContent).toContain('Your pet');
+      });
+      const other = screen.getByText('Pet 2').closest('li');
+      expect(other?.textContent).not.toContain('Your pet');
+      expect(screen.getAllByText('Your pet')).toHaveLength(1);
+    });
+
+    it('marks nothing for a signed-out visitor', async () => {
+      vi.mocked(getPets).mockResolvedValue(mixedPage());
+      renderPage();
+
+      await screen.findByText('Pet 1');
+      await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
+      expect(screen.queryByText('Your pet')).toBeNull();
+    });
+
+    it('marks nothing while the session is still loading', async () => {
+      vi.mocked(getCurrentUser).mockReturnValue(new Promise(() => undefined));
+      vi.mocked(getPets).mockResolvedValue(mixedPage());
+      renderPage();
+
+      await screen.findByText('Pet 1');
+      expect(screen.queryByText('Your pet')).toBeNull();
+    });
   });
 
   it('requests the page described by the URL', async () => {

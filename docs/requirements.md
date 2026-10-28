@@ -71,7 +71,7 @@ The same user can be an owner of some pets and an applicant for others.
 
 - Any signed-in user can post a pet. They become its owner.
 - Only the owner can edit a pet's details or delete it. Other users do not see the Edit and Delete buttons, and the server refuses such changes anyway.
-- The owner can add up to 5 photos per pet (JPEG, PNG or WebP, up to 5 MB each) and remove them one by one. The first photo is the main photo shown on the pet cards; the pet page shows all photos as a gallery.
+- The owner can add up to 5 photos per pet (JPEG, PNG or WebP, up to 5 MB each) and remove them one by one. The first photo is the main photo shown on the pet cards, and the owner can choose another photo as the main one; the pet page shows all photos as a gallery.
 - Users cannot set a pet's adoption status by hand; it changes automatically with its applications (see below).
 - A pet cannot be deleted while it has a pending or accepted application. Deleting a pet also deletes its rejected and withdrawn applications.
 

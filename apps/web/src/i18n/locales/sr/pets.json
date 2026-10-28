@@ -98,15 +98,18 @@
       "yes": "Da",
       "no": "Ne",
       "unknown": "Ne znam"
-    }
+    },
+    "setMainImage": "Postavi kao glavnu",
+    "setMainImageNumber": "Postavi fotografiju {{number}} kao glavnu"
   },
   "delete": {
     "button": "Obriši",
-    "confirmQuestion": "Obrisati ljubimca {{name}}? Ovo se ne može poništiti.",
     "confirm": "Da, obriši",
     "cancel": "Otkaži",
     "deleting": "Brisanje...",
-    "success": "Ljubimac {{name}} je obrisan."
+    "success": "Ljubimac {{name}} je obrisan.",
+    "title": "Obrisati ljubimca {{name}}?",
+    "description": "Oglas i njegove fotografije biće trajno uklonjeni. Ovo se ne može poništiti."
   },
   "sortBy": "Sortiraj",
   "sort": {
@@ -185,5 +188,6 @@
   "hiddenNotice": "Administratori su sakrili ovaj oglas. Vidiš ga samo ti i administratori i ne prima nove zahteve. Postojeće zahteve i dalje možeš da rešiš.",
   "statusHint": {
     "pending": "Neko se već prijavio, a vlasnik još nije odlučio. I dalje možeš da se prijaviš."
-  }
+  },
+  "yourPet": "Tvoj ljubimac"
 }

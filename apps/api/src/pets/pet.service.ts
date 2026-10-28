@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { ClientSession, QueryFilter, SortOrder, Types } from 'mongoose';
+import {
+  Types,
+  type ClientSession,
+  type QueryFilter,
+  type SortOrder,
+} from 'mongoose';
 import {
   canTransitionPetStatus,
   PET_IMAGE_MAX_COUNT,
@@ -329,6 +334,45 @@ export const removePetImageById = async (
   }
 
   return PetModel.findById(id).lean();
+};
+
+/**
+ * Moves one photo to the front, which makes it the main photo (`imageUrl`,
+ * used on cards). A single pipeline update, so it can't interleave with
+ * another photo change. Returns `null` if no owned pet matched; throws
+ * IMAGE_NOT_FOUND if the pet has no such photo.
+ */
+export const setMainPetImage = async (
+  id: string,
+  ownerId: string,
+  imageId: string,
+): Promise<PetRecord | null> => {
+  // Pipelines aren't cast by Mongoose, so the id must already be an ObjectId.
+  const imageObjectId = new Types.ObjectId(imageId);
+  const isChosen = { $eq: ['$$this._id', imageObjectId] };
+
+  const pet = await PetModel.findOneAndUpdate(
+    { _id: id, owner: ownerId, 'images._id': imageObjectId },
+    [
+      {
+        $set: {
+          images: {
+            $concatArrays: [
+              { $filter: { input: '$images', cond: isChosen } },
+              { $filter: { input: '$images', cond: { $not: [isChosen] } } },
+            ],
+          },
+        },
+      },
+    ],
+    { returnDocument: 'after', updatePipeline: true },
+  ).lean();
+
+  if (!pet && (await isPetOwnedBy(id, ownerId))) {
+    throw new NotFoundError('IMAGE_NOT_FOUND');
+  }
+
+  return pet;
 };
 
 /**

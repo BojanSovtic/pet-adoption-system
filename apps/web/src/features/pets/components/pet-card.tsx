@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
-import { Check, PawPrint } from 'lucide-react';
+import { Check, PawPrint, UserRound } from 'lucide-react';
 import { PET_COMPATIBILITY_TARGETS, type Pet } from '@pet-adoption/models';
 
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import { PetStatusBadge } from './pet-status-badge';
 
 type PetCardProps = {
   pet: Pet;
+  /** The signed-in user posted this pet (display only; the API decides). */
+  isOwn?: boolean;
 };
 
 /**
@@ -19,7 +21,7 @@ type PetCardProps = {
  * covers the card, so screen readers hear a single link, not a duplicate
  * "View details". The card shows the focus outline when that link is focused.
  */
-const PetCard = ({ pet }: PetCardProps) => {
+const PetCard = ({ pet, isOwn = false }: PetCardProps) => {
   const { t } = useTranslation('pets');
   // The list's page, search and filters, so "Back to pets" can return to them.
   const location = useLocation();
@@ -56,6 +58,16 @@ const PetCard = ({ pet }: PetCardProps) => {
           status={pet.status}
           className="absolute left-3 top-3 shadow-card"
         />
+
+        {isOwn && (
+          <Badge
+            variant="secondary"
+            className="absolute right-3 top-3 shadow-card"
+          >
+            <UserRound aria-hidden="true" />
+            {t('yourPet')}
+          </Badge>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5 p-4 sm:p-5">

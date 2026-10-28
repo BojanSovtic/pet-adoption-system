@@ -23,7 +23,11 @@ import { ApiError } from '../../../lib/api-client';
 import { getCurrentUser } from '../../auth/api/get-current-user';
 import { createPet } from '../api/create-pet';
 import { getPet } from '../api/get-pet';
-import { addPetImages, deletePetImage } from '../api/pet-image';
+import {
+  addPetImages,
+  deletePetImage,
+  setMainPetImage,
+} from '../api/pet-image';
 import { updatePet } from '../api/update-pet';
 import { PetFormPage } from './pet-form-page';
 
@@ -33,6 +37,7 @@ vi.mock('../api/update-pet', () => ({ updatePet: vi.fn() }));
 vi.mock('../api/pet-image', () => ({
   addPetImages: vi.fn(),
   deletePetImage: vi.fn(),
+  setMainPetImage: vi.fn(),
 }));
 vi.mock('../../auth/api/get-current-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/api/get-current-user')>()),
@@ -142,6 +147,7 @@ describe('pet photos in the pet form', () => {
     vi.mocked(updatePet).mockReset().mockResolvedValue(pet);
     vi.mocked(addPetImages).mockReset().mockResolvedValue(newPet);
     vi.mocked(deletePetImage).mockReset().mockResolvedValue(pet);
+    vi.mocked(setMainPetImage).mockReset().mockResolvedValue(pet);
     vi.mocked(getPet).mockResolvedValue(pet);
   });
 
@@ -309,5 +315,76 @@ describe('pet photos in the pet form', () => {
     await waitFor(() => expect(updatePet).toHaveBeenCalled());
     expect(addPetImages).not.toHaveBeenCalled();
     expect(deletePetImage).not.toHaveBeenCalled();
+    expect(setMainPetImage).not.toHaveBeenCalled();
+  });
+
+  describe('choosing the main photo', () => {
+    it('makes a saved photo the main one on save', async () => {
+      renderForm('/pets/pet-1/edit');
+      await screen.findByRole('img', { name: 'Photo 2' });
+      // The current main photo has no button; the others do.
+      expect(
+        screen.queryByRole('button', { name: 'Set photo 1 as the main photo' }),
+      ).toBeNull();
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Set photo 2 as the main photo' }),
+      );
+
+      // Shown in the saved order: the chosen photo first.
+      expect(
+        screen.getByRole('img', { name: 'Photo 1' }).getAttribute('src'),
+      ).toBe(pet.images[1].url);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() =>
+        expect(setMainPetImage).toHaveBeenCalledWith('pet-1', 'img-2'),
+      );
+      expect(addPetImages).not.toHaveBeenCalled();
+      expect(deletePetImage).not.toHaveBeenCalled();
+    });
+
+    it('makes a new photo the main one after uploading it', async () => {
+      vi.mocked(addPetImages).mockResolvedValue({
+        ...newPet,
+        images: [image('up-1'), image('up-2')],
+      });
+      renderForm('/pets/new');
+      await fillRequiredFields();
+      const first = photo('first.png');
+      const second = photo('second.png');
+      choosePhotos(first, second);
+
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: 'Set photo 2 as the main photo',
+        }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Create pet' }));
+
+      await waitFor(() =>
+        expect(setMainPetImage).toHaveBeenCalledWith('new-pet', 'up-2'),
+      );
+      // Uploaded in the order chosen; only the main photo moves.
+      expect(addPetImages).toHaveBeenCalledWith('new-pet', [first, second]);
+    });
+
+    it('forgets the choice when that photo is removed', async () => {
+      renderForm('/pets/pet-1/edit');
+      await screen.findByRole('img', { name: 'Photo 2' });
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Set photo 2 as the main photo' }),
+      );
+      // The chosen photo is now shown first.
+      fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() =>
+        expect(deletePetImage).toHaveBeenCalledWith('pet-1', 'img-2'),
+      );
+      expect(setMainPetImage).not.toHaveBeenCalled();
+    });
   });
 });
