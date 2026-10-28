@@ -11,6 +11,11 @@
     "description": "Stranica koju tražiš ne postoji ili je premeštena.",
     "backToPets": "Nazad na ljubimce"
   },
+  "errorPage": {
+    "title": "Došlo je do greške",
+    "description": "Ova stranica ne može da se prikaže. Ponovo učitaj stranicu ili se vrati na listu ljubimaca.",
+    "reload": "Ponovo učitaj"
+  },
   "errors": {
     "INTERNAL_SERVER_ERROR": "Došlo je do greške.",
     "NETWORK_ERROR": "Server nije dostupan. Proveri vezu i pokušaj ponovo.",

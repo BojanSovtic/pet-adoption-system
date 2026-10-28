@@ -88,10 +88,11 @@ sequenceDiagram
 - **React Router only picks the page component.** There are no route loaders or actions; data is fetched inside components with TanStack Query.
   - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `applicationQueryKeys.mine(query)` / `.received(query)` = `['applications', 'mine' | 'received', { page, … }]` and `['auth', 'me']`. Invalidating `['pets']` refreshes every list and detail.
   - **The pet list keeps its state in the URL** (`?search=&species=&status=&sort=&page=`) through `useSearchParams`, so Back and shared links restore it. Search is debounced by 300 ms, and any change other than the page resets to page 1.
-- **Errors are handled in three places:**
+- **Errors are handled in four places:**
   - The Axios response interceptor (`lib/api-client.ts`) turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
   - The query client (`app/query-client.ts`) applies the cross-cutting rules: no retries on 4xx, a toast for mutation errors and background-refetch errors, and the user reset to `null` on `UNAUTHENTICATED`.
   - Pages show inline and field errors; the form above opts out of the toast with `meta.skipGlobalErrorToast`.
+  - Render errors are caught by two route `errorElement`s (`app/route-error-page.tsx`, wired in `app/router.tsx`): one around all pages, so the header stays usable, and a full-page one in case the shell itself fails. The page shows no error details and offers "Reload page" and "Back to pets". It doesn't catch errors in event handlers or async code; those go through the query client above.
 - **The UI hides what the API would refuse; the API stays authoritative.**
   - `isPetOwner(pet, currentUser)` decides whether Edit and Delete are shown.
   - The form redirects signed-out users to `/login` with `state.from`, and login sends them back. This also happens when a save returns 401, because the global handler clears the current user.

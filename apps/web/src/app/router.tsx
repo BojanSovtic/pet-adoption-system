@@ -7,6 +7,7 @@ import {
 
 import { AppShell } from './app-shell';
 import { NotFoundPage } from './not-found-page';
+import { RouteErrorPage } from './route-error-page';
 import { AdminLayout } from '../features/admin/components/admin-layout';
 import { AdminApplicationsPage } from '../features/admin/pages/admin-applications-page';
 import { AdminAuditPage } from '../features/admin/pages/admin-audit-page';
@@ -29,45 +30,53 @@ const AppLayout = () => {
 };
 
 // Exported separately so tests can mount the same routes in a memory router.
+// Two error boundaries: the inner one keeps the header usable when a page
+// fails; the outer one catches failures in the shell itself.
 export const routes: RouteObject[] = [
   {
     element: <AppLayout />,
+    errorElement: <RouteErrorPage fullPage />,
     children: [
       {
-        index: true,
-        element: <Navigate to="/pets" replace />,
-      },
-      {
-        path: '/pets',
-        element: <PetsPage />,
-      },
-      { path: '/pets/:id', element: <PetDetailsPage /> },
-      {
-        path: '/pets/new',
-        element: <PetFormPage />,
-      },
-      {
-        path: '/pets/:id/edit',
-        element: <PetFormPage />,
-      },
-      { path: '/applications', element: <ApplicationsPage /> },
-      {
-        // AdminLayout checks the role; the API enforces it on every request.
-        path: '/admin',
-        element: <AdminLayout />,
+        errorElement: <RouteErrorPage />,
         children: [
-          { index: true, element: <AdminDashboardPage /> },
-          { path: 'users', element: <AdminUsersPage /> },
-          { path: 'pets', element: <AdminPetsPage /> },
-          { path: 'applications', element: <AdminApplicationsPage /> },
-          { path: 'audit', element: <AdminAuditPage /> },
+          {
+            index: true,
+            element: <Navigate to="/pets" replace />,
+          },
+          {
+            path: '/pets',
+            element: <PetsPage />,
+          },
+          { path: '/pets/:id', element: <PetDetailsPage /> },
+          {
+            path: '/pets/new',
+            element: <PetFormPage />,
+          },
+          {
+            path: '/pets/:id/edit',
+            element: <PetFormPage />,
+          },
+          { path: '/applications', element: <ApplicationsPage /> },
+          {
+            // AdminLayout checks the role; the API enforces it on every request.
+            path: '/admin',
+            element: <AdminLayout />,
+            children: [
+              { index: true, element: <AdminDashboardPage /> },
+              { path: 'users', element: <AdminUsersPage /> },
+              { path: 'pets', element: <AdminPetsPage /> },
+              { path: 'applications', element: <AdminApplicationsPage /> },
+              { path: 'audit', element: <AdminAuditPage /> },
+            ],
+          },
+          { path: '/login', element: <LoginPage /> },
+          { path: '/register', element: <RegisterPage /> },
+          {
+            path: '*',
+            element: <NotFoundPage />,
+          },
         ],
-      },
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      {
-        path: '*',
-        element: <NotFoundPage />,
       },
     ],
   },
