@@ -81,7 +81,9 @@ describe('RegisterPage', () => {
     renderRegisterPage();
     await screen.findByLabelText('Confirm password');
 
-    expect(screen.getByText('Fields marked * are required.')).toBeTruthy();
+    // Every field shows the `*`; auth pages leave out the explanatory note.
+    expect(screen.getAllByText('*')).toHaveLength(4);
+    expect(screen.queryByText('Fields marked * are required.')).toBeNull();
     for (const label of ['Name', 'Email', 'Password', 'Confirm password']) {
       expect((screen.getByLabelText(label) as HTMLInputElement).required).toBe(
         true,

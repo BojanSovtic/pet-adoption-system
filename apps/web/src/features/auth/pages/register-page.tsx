@@ -5,7 +5,6 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { PASSWORD_MIN_LENGTH, type RegisterInput } from '@pet-adoption/models';
 
-import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 
 import { getErrorMessage } from '../../../lib/get-error-message';
@@ -115,8 +114,6 @@ const RegisterPage = () => {
         noValidate
         className="space-y-6"
       >
-        <RequiredFieldsNote />
-
         <FormField
           {...fieldProps('name')}
           autoComplete="name"

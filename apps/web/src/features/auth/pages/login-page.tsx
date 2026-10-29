@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { RequiredFieldsNote } from '@/components/required-fields-note';
 import { Button } from '@/components/ui/button';
 
 import { getErrorMessage } from '../../../lib/get-error-message';
@@ -108,8 +107,6 @@ const LoginPage = () => {
         noValidate
         className="space-y-6"
       >
-        <RequiredFieldsNote />
-
         <FormField
           id="email"
           type="email"

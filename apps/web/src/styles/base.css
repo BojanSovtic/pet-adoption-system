@@ -72,6 +72,15 @@
     cursor: not-allowed;
   }
 
+  /*
+   * The browser's own clear (×) button in search inputs (Chrome, Edge,
+   * Safari). A separate rule: browsers that don't know this pseudo-element
+   * would drop the whole list above.
+   */
+  input[type='search']:not(:disabled)::-webkit-search-cancel-button {
+    cursor: pointer;
+  }
+
   ::selection {
     background: color-mix(in oklch, var(--primary) 22%, transparent);
   }
