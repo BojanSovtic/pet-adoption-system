@@ -43,6 +43,9 @@ type Window = { limit: number; windowMs: number };
  *   write (receiving, decoding, re-encoding). A pet holds at most 5 photos,
  *   so 20 requests in 10 minutes and 100 a day cover filling or replacing the
  *   galleries of many pets.
+ * - Messages (starting a conversation or replying): a real exchange about
+ *   a pet is a few messages at a time; 30 in 10 minutes and 300 a day keeps
+ *   a back-and-forth comfortable but stops message floods and spam runs.
  * - Other changes (edit or delete a pet, delete photos, accept/reject/
  *   withdraw applications): cheap and bounded by the data a user owns; 60 in
  *   10 minutes, 500 a day only stops runaway scripts.
@@ -59,6 +62,10 @@ export const USER_WRITE_LIMITS = {
   photoUpload: {
     burst: { limit: 20, windowMs: 10 * MINUTE },
     sustained: { limit: 100, windowMs: DAY },
+  },
+  messageSend: {
+    burst: { limit: 30, windowMs: 10 * MINUTE },
+    sustained: { limit: 300, windowMs: DAY },
   },
   otherWrite: {
     burst: { limit: 60, windowMs: 10 * MINUTE },
@@ -180,6 +187,8 @@ export const applicationSubmitRateLimit =
 export const petCreateRateLimit = userWriteRateLimit('petCreate');
 /** PUT /api/pets/:id/image and POST /api/pets/:id/images, before the body is read. */
 export const photoUploadRateLimit = userWriteRateLimit('photoUpload');
+/** POST /api/pets/:petId/conversations and POST /api/conversations/:id/messages. */
+export const messageSendRateLimit = userWriteRateLimit('messageSend');
 /** Editing/deleting pets and photos; accepting, rejecting, withdrawing applications. */
 export const otherWriteRateLimit = userWriteRateLimit('otherWrite');
 

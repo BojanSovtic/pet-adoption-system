@@ -261,7 +261,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and
 
 - **Not deployed and not production-ready.** There is no production configuration, monitoring or backup yet; see [docs/production-readiness.md](docs/production-readiness.md) and [docs/deployment.md](docs/deployment.md).
 - No email verification, password reset or account deletion; no privacy notice yet.
-- No messaging between owners and applicants; they contact each other outside the app.
+- Messaging between owners and interested users is basic: text only, no notifications, unread counts or live updates.
 - Users can't report listings or accounts to admins yet.
 - Rate limits are kept in memory, which suits a single API instance only.
 - A render error blanks the page (no React error boundary yet).

@@ -1,0 +1,54 @@
+{
+  "title": "Messages",
+  "subtitle": "Your conversations with pet owners and with people interested in your pets.",
+  "loading": "Loading conversations...",
+  "error": "Conversations could not be loaded.",
+  "empty": "No conversations yet",
+  "emptyHint": "To ask about a pet, open its listing and choose \"Message the owner\".",
+  "browsePets": "Browse pets",
+  "pagination": "Pages of conversations",
+  "pageOutOfRange": "There are no conversations on this page.",
+  "firstPage": "Go to the first page",
+  "role": {
+    "owner": "Your pet",
+    "adopter": "You asked"
+  },
+  "withUser": "with {{name}}",
+  "fromMe": "You: {{body}}",
+  "you": "You",
+  "contact": {
+    "title": "Listed by",
+    "viewProfile": "View profile",
+    "start": "Message the owner",
+    "continue": "Continue conversation",
+    "hint": "Ask a question before you apply. Your email address is not shared.",
+    "adoptedNotice": "{{pet}} has been adopted, so new conversations are closed.",
+    "ownerError": "The owner's details could not be loaded."
+  },
+  "form": {
+    "toOwner": "Your message to {{name}}",
+    "reply": "Reply to {{name}}",
+    "send": "Send message",
+    "sending": "Sending...",
+    "sent": "Message sent.",
+    "error": "The message could not be sent. Please try again.",
+    "required": "Please write a message.",
+    "tooLong": "The message must be at most 2000 characters.",
+    "cancel": "Cancel"
+  },
+  "conversation": {
+    "back": "Back to messages",
+    "loading": "Loading conversation...",
+    "notFound": "Conversation not found",
+    "notFoundHint": "It may have been removed together with its pet listing, or the link is wrong.",
+    "error": "The conversation could not be loaded.",
+    "title": "Conversation with {{name}}",
+    "aboutPet": "About",
+    "viewProfile": "View {{name}}'s profile",
+    "messagesLabel": "Messages",
+    "loadOlder": "Load earlier messages",
+    "loadingOlder": "Loading...",
+    "messagesError": "Messages could not be loaded.",
+    "noMessages": "No messages yet."
+  }
+}

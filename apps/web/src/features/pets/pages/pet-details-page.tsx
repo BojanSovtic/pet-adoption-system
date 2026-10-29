@@ -16,6 +16,7 @@ import { getPet } from '../api/get-pet';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { PetApplicationSection } from '../../applications/components/pet-application-section';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
+import { PetContactSection } from '../../messages/components/pet-contact-section';
 import { AdoptionSteps } from '../components/adoption-steps';
 import { DeletePetButton } from '../components/delete-pet-button';
 import { PetGallery } from '../components/pet-gallery';
@@ -221,6 +222,13 @@ const PetDetailsPage = () => {
           <div className="border-t pt-6">
             <PetApplicationSection pet={pet} />
           </div>
+
+          {/* Signed-in visitors only, never on one's own pet. */}
+          {currentUser && !isOwner && pet.owner && (
+            <div className="border-t pt-6">
+              <PetContactSection pet={pet} />
+            </div>
+          )}
         </Card>
 
         <div className="space-y-8 lg:col-start-1">

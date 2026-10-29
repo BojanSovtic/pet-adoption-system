@@ -16,10 +16,13 @@ import { AdminPetsPage } from '../features/admin/pages/admin-pets-page';
 import { AdminUsersPage } from '../features/admin/pages/admin-users-page';
 import { ApplicationsPage } from '../features/applications/pages/applications-page';
 import { LoginPage } from '../features/auth/pages/login-page';
+import { ConversationPage } from '../features/messages/pages/conversation-page';
+import { ConversationsPage } from '../features/messages/pages/conversations-page';
 import { RegisterPage } from '../features/auth/pages/register-page';
 import { PetsPage } from '../features/pets/pages/pets-page';
 import { PetDetailsPage } from '@/features/pets/pages/pet-details-page';
 import { PetFormPage } from '../features/pets/pages/pet-form-page';
+import { UserProfilePage } from '../features/users/pages/user-profile-page';
 
 const AppLayout = () => {
   return (
@@ -58,6 +61,9 @@ export const routes: RouteObject[] = [
             element: <PetFormPage />,
           },
           { path: '/applications', element: <ApplicationsPage /> },
+          { path: '/messages', element: <ConversationsPage /> },
+          { path: '/messages/:id', element: <ConversationPage /> },
+          { path: '/users/:id', element: <UserProfilePage /> },
           {
             // AdminLayout checks the role; the API enforces it on every request.
             path: '/admin',

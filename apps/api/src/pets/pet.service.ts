@@ -18,6 +18,10 @@ import {
 
 import { ApplicationModel } from '../applications/application.model';
 import { withTransaction } from '../config/database';
+import {
+  ConversationModel,
+  MessageModel,
+} from '../conversations/conversation.model';
 import { ConflictError, NotFoundError } from '../errors/app-error';
 import { deleteStoredFileQuietly, storage } from '../storage';
 import { IMAGE_EXTENSIONS, tooManyImagesError } from './pet-image';
@@ -87,6 +91,38 @@ export const listPets = async (
 
   const [items, totalItems] = await Promise.all([
     findPage.lean(),
+    PetModel.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    page,
+    pageSize,
+    totalItems,
+    totalPages: Math.ceil(totalItems / pageSize),
+  };
+};
+
+/**
+ * One page of a user's publicly listed pets for their profile, newest first:
+ * not hidden by an admin and not adopted (still open to applications).
+ */
+export const listOwnerListedPets = async (
+  ownerId: string,
+  { page, pageSize }: { page: number; pageSize: number },
+): Promise<Paginated<PetRecord>> => {
+  const filter: QueryFilter<PetRecord> = {
+    owner: ownerId,
+    hiddenAt: null,
+    status: { $ne: 'adopted' },
+  };
+
+  const [items, totalItems] = await Promise.all([
+    PetModel.find(filter)
+      .sort(SORTS.newest)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean(),
     PetModel.countDocuments(filter),
   ]);
 
@@ -181,9 +217,10 @@ export const transitionPetStatus = async (
 
 /**
  * Deletes the pet only if `ownerId` owns it and it has no pending or accepted
- * applications. Its inactive (rejected/withdrawn) applications are deleted
- * with it. Returns the deleted pet (so the caller can remove its photo after
- * the transaction), or `null` if no owned pet matched.
+ * applications. Its inactive (rejected/withdrawn) applications and its
+ * conversations (with their messages) are deleted with it. Returns the
+ * deleted pet (so the caller can remove its photo after the transaction), or
+ * `null` if no owned pet matched.
  */
 export const deleteOwnedPet = (
   id: string,
@@ -206,6 +243,16 @@ export const deleteOwnedPet = (
     }
 
     await ApplicationModel.deleteMany({ pet: pet._id }, { session });
+
+    const conversationIds = await ConversationModel.find({ pet: pet._id })
+      .session(session)
+      .distinct('_id');
+
+    await MessageModel.deleteMany(
+      { conversation: { $in: conversationIds } },
+      { session },
+    );
+    await ConversationModel.deleteMany({ pet: pet._id }, { session });
     await PetModel.deleteOne({ _id: pet._id }, { session });
 
     return pet;

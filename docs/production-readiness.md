@@ -146,6 +146,7 @@ These must be done before real users sign up. They are ordered by risk and depen
   | Applications | `POST /api/pets/:petId/applications` | 10 / 10 min | 30 |
   | New pets | `POST /api/pets` | 10 / 10 min | 30 |
   | Photo uploads (requests of 1–5 files) | `PUT /api/pets/:id/image`, `POST /api/pets/:id/images` | 20 / 10 min | 100 |
+  | Messages (added 2026-10-29) | `POST /api/pets/:petId/conversations`, `POST /api/conversations/:id/messages` | 30 / 10 min | 300 |
   | Other changes | `PUT`/`DELETE /api/pets/:id`, `DELETE` photo routes, `POST /api/applications/:id/accept\|reject\|withdraw` | 60 / 10 min | 500 |
   | Per IP, signed in or not | every non-GET `/api` request outside `/api/auth` | 500 / 10 min | – |
   | Unchanged | sign-in/registration (per IP, per IP+email); admin reads 300 and changes 30 per 15 min per admin (A4) | | |

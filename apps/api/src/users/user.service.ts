@@ -1,5 +1,5 @@
 import { mongo, type Types } from 'mongoose';
-import type { User, UserRole } from '@pet-adoption/models';
+import type { PublicUserProfile, User, UserRole } from '@pet-adoption/models';
 
 import { ConflictError } from '../errors/app-error';
 import { UserModel, type UserRecord } from './user.model';
@@ -76,3 +76,22 @@ export const toPublicUser = (user: StoredUser): User => ({
   createdAt: user.createdAt.toISOString(),
   updatedAt: user.updatedAt.toISOString(),
 });
+
+/**
+ * What other signed-in users may see about a user: the name and when the
+ * account was created. Only these fields are read from the database, so
+ * nothing private can leak into the response by accident.
+ */
+export const findPublicProfile = async (
+  id: string,
+): Promise<PublicUserProfile | null> => {
+  const user = await UserModel.findById(id, 'name createdAt').lean();
+
+  return user
+    ? {
+        _id: user._id.toString(),
+        name: user.name,
+        memberSince: user.createdAt.toISOString(),
+      }
+    : null;
+};

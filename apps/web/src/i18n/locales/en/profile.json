@@ -1,0 +1,15 @@
+{
+  "loading": "Loading profile...",
+  "error": "The profile could not be loaded.",
+  "notFound": "Profile not found",
+  "notFoundHint": "This member doesn't exist, or the link is wrong.",
+  "browsePets": "Browse pets",
+  "memberSince": "Member since {{date}}",
+  "ownProfileHint": "This is how other members see your profile. Your email address is never shown.",
+  "petsTitle": "Pets looking for a home",
+  "petsEmpty": "{{name}} has no pets listed for adoption right now.",
+  "petsError": "Pets could not be loaded.",
+  "petsPagination": "Pages of pets",
+  "pageOutOfRange": "There are no pets on this page.",
+  "firstPage": "Go to the first page"
+}

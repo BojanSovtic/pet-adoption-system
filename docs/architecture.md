@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27; security headers, photo re-encoding, write rate limits and the three environments reviewed on 2026-10-28). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27; security headers, photo re-encoding, write rate limits and the three environments reviewed on 2026-10-28; messaging and public profiles added on 2026-10-29). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
@@ -18,13 +18,13 @@ flowchart LR
   browser(["Browser"])
   operator(["Operator with server access"])
   cli["pnpm admin:grant / admin:revoke / audit:verify<br/>apps/api/src/scripts/"]
-  mongo[("MongoDB 8, single-node replica set<br/>Docker container (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications,<br/>adminaudits, auditchainheads,<br/>rolechangeguards")]
+  mongo[("MongoDB 8, single-node replica set<br/>Docker container (host port 27018)<br/>pets, users, sessions,<br/>adoptionapplications,<br/>conversations, messages,<br/>adminaudits, auditchainheads,<br/>rolechangeguards")]
 
   browser -- "loads SPA" --> web
   browser -- "axios /api/*<br/>JSON + sid cookie<br/>(withCredentials, CORS)" --> api
   web -. "imports types<br/>(workspace:*)" .-> models
   api -. "imports types + constants<br/>(bundled inline)" .-> models
-  api -- "Mongoose 9<br/>(pets, users, applications,<br/>admin audit; transactions)" --> mongo
+  api -- "Mongoose 9<br/>(pets, users, applications,<br/>conversations, admin audit;<br/>transactions)" --> mongo
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
   operator -- "runs" --> cli
   cli -- "changeUserRole / verifyAuditChain<br/>(only MONGODB_URI + optional<br/>AUDIT_HMAC_KEY)" --> mongo
@@ -86,7 +86,7 @@ sequenceDiagram
 ```
 
 - **React Router only picks the page component.** There are no route loaders or actions; data is fetched inside components with TanStack Query.
-  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `applicationQueryKeys.mine(query)` / `.received(query)` = `['applications', 'mine' | 'received', { page, … }]` and `['auth', 'me']`. Invalidating `['pets']` refreshes every list and detail.
+  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `applicationQueryKeys.mine(query)` / `.received(query)` = `['applications', 'mine' | 'received', { page, … }]`, `conversationQueryKeys` (`['conversations', 'list' | 'detail' | 'messages', …]`), `userQueryKeys` (`['users', 'profile' | 'pets', id, …]`) and `['auth', 'me']`. Application, conversation, profile and admin data are removed on every identity change (`setCurrentUser`). Invalidating `['pets']` refreshes every list and detail.
   - **The pet list keeps its state in the URL** (`?search=&species=&status=&sort=&page=`) through `useSearchParams`, so Back and shared links restore it. Search is debounced by 300 ms, and any change other than the page resets to page 1.
 - **Errors are handled in four places:**
   - The Axios response interceptor (`lib/api-client.ts`) turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
@@ -112,8 +112,8 @@ flowchart TB
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
-  router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
-  auth -- "changes" --> userrate["per-user write limits (user id from the session)<br/>applications / new pets / photo uploads / other changes<br/>burst + daily window → 429 RATE_LIMITED"]
+  router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications<br/>all /api/conversations/*<br/>POST /api/pets/:id/conversations<br/>GET /api/users/:id[/pets]" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
+  auth -- "changes" --> userrate["per-user write limits (user id from the session)<br/>applications / new pets / photo uploads / messages / other changes<br/>burst + daily window → 429 RATE_LIMITED"]
   router -- "/api/admin/* (every path,<br/>router-level)" --> admin["requireAdmin<br/>requireAuth, then role = admin<br/>→ 401 / 403 ADMIN_REQUIRED<br/>+ per-admin rate limits<br/>→ 429 RATE_LIMITED"]
   router -- "GET /api/pets, /api/pets/:id (public)<br/>/api/auth/me, /logout" --> controller
   router -- "any other /api path" --> notfound["404 ROUTE_NOT_FOUND"]
@@ -123,8 +123,8 @@ flowchart TB
   userrate --> validate
   admin --> validate
   validate --> controller["asyncHandler(controller)<br/>checks ids, throws AppError<br/>no owned pet matched → 403 / 404"]
-  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>application.service (transactions)<br/>auth.service / user.service<br/>admin.service / user-role.service<br/>pet-moderation / admin-audit.service"]
-  service --> model["Mongoose model<br/>PetModel / UserModel / ApplicationModel<br/>AdminAuditModel / AuditChainHeadModel<br/>RoleChangeGuardModel"]
+  controller --> service["service<br/>pet.service (owner-scoped queries)<br/>application.service (transactions)<br/>conversation.service (participant-scoped)<br/>auth.service / user.service<br/>admin.service / user-role.service<br/>pet-moderation / admin-audit.service"]
+  service --> model["Mongoose model<br/>PetModel / UserModel / ApplicationModel<br/>ConversationModel / MessageModel<br/>AdminAuditModel / AuditChainHeadModel<br/>RoleChangeGuardModel"]
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
@@ -134,10 +134,10 @@ flowchart TB
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
 - **Errors leave through one place.** Every error, including rate-limit, validation and origin errors, reaches `errorHandler`. Response bodies are always `{ code, details? }`; the web translates `code`.
 - **Not every route has every step.**
-  - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /auth/register`, `POST /auth/login`, `PUT /admin/users/:id/role`).
-  - `requireAuth` runs on pet create, update, delete and photo routes and on every application route, *before* validation, so anonymous requests get 401 whatever the body.
+  - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /pets/:petId/conversations`, `POST /conversations/:id/messages`, `POST /auth/register`, `POST /auth/login`, `PUT /admin/users/:id/role`).
+  - `requireAuth` runs on pet create, update, delete and photo routes, on every application and conversation route and on the profile routes, *before* validation, so anonymous requests get 401 whatever the body.
   - `requireAdmin` is mounted on the whole `/api/admin` router (`router.use`), so it also runs for admin paths that match no route: access is denied by default. The admin rate limits run right after it (§5b).
-  - Rate limiting runs on `register`/`login` (per IP and per IP+email), on every admin request (per admin account), on every other change after `requireAuth` (per user, four kinds with a burst and a daily window), and on all changes outside `/api/auth` per IP before the body is read. Values: `USER_WRITE_LIMITS` / `WRITES_PER_IP` in `middleware/rate-limit.ts`.
+  - Rate limiting runs on `register`/`login` (per IP and per IP+email), on every admin request (per admin account), on every other change after `requireAuth` (per user, five kinds with a burst and a daily window), and on all changes outside `/api/auth` per IP before the body is read. Values: `USER_WRITE_LIMITS` / `WRITES_PER_IP` in `middleware/rate-limit.ts`.
   - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check the upload rate limit, then ownership (and free slots), before `multer` reads the multipart body. At most 2 images are processed at once per API process. The controller then runs `processPetImage` (magic bytes → `sharp` header check, ≤ 40 MP → re-encode without metadata, EXIF rotation applied, ≤ 2000 px) before anything is stored; the uploaded bytes are never saved.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
@@ -333,20 +333,47 @@ erDiagram
     date createdAt
     date updatedAt
   }
+  CONVERSATION {
+    ObjectId _id PK
+    ObjectId pet FK "ref Pet"
+    ObjectId petOwner FK "ref User, copy of pet.owner"
+    ObjectId adopter FK "ref User, who started it (from the session)"
+    object lastMessage "body (preview, max 200), sender, createdAt"
+    date createdAt
+    date updatedAt
+  }
+  MESSAGE {
+    ObjectId _id PK "also the paging cursor"
+    ObjectId conversation FK "ref Conversation"
+    ObjectId sender FK "ref User, from the session"
+    string body "1-2000 chars, trimmed"
+    date createdAt "no updatedAt: messages never change"
+  }
   USER ||--o{ PET : "owns (owner)"
   USER ||--o{ ADOPTION_APPLICATION : "submits (applicant)"
   USER ||--o{ ADOPTION_APPLICATION : "receives (petOwner)"
   PET ||--o{ ADOPTION_APPLICATION : "receives"
+  PET ||--o{ CONVERSATION : "is discussed in"
+  USER ||--o{ CONVERSATION : "starts (adopter) / receives (petOwner)"
+  CONVERSATION ||--o{ MESSAGE : "contains"
+  USER ||--o{ MESSAGE : "sends (sender)"
   SESSION }o--|| USER : "userId (plain string, not a Mongoose ref)"
   USER ||--o{ ADMIN_AUDIT : "acts (actor)"
   USER ||--o{ ADMIN_AUDIT : "is affected (targetUser)"
   PET ||--o{ ADMIN_AUDIT : "is moderated (targetPet)"
 ```
 
-- **Mongoose models:** `USER`, `PET`, `ADOPTION_APPLICATION`, `ADMIN_AUDIT`, `AUDIT_CHAIN_HEAD` and `ROLE_CHANGE_GUARD` (`users/`, `pets/`, `applications/`, `admin/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
+- **Mongoose models:** `USER`, `PET`, `ADOPTION_APPLICATION`, `CONVERSATION`, `MESSAGE`, `ADMIN_AUDIT`, `AUDIT_CHAIN_HEAD` and `ROLE_CHANGE_GUARD` (`users/`, `pets/`, `applications/`, `conversations/`, `admin/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
 - **Admin audit log:** written in the same transaction as each change, so a change never exists without its record; refused attempts and list views get their own entry. No update or delete path exists in the app (model hooks refuse them). See §5b for the hash chain and its limits.
 - **Hidden pets** (`hiddenAt` set) are left out of `GET /api/pets` and return 404 from `GET /api/pets/:id` except to their owner and admins. The API returns only a `hidden` flag, never who hid it.
-- **`owner` and `applicant` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
+- **`owner`, `applicant`, `adopter` and message `sender` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
+- **Public profiles** (`GET /api/users/:id`, `GET /api/users/:id/pets`, signed-in users only): `findPublicProfile` reads only `name` and `createdAt` from the database and returns `{ _id, name, memberSince }`, so no private field can leak by accident. The pets list is the owner's pets with `hiddenAt: null` and status not `adopted`. There is no write route under `/api/users` (404 `ROUTE_NOT_FOUND`). The id is the same one pets already expose as `owner`.
+- **Conversations** (`conversations/`): one per `{ pet, adopter }` (unique index), so contacting the owner again continues it.
+  - **Access:** every query is scoped by `{ $or: [{ adopter: me }, { petOwner: me }] }`, so a foreign or guessed id finds nothing (404 `CONVERSATION_NOT_FOUND`, the same as a missing one). Message pages are scoped by conversation too, so a cursor from another conversation reveals nothing.
+  - **Views:** `role` (`owner` | `adopter`), the other participant's `{ _id, name }`, a pet summary, and messages as `{ _id, body, fromMe, createdAt }`: no emails and no sender ids.
+  - **Writes:** starting (`POST /api/pets/:petId/conversations`) runs in a transaction that starts with `lockPet` and applies the application rules (hidden/missing pet → 404, own pet → 403 `CANNOT_MESSAGE_OWN_PET`, adopted pet → 409 `PET_NOT_AVAILABLE` for a new conversation); replying first updates the participant-scoped conversation (access check and lock in one write), then inserts the message, in one transaction. Both pass the per-user `messageSend` rate limit.
+  - **Lists:** `GET /api/conversations` is paginated (default 10, at most 50) by latest activity (`lastMessage.createdAt`, `_id`), with an optional `pet` filter (used by the pet page); indexes `{ adopter | petOwner, lastMessage.createdAt: -1, _id: -1 }`. `GET /api/conversations/:id/messages?before=<id>` returns 30 messages, oldest first, plus `hasOlder` (index `{ conversation, _id: -1 }`).
+  - **Deleting a pet** deletes its conversations and messages in the same transaction (`deleteOwnedPet`).
 - **Pet profile facts** (`sex`, `breed`, `compatibility`, `aloneTime`) are optional in the API input. Pets stored before they existed lack them; `withProfileDefaults` fills `unknown`/empty in every response, so no migration is needed.
 - **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
 - **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.

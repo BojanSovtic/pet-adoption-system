@@ -5,3 +5,10 @@ const toDateLocale = (language: string) =>
 /** A date (ISO string from the API) in the interface language, e.g. "26/10/2026". */
 export const formatDate = (isoDate: string, language: string): string =>
   new Date(isoDate).toLocaleDateString(toDateLocale(language));
+
+/** A date and time in the interface language, e.g. "26/10/2026, 14:05". */
+export const formatDateTime = (isoDate: string, language: string): string =>
+  new Date(isoDate).toLocaleString(toDateLocale(language), {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });

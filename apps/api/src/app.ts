@@ -6,7 +6,9 @@ import { adminRouter } from './admin/admin.routes';
 import { applicationRouter } from './applications/application.routes';
 import { authRouter } from './auth/auth.routes';
 import { sessionMiddleware } from './auth/session';
+import { conversationRouter } from './conversations/conversation.routes';
 import { petRouter } from './pets/pet.routes';
+import { userRouter } from './users/user.routes';
 import { NotFoundError } from './errors/app-error';
 import { errorHandler } from './middleware/error-handler';
 import { writeIpRateLimit } from './middleware/rate-limit';
@@ -81,7 +83,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/pets', petRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/users', userRouter);
 app.use('/api', applicationRouter);
+app.use('/api', conversationRouter);
 
 // Any /api path no router handled: a JSON 404 instead of Express's HTML page.
 // Must stay after every API router and before the error handler.

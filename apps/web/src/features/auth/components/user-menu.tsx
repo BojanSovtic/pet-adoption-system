@@ -52,6 +52,9 @@ const UserMenu = () => {
       <Button asChild variant="ghost" size="sm">
         <Link to="/applications">{t('applicationsLink')}</Link>
       </Button>
+      <Button asChild variant="ghost" size="sm">
+        <Link to="/messages">{t('messagesLink')}</Link>
+      </Button>
       <span className="hidden max-w-40 truncate text-sm font-medium text-muted-foreground sm:inline">
         {currentUser.name}
       </span>

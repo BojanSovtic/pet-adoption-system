@@ -30,6 +30,23 @@ vi.mock('../../applications/api/applications', async (importOriginal) => ({
   getMyApplications: vi.fn().mockResolvedValue(pageOf([])),
 }));
 
+// ...and, for signed-in non-owners, the owner contact section.
+vi.mock('../../messages/api/conversations', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../messages/api/conversations')
+  >()),
+  getConversations: vi.fn().mockResolvedValue(pageOf([])),
+}));
+
+vi.mock('../../users/api/users', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../users/api/users')>()),
+  getUserProfile: vi.fn().mockResolvedValue({
+    _id: 'owner-1',
+    name: 'Ana',
+    memberSince: '2026-01-01T00:00:00.000Z',
+  }),
+}));
+
 vi.mock('../../auth/api/get-current-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/api/get-current-user')>()),
   getCurrentUser: vi.fn(),
@@ -161,6 +178,38 @@ describe('PetDetailsPage', () => {
     await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
     expect(screen.queryByRole('link', { name: 'Edit pet' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  it('shows who listed the pet and how to contact them to another user', async () => {
+    renderAt('/pets/pet-1', otherUser);
+
+    const section = (
+      await screen.findByRole('heading', { name: 'Listed by' })
+    ).closest('section') as HTMLElement;
+
+    expect(await within(section).findByText('Ana')).toBeTruthy();
+    expect(
+      within(section)
+        .getByRole('link', { name: 'View profile' })
+        .getAttribute('href'),
+    ).toBe('/users/owner-1');
+    expect(
+      await within(section).findByRole('button', { name: 'Message the owner' }),
+    ).toBeTruthy();
+  });
+
+  it.each([
+    ['the owner', owner],
+    ['a signed-out visitor', null],
+  ])('shows no contact section to %s', async (_label, user) => {
+    renderAt('/pets/pet-1', user);
+
+    expect(await screen.findByRole('heading', { name: 'Milo' })).toBeTruthy();
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
+    expect(screen.queryByRole('heading', { name: 'Listed by' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Message the owner' }),
+    ).toBeNull();
   });
 
   it('shows the profile facts and the home and lifestyle answers', async () => {

@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-23. Branch `develop` at `e02c2a4` (multiple photos). Uncommitted: the isolated Docker QA environment (see "Docker QA environment")._
+_Last updated: 2026-10-29. Branch `develop` at `70614e9`. Uncommitted: messaging and public profiles (see "Messaging and public profiles")._
 
 ## Status
 
@@ -101,6 +101,31 @@ Verified by passing tests or by reading the code.
 - **Photo upload through Axios** is not verified in a browser (deferred to the manual QA checklist).
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
+
+## Messaging and public profiles (2026-10-29)
+
+Rules in [requirements.md](requirements.md) ("Public profiles", "Messaging"); data model and access rules in [architecture.md](architecture.md) §4.
+
+- **Decision: conversations belong to a pet listing, not to an adoption application.** Applications had only a one-off message, so there was nothing to reuse. Tying messages to applications would force people to apply before asking a question and would duplicate the pet/owner link; a listing-based conversation (one per pet and interested user) lets adopters ask first and keeps talking after they apply. Trade-off: owners can be contacted by people who never apply (mitigated by the per-user message rate limit).
+- **API:**
+  - `conversations/`: `Conversation { pet, petOwner, adopter, lastMessage }` (unique `{ pet, adopter }`) and `Message { conversation, sender, body, createdAt }`.
+  - Endpoints: `POST /api/pets/:petId/conversations` (start or continue; 201/200), `GET /api/conversations?page&pageSize&pet`, `GET /api/conversations/:id`, `GET /api/conversations/:id/messages?before=`, `POST /api/conversations/:id/messages`. All need sign-in; sending passes the new `messageSend` per-user limit (30 / 10 min, 300 / day).
+  - Participant-scoped queries everywhere → non-participants get 404 `CONVERSATION_NOT_FOUND`. Sender from the session; responses carry `fromMe` and names only (no emails, no sender ids).
+  - Pet rules match applications: own pet → 403 `CANNOT_MESSAGE_OWN_PET`; hidden/missing → 404; adopted → 409 `PET_NOT_AVAILABLE` for a new conversation (existing ones continue). Starting runs in a transaction with `lockPet`; deleting a pet deletes its conversations and messages in its transaction.
+  - Profiles: `GET /api/users/:id` → `{ _id, name, memberSince }` (only those fields are read); `GET /api/users/:id/pets` → listed pets (not hidden, not adopted). Signed-in only, no write routes. The profile id is the one pets already expose as `owner`, so no new identifier is published.
+  - Shared types: `conversation.model.ts`, `PublicUserProfile`.
+- **Web:**
+  - Pet page: "Listed by" section for signed-in non-owners (owner name, "View profile", "Message the owner" → inline form, or "Continue conversation"; closed notice for adopted pets).
+  - `/messages` (header link "Messages"): conversation list with pet photo, role, other person, last message and time; paging in the URL.
+  - `/messages/:id`: pet and profile links, messages with sender and time, "Load earlier messages", reply form.
+  - `/users/:id`: name, member-since date, listed pets (pet cards, paging), a note on one's own profile.
+  - Shared `MessageForm` (`useFormValidation`, counter, inline error that keeps the text, "Message sent." toast). Loading, empty, error, not-found and signed-out states on every page. Conversation and profile caches are cleared on identity changes. en + sr (new namespaces `messages`, `profile`; three error codes).
+- **Tests:**
+  - API +32: `conversation.controller.spec.ts` (22: auth, starting/continuing, sender from the session, self-messaging, hidden/missing/adopted pets, validation incl. exactly/over 2000 characters, exchange both ways, list order and pet filter, message cursor paging, strangers get 404 everywhere incl. a foreign cursor, pet deletion cascade, rate limit, application workflow unchanged); `user.controller.spec.ts` (10: exact public fields, no private data even for admins/suspended users, no write routes, listed pets only, paging, 401/404/400). `createSignedInAgent` takes an optional name.
+  - Web +21: `messaging.spec.tsx` (13), `user-profile-page.spec.tsx` (5), pet details contact section (3).
+  - E2E +1: `messaging.spec.ts` (profile without email, start conversation, owner replies from `/messages`, adopter sees the reply, "Continue conversation", no contact controls for the owner).
+- **Checks (2026-10-29):** `nx run-many -t lint typecheck test --parallel=1` for all 4 projects ✅ (API 382/382, web 204/204); full E2E ✅ 11/11. Build not run (no build config changed).
+- **Not verified by hand:** the new pages in a real browser at phone width and with a screen reader; the Serbian texts by a native speaker.
 
 ## Form validation UX (2026-10-28)
 
@@ -458,6 +483,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 - No email verification, password reset, "log out other sessions", or `argon2.needsRehash` upgrade path.
 - **Fixed session lifetime:** 7 days from login, with no idle timeout.
 - **Applicant emails** are visible to the owners of pets they applied for, by design. There is no way to hide or revoke that.
+- **Messaging (2026-10-29):** member names are visible to signed-in users (profiles, conversations). There is no blocking, reporting or admin view of conversations, and message counters are in memory like the other rate limits.
 - **Production:**
   - HTTPS for `Secure` cookies.
   - `trust proxy` matching the real setup.
@@ -472,7 +498,7 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
   - Peer-dependency warnings from `pnpm install` were not investigated.
 - `env.ts` resolves `.env` relative to the working directory. **Checked 2026-10-21 and left as is:** Nx loads `apps/api/.env` into its tasks itself, E2E starts the API from the repo root, and Docker passes the variables directly, so every documented workflow works. A file-relative path would differ between `src/` and the bundled `dist/main.js`.
 - React Router v6 future-flag warning. Two moderate React Router advisories are only fixed in v7 (see production-readiness.md §6); plan the v7 upgrade.
-- **Applications whose applicant account is deleted** aren't handled; there's no account deletion yet.
+- **Applications and conversations whose participant account is deleted** aren't handled; there's no account deletion yet.
 
 ## Roadmap (agreed priority)
 
