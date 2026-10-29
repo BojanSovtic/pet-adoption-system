@@ -21,6 +21,7 @@ import { ConversationsPage } from '../features/messages/pages/conversations-page
 import { RegisterPage } from '../features/auth/pages/register-page';
 import { PetsPage } from '../features/pets/pages/pets-page';
 import { PetDetailsPage } from '@/features/pets/pages/pet-details-page';
+import { MyPetsPage } from '../features/pets/pages/my-pets-page';
 import { PetFormPage } from '../features/pets/pages/pet-form-page';
 import { UserProfilePage } from '../features/users/pages/user-profile-page';
 
@@ -60,6 +61,7 @@ export const routes: RouteObject[] = [
             path: '/pets/:id/edit',
             element: <PetFormPage />,
           },
+          { path: '/my-pets', element: <MyPetsPage /> },
           { path: '/applications', element: <ApplicationsPage /> },
           { path: '/messages', element: <ConversationsPage /> },
           { path: '/messages/:id', element: <ConversationPage /> },

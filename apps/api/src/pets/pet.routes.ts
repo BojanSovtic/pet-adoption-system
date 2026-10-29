@@ -17,6 +17,7 @@ import {
   deletePetImageByIdController,
   setMainPetImageController,
   deletePetImageController,
+  getMyPetsController,
   getPetByIdController,
   getPetsController,
   requirePetImageCapacity,
@@ -29,6 +30,8 @@ export const petRouter: Router = Router();
 
 // Browsing is public.
 petRouter.get('/', asyncHandler(getPetsController));
+// The signed-in user's own pets. Before '/:id', which would read "mine" as an id.
+petRouter.get('/mine', requireAuth, asyncHandler(getMyPetsController));
 petRouter.get('/:id', asyncHandler(getPetByIdController));
 
 // Changes require a signed-in user (checked before validation, so anonymous

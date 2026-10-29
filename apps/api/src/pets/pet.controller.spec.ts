@@ -312,6 +312,101 @@ describe('GET /api/pets/:id', () => {
   });
 });
 
+describe('GET /api/pets/mine', { timeout: 20_000 }, () => {
+  it('requires authentication', async () => {
+    const response = await request(app).get('/api/pets/mine');
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ code: 'UNAUTHENTICATED' });
+  });
+
+  it("returns only the signed-in user's pets, including adopted and hidden ones", async () => {
+    const owner = await createSignedInAgent('owner@example.com');
+    const other = await createSignedInAgent('other@example.com');
+
+    await PetModel.insertMany([
+      { ...validPet, name: 'Mine', owner: owner.userId },
+      { ...validPet, name: 'Adopted', owner: owner.userId, status: 'adopted' },
+      {
+        ...validPet,
+        name: 'Hidden',
+        owner: owner.userId,
+        hiddenAt: new Date(),
+      },
+      { ...validPet, name: 'Theirs', owner: other.userId },
+    ]);
+
+    const response = await owner.agent.get('/api/pets/mine');
+
+    expect(response.status).toBe(200);
+    expect(
+      response.body.items.map((pet: { name: string }) => pet.name).sort(),
+    ).toEqual(['Adopted', 'Hidden', 'Mine']);
+    expect(response.body).toMatchObject({ page: 1, totalItems: 3 });
+    expect(
+      response.body.items.find(
+        (pet: { name: string }) => pet.name === 'Hidden',
+      ),
+    ).toMatchObject({ hidden: true });
+  });
+
+  it('ignores an owner sent by the client', async () => {
+    const owner = await createSignedInAgent('owner@example.com');
+    const other = await createSignedInAgent('other@example.com');
+    await PetModel.insertMany([
+      { ...validPet, name: 'Theirs', owner: other.userId },
+    ]);
+
+    const response = await owner.agent.get(
+      `/api/pets/mine?owner=${other.userId}&userId=${other.userId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ items: [], totalItems: 0 });
+  });
+
+  it('pages the list and validates paging', async () => {
+    const owner = await createSignedInAgent();
+    await PetModel.insertMany(
+      Array.from({ length: 3 }, (_, index) => ({
+        ...validPet,
+        name: `Pet ${index}`,
+        owner: owner.userId,
+      })),
+    );
+
+    const second = await owner.agent.get('/api/pets/mine?page=2&pageSize=2');
+    expect(second.body).toMatchObject({
+      page: 2,
+      totalItems: 3,
+      totalPages: 2,
+    });
+    expect(second.body.items).toHaveLength(1);
+
+    const invalid = await owner.agent.get('/api/pets/mine?page=0');
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('keeps the deletion rule: a pet with a pending application stays', async () => {
+    const owner = await createSignedInAgent('owner@example.com');
+    const applicant = await createSignedInAgent('applicant@example.com');
+    const petId = await createPetAs(owner);
+    await applicant.agent
+      .post(`/api/pets/${petId}/applications`)
+      .send({ message: 'We have a garden.' });
+
+    const deletion = await owner.agent.delete(`/api/pets/${petId}`);
+    expect(deletion.status).toBe(409);
+    expect(deletion.body).toEqual({ code: 'PET_HAS_ACTIVE_APPLICATIONS' });
+
+    const mine = await owner.agent.get('/api/pets/mine');
+    expect(mine.body.items).toEqual([
+      expect.objectContaining({ _id: petId, status: 'pending' }),
+    ]);
+  });
+});
+
 describe('POST /api/pets', () => {
   it('requires authentication', async () => {
     const response = await request(app).post('/api/pets').send(validPet);

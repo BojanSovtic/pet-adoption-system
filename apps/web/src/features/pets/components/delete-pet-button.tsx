@@ -12,9 +12,20 @@ import { petQueryKeys } from '../api/pet-query-keys';
 
 type DeletePetButtonProps = {
   pet: Pet;
+  /**
+   * Where to go after deleting; `null` stays on the current page (e.g. My
+   * pets, which drops the pet from its list). Default: the pet list.
+   */
+  redirectTo?: string | null;
+  /** Smaller button for lists. */
+  size?: 'default' | 'sm';
 };
 
-const DeletePetButton = ({ pet }: DeletePetButtonProps) => {
+const DeletePetButton = ({
+  pet,
+  redirectTo = '/pets',
+  size = 'default',
+}: DeletePetButtonProps) => {
   const { t } = useTranslation('pets');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -37,7 +48,9 @@ const DeletePetButton = ({ pet }: DeletePetButtonProps) => {
       void queryClient.invalidateQueries({ queryKey: petQueryKeys.lists() });
 
       // `replace` keeps the deleted pet's page out of the browser history.
-      navigate('/pets', { replace: true });
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+      }
       queryClient.removeQueries({ queryKey: petQueryKeys.detail(pet._id) });
 
       toast.success(t('delete.success', { name: pet.name }));
@@ -46,7 +59,11 @@ const DeletePetButton = ({ pet }: DeletePetButtonProps) => {
 
   return (
     <ConfirmDialog
-      trigger={<Button variant="destructive">{t('delete.button')}</Button>}
+      trigger={
+        <Button variant="destructive" size={size}>
+          {t('delete.button')}
+        </Button>
+      }
       title={t('delete.title', { name: pet.name })}
       description={t('delete.description')}
       confirmLabel={t('delete.confirm')}

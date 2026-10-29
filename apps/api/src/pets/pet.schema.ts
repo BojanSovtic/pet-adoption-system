@@ -90,4 +90,14 @@ export const petListQuerySchema = z.object({
   ),
 }) satisfies z.ZodType<PetListQuery>;
 
+/**
+ * Paging for one owner's pets (profile and "My pets"): the same defaults and
+ * limits as the public list. Other parameters, such as an `owner`, are
+ * ignored: the owner always comes from the route or the session.
+ */
+export const ownerPetsQuerySchema = petListQuerySchema.pick({
+  page: true,
+  pageSize: true,
+});
+
 export type ParsedPetListQuery = z.output<typeof petListQuerySchema>;

@@ -154,12 +154,18 @@ const renderAt = (path: string, currentUser: User | null) => {
 describe('admin navigation', () => {
   it('shows the Admin link only to admins', async () => {
     renderAt('/menu', admin);
-    expect(await screen.findByRole('link', { name: 'Admin' })).toBeTruthy();
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Account menu/ }),
+    );
+    expect(screen.getByRole('link', { name: 'Admin' })).toBeTruthy();
   });
 
   it('hides the Admin link from ordinary users', async () => {
     renderAt('/menu', member);
-    await screen.findByRole('link', { name: 'Applications' });
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Account menu/ }),
+    );
+    expect(screen.getByRole('link', { name: 'Applications' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
   });
 });

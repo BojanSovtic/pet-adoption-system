@@ -10,6 +10,7 @@ import {
   getPetById,
   isPetOwnedBy,
   listPets,
+  listPetsByOwner,
   petExists,
   petImageKeys,
   removePetImageById,
@@ -18,7 +19,7 @@ import {
   setPetImage,
   updateOwnedPet,
 } from './pet.service';
-import { petListQuerySchema } from './pet.schema';
+import { ownerPetsQuerySchema, petListQuerySchema } from './pet.schema';
 import { processPetImage, tooManyImagesError } from './pet-image';
 import { PetModel } from './pet.model';
 import { toPetView } from './pet-view';
@@ -58,6 +59,21 @@ export const getPetsController = async (
 ): Promise<void> => {
   const query = parseInput(petListQuerySchema, req.query);
   const page = await listPets(query);
+
+  res.json({ ...page, items: page.items.map(toPetView) });
+};
+
+/**
+ * GET /api/pets/mine: the signed-in user's own pets, all statuses and hidden
+ * ones included. The owner is the session user; nothing in the request can
+ * select another user's pets.
+ */
+export const getMyPetsController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const query = parseInput(ownerPetsQuerySchema, req.query);
+  const page = await listPetsByOwner(getAuthenticatedUserId(req), query, 'all');
 
   res.json({ ...page, items: page.items.map(toPetView) });
 };

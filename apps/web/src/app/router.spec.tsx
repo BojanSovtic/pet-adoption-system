@@ -13,13 +13,16 @@ vi.mock('../features/auth/api/logout', () => ({
   logout: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../features/applications/api/applications', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../features/applications/api/applications')
-  >()),
-  getMyApplications: vi.fn().mockResolvedValue(pageOf([])),
-  getReceivedApplications: vi.fn().mockResolvedValue(pageOf([])),
-}));
+vi.mock(
+  '../features/applications/api/applications',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../features/applications/api/applications')
+    >()),
+    getMyApplications: vi.fn().mockResolvedValue(pageOf([])),
+    getReceivedApplications: vi.fn().mockResolvedValue(pageOf([])),
+  }),
+);
 
 const user: User = {
   _id: 'user-1',
@@ -38,6 +41,10 @@ vi.mock('../features/pets/api/get-pets', () => ({
     totalItems: 0,
     totalPages: 0,
   }),
+}));
+
+vi.mock('../features/pets/api/get-my-pets', () => ({
+  getMyPets: vi.fn().mockResolvedValue(pageOf([])),
 }));
 
 vi.mock('../features/auth/api/get-current-user', async (importOriginal) => ({
@@ -82,12 +89,17 @@ describe('routes', () => {
 
   it.each([
     ['leaves a signed-in-only page for sign-in', '/applications', '/login'],
+    ['leaves My pets for sign-in', '/my-pets', '/login'],
     ['stays on a public page', '/pets', '/pets'],
   ])('signing out %s', async (_case, path, expected) => {
     vi.mocked(getCurrentUser).mockResolvedValueOnce(user);
     const router = renderAt(path);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    // Signing out is in the account menu.
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Account menu/ }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
     expect(await screen.findByRole('link', { name: 'Register' })).toBeTruthy();
     await waitFor(() => {

@@ -15,7 +15,9 @@ test.describe('registration and login', () => {
 
     await expect(page).toHaveURL(/\/pets$/);
     await expect(page.getByText(user.name, { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Account menu/ }),
+    ).toBeVisible();
   });
 
   test('a registered user can sign in', async ({ page, request }) => {
@@ -31,7 +33,9 @@ test.describe('registration and login', () => {
 
     await expect(page).toHaveURL(/\/pets$/);
     await expect(page.getByText(user.name, { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Account menu/ }),
+    ).toBeVisible();
   });
 
   test('wrong credentials show an error and keep the user signed out', async ({
@@ -46,6 +50,8 @@ test.describe('registration and login', () => {
       'Incorrect email or password.',
     );
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: /Account menu/ }),
+    ).toHaveCount(0);
   });
 });

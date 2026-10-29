@@ -189,5 +189,23 @@
   "statusHint": {
     "pending": "Neko se već prijavio, a vlasnik još nije odlučio. I dalje možeš da se prijaviš."
   },
-  "yourPet": "Tvoj ljubimac"
+  "yourPet": "Tvoj ljubimac",
+  "myPets": {
+    "title": "Moji ljubimci",
+    "subtitle": "Ljubimci koje si postavio/la, bez obzira na status.",
+    "loading": "Učitavanje tvojih ljubimaca...",
+    "error": "Tvoje ljubimce nije moguće učitati.",
+    "empty": "Još nisi dodao/la nijednog ljubimca",
+    "emptyHint": "Dodaj prvog ljubimca i pronađi mu novi dom.",
+    "count_one": "{{count}} ljubimac",
+    "count_few": "{{count}} ljubimca",
+    "count_other": "{{count}} ljubimaca",
+    "pagination": "Strane mojih ljubimaca",
+    "edit": "Izmeni",
+    "hidden": "Sakrili su ga administratori sajta. Drugi ne vide ovaj oglas.",
+    "cannotDelete": {
+      "pending": "Ne može se obrisati dok zahtevi čekaju tvoju odluku.",
+      "adopted": "Ne može se obrisati: zahtev je prihvaćen."
+    }
+  }
 }

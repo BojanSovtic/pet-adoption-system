@@ -187,5 +187,22 @@
   "statusHint": {
     "pending": "Someone has applied and the owner hasn't decided yet. You can still apply."
   },
-  "yourPet": "Your pet"
+  "yourPet": "Your pet",
+  "myPets": {
+    "title": "My pets",
+    "subtitle": "The pets you have listed, whatever their status.",
+    "loading": "Loading your pets...",
+    "error": "Your pets could not be loaded.",
+    "empty": "You haven't added any pets yet",
+    "emptyHint": "Add your first pet to find it a new home.",
+    "count_one": "{{count}} pet",
+    "count_other": "{{count}} pets",
+    "pagination": "Pages of my pets",
+    "edit": "Edit",
+    "hidden": "Hidden by the site administrators. Other people can't see this listing.",
+    "cannotDelete": {
+      "pending": "Can't be deleted while applications are waiting for your decision.",
+      "adopted": "Can't be deleted: an application was accepted."
+    }
+  }
 }

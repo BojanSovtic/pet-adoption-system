@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27; security headers, photo re-encoding, write rate limits and the three environments reviewed on 2026-10-28; messaging and public profiles added on 2026-10-29). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27; security headers, photo re-encoding, write rate limits and the three environments reviewed on 2026-10-28; messaging and public profiles, My pets and the account menu added on 2026-10-29). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
@@ -112,7 +112,7 @@ flowchart TB
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
-  router -- "POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications<br/>all /api/conversations/*<br/>POST /api/pets/:id/conversations<br/>GET /api/users/:id[/pets]" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
+  router -- "GET /api/pets/mine<br/>POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications<br/>all /api/conversations/*<br/>POST /api/pets/:id/conversations<br/>GET /api/users/:id[/pets]" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
   auth -- "changes" --> userrate["per-user write limits (user id from the session)<br/>applications / new pets / photo uploads / messages / other changes<br/>burst + daily window → 429 RATE_LIMITED"]
   router -- "/api/admin/* (every path,<br/>router-level)" --> admin["requireAdmin<br/>requireAuth, then role = admin<br/>→ 401 / 403 ADMIN_REQUIRED<br/>+ per-admin rate limits<br/>→ 429 RATE_LIMITED"]
   router -- "GET /api/pets, /api/pets/:id (public)<br/>/api/auth/me, /logout" --> controller
@@ -144,6 +144,7 @@ flowchart TB
   - **Parameters:** a name search (case-insensitive and escaped), `species` and `status` filters, a whitelisted `sort`, `page` (at most 10,000) and `pageSize` (default 12, at most 50).
   - **How the query runs:** filters apply before `skip`/`limit`, and `countDocuments` uses the same filter.
   - **Response:** `{ items, page, pageSize, totalItems, totalPages }`.
+- **`GET /api/pets/mine`** (signed in) returns the session user's pets, every status and hidden ones included, newest first, paged like the profile list (`ownerPetsQuerySchema`: `page`, `pageSize`; any other parameter, such as `owner`, is ignored). It shares `listPetsByOwner` with `GET /api/users/:id/pets` (scope `all` vs. `listed`). The route is registered before `/:id`. Web: `petQueryKeys.minePage(query)` = `['pets', 'list', 'mine', query]`, under `lists()` so the delete button's list update covers it; removed on identity changes.
 - **The application lists are paginated the same way** (`page`, `pageSize` default 10, at most 50; newest first with `_id` as tie-breaker). `/applications/mine` is scoped to the session user as applicant; `/applications/received` to the session user as `petOwner`. `/mine` also takes `pet=<id>`, which the pet page uses to fetch only that pet's newest application.
 
 ## 3. Authentication flow

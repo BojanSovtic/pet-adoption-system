@@ -3,16 +3,10 @@ import type { Request, Response } from 'express';
 
 import { BadRequestError, NotFoundError } from '../errors/app-error';
 import { parseInput } from '../middleware/validate';
-import { petListQuerySchema } from '../pets/pet.schema';
-import { listOwnerListedPets } from '../pets/pet.service';
+import { ownerPetsQuerySchema } from '../pets/pet.schema';
+import { listPetsByOwner } from '../pets/pet.service';
 import { toPetView } from '../pets/pet-view';
 import { findPublicProfile } from './user.service';
-
-// Same paging rules (defaults, limits) as the public pet list.
-const profilePetsQuerySchema = petListQuerySchema.pick({
-  page: true,
-  pageSize: true,
-});
 
 const getUserId = (req: Request): string => {
   if (!mongoose.isValidObjectId(req.params.id)) {
@@ -42,13 +36,13 @@ export const getUserPetsController = async (
   res: Response,
 ): Promise<void> => {
   const userId = getUserId(req);
-  const query = parseInput(profilePetsQuerySchema, req.query);
+  const query = parseInput(ownerPetsQuerySchema, req.query);
 
   if (!(await findPublicProfile(userId))) {
     throw new NotFoundError('USER_NOT_FOUND');
   }
 
-  const page = await listOwnerListedPets(userId, query);
+  const page = await listPetsByOwner(userId, query, 'listed');
 
   res.json({ ...page, items: page.items.map(toPetView) });
 };

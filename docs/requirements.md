@@ -49,7 +49,7 @@ The same user can be an owner of some pets and an applicant for others.
 - Registering signs the user in straight away.
 - Users sign in with email and password and stay signed in for 7 days, or until they sign out.
 - Repeated sign-in attempts are slowed down: too many attempts in a short time are temporarily refused.
-- Pages that need an account (posting a pet, editing a pet, the applications page, messages, member profiles) send visitors to the sign-in page and return them afterwards.
+- Pages that need an account (posting a pet, editing a pet, My pets, the applications page, messages, member profiles) send visitors to the sign-in page and return them afterwards.
 
 ## Browsing and searching pets
 
@@ -72,6 +72,8 @@ The same user can be an owner of some pets and an applicant for others.
 - Any signed-in user can post a pet. They become its owner.
 - Only the owner can edit a pet's details or delete it. Other users do not see the Edit and Delete buttons, and the server refuses such changes anyway.
 - The owner can add up to 5 photos per pet (JPEG, PNG or WebP, up to 5 MB each) and remove them one by one. The first photo is the main photo shown on the pet cards, and the owner can choose another photo as the main one; the pet page shows all photos as a gallery.
+- **My pets** (`/my-pets`) lists every pet the signed-in user owns, newest first, 12 per page, including adopted pets and pets hidden by admins (with a notice). The server picks the pets by the signed-in account; nothing in the address or request can show someone else's pets. Each pet shows its status, an Edit button and Delete (with the usual confirmation; the user stays on the page). Delete is disabled, with the reason shown, for pending pets (applications waiting) and adopted pets (an application was accepted); the server refuses those deletions anyway. With no pets, the page invites the user to add their first one.
+- **Add a pet** is in the account menu, on My pets and on the pet list. It opens the one pet form; after saving, the user lands on the new pet's page.
 - Users cannot set a pet's adoption status by hand; it changes automatically with its applications (see below).
 - A pet cannot be deleted while it has a pending or accepted application. Deleting a pet also deletes its rejected and withdrawn applications and its conversations (with all their messages).
 
@@ -132,7 +134,7 @@ Text-only conversations between a pet's owner and someone interested in that pet
 - **Who can read and write:** only the two participants. Anyone else, including other signed-in users and admins, gets "not found" (the server doesn't reveal whether the conversation exists). The sender of each message is always the signed-in user; the app can't send on someone else's behalf.
 - **Rules for starting one** (the same as for applications): not about one's own pet; not about a pet that is adopted (existing conversations continue), hidden by an admin or deleted. Pets without an owner can't be contacted.
 - **Messages** are plain text, 1–2,000 characters after trimming spaces, and can't be edited or deleted. Each shows the sender ("You" or the other person's name) and the date and time.
-- **The Messages page** (`/messages`, linked in the header) lists the user's conversations as owner and as interested person, with the most recent activity first, 10 per page; each shows the pet, the other person, the latest message and its time. A conversation page shows the newest 30 messages, older ones on request, and a reply form.
+- **The Messages page** (`/messages`, in the account menu) lists the user's conversations as owner and as interested person, with the most recent activity first, 10 per page; each shows the pet, the other person, the latest message and its time. A conversation page shows the newest 30 messages, older ones on request, and a reply form.
 - Feedback: "Message sent." after sending; on failure the text stays in the form with the reason.
 - **Privacy:** conversations show names only, never email addresses or other account data.
 - **Not included:** attachments, live updates (new messages appear on the next page load or when the window regains focus), read receipts, unread counts, typing indicators and notifications.
@@ -140,6 +142,7 @@ Text-only conversations between a pet's owner and someone interested in that pet
 
 ## Other behavior
 
+- **Account menu:** signed-in users open a menu from their name in the header with My pets, Add a pet, Applications, Messages, My profile, Admin (admins only) and Sign out. It works with mouse, touch and keyboard, closes on Escape (focus returns to the button), on a click outside, when focus leaves it, and after choosing an item. Visitors see Sign in and Register instead.
 - The interface is available in English and Serbian. A language selector in the header switches it, and the browser remembers the choice. English is the default.
 - The server sends error codes, not text; the app turns them into translated messages.
 - **Rate limits** (per account; refused with "too many requests", `RATE_LIMITED`, and a `Retry-After` time): adoption applications 10 per 10 minutes and 30 per day; new pets 10 per 10 minutes and 30 per day; photo uploads 20 requests (up to 5 photos each) per 10 minutes and 100 per day; messages (starting a conversation or replying) 30 per 10 minutes and 300 per day; other changes (editing or deleting pets and photos, accepting, rejecting or withdrawing applications) 60 per 10 minutes and 500 per day. All changes from one IP address: 500 per 10 minutes. Sign-in, registration and the admin area have their own limits. Refused attempts count too.

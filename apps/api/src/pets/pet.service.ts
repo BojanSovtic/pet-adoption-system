@@ -104,18 +104,21 @@ export const listPets = async (
 };
 
 /**
- * One page of a user's publicly listed pets for their profile, newest first:
- * not hidden by an admin and not adopted (still open to applications).
+ * One page of one owner's pets, newest first. `listed` (public profiles):
+ * only pets that are not hidden by an admin and not adopted. `all` (the
+ * owner's own "My pets" page): every pet they own, including adopted and
+ * hidden ones. `ownerId` must come from the route or the session, never from
+ * a filter the client controls.
  */
-export const listOwnerListedPets = async (
+export const listPetsByOwner = async (
   ownerId: string,
   { page, pageSize }: { page: number; pageSize: number },
+  scope: 'listed' | 'all',
 ): Promise<Paginated<PetRecord>> => {
-  const filter: QueryFilter<PetRecord> = {
-    owner: ownerId,
-    hiddenAt: null,
-    status: { $ne: 'adopted' },
-  };
+  const filter: QueryFilter<PetRecord> =
+    scope === 'listed'
+      ? { owner: ownerId, hiddenAt: null, status: { $ne: 'adopted' } }
+      : { owner: ownerId };
 
   const [items, totalItems] = await Promise.all([
     PetModel.find(filter)

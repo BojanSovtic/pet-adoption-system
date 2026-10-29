@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-29. Branch `develop` at `70614e9`. Uncommitted: messaging and public profiles (see "Messaging and public profiles")._
+_Last updated: 2026-10-29. Branch `develop` at `7ee8223` (messaging and public profiles). Uncommitted: My pets and the account menu (see "My pets and account menu")._
 
 ## Status
 
@@ -101,6 +101,18 @@ Verified by passing tests or by reading the code.
 - **Photo upload through Axios** is not verified in a browser (deferred to the manual QA checklist).
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
+
+## My pets and account menu (2026-10-29)
+
+- **API:** `GET /api/pets/mine` (sign-in required): the session user's pets, all statuses and hidden ones, paged (`page`, `pageSize`; other parameters such as `owner` are ignored). `listOwnerListedPets` became `listPetsByOwner(ownerId, paging, 'listed' | 'all')`, shared with profiles; `ownerPetsQuerySchema` moved to `pet.schema.ts`. Deletion rules unchanged (409 `PET_HAS_ACTIVE_APPLICATIONS`).
+- **Web:**
+  - `/my-pets` (`features/pets/pages/my-pets-page.tsx`): `PageHeader` with "Add a pet", the shared `PetCard` (status badge, link to details), Edit, Delete via `DeletePetButton` (new `redirectTo={null}`, `size`) and `ConfirmDialog`; Delete disabled with the reason for pending/adopted pets; hidden-listing notice; skeleton, error with retry, empty state with "Add a pet", page out of range; paging in the URL; sign-in redirect.
+  - **Account menu** replaces the header's inline Applications/Messages/Admin/name/Sign out: My pets, Add a pet, Applications, Messages, My profile, Admin (admins), Sign out. Built as a disclosure (no new dependency; there was no menu component and Radix's dropdown would be one): `aria-expanded`, Escape returns focus, outside click, focus leaving, and navigation close it (the open state remembers the path it was opened on, so no reset effect).
+  - Add a pet reuses `/pets/new`; it already lands on the new pet's page, unchanged.
+  - en + sr: `pets:myPets.*`, `auth:menu.*`; the unused `applicationsLink`/`messagesLink` removed.
+- **Tests:** API +5 (`GET /api/pets/mine`: 401, only own pets incl. adopted/hidden, a client-sent `owner` is ignored, paging/validation, deletion still refused with a pending application). Web +14 (`user-menu.spec.tsx` 8, `my-pets-page.spec.tsx` 6; `router.spec` adds the `/my-pets` sign-in redirect; `router.spec` and `admin-pages.spec` open the menu first). E2E +2 (`my-pets.spec.ts`: menu → empty My pets → Add a pet → details → My pets without another user's pet → delete stays on the page; signed-out redirect and API 401); `auth.spec`/`admin.spec` use the menu.
+- **Checks (2026-10-29):** `nx run-many -t lint typecheck test --parallel=1` for all 4 projects ✅ (API 387/387, web 219/219; lint has 2 earlier warnings in `focus-first-invalid-field.spec.ts`, not from this change). E2E: full run 12/13, the one failure was the new `my-pets` spec (ambiguous locators: "Add a pet" appears in the menu and on the page); after scoping the locators `my-pets.spec.ts` passed 2/2. Build not run (no build config changed).
+- **Not verified by hand:** the menu with a real screen reader and on a touch device; My pets at phone width.
 
 ## Messaging and public profiles (2026-10-29)
 
