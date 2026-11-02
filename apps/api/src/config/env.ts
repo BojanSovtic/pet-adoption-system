@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { loadEnvFile, readAuditKey, readMongodbUri } from './env-file';
+import { readTrustProxy } from './trust-proxy';
 
 // The web server's full configuration, validated at startup. Command-line
 // tools that only touch the database use env-file.ts instead.
@@ -13,6 +14,8 @@ const sessionSecret = process.env.SESSION_SECRET;
 
 // Fails at startup if set but too short (it's read again where it's used).
 readAuditKey();
+// Fails at startup if malformed, unsafe, or missing in production.
+const trustProxy = readTrustProxy();
 
 if (!Number.isInteger(port) || port <= 0) {
   throw new Error('PORT must be a positive integer');
@@ -35,6 +38,8 @@ export const env = {
   corsOrigin,
   sessionSecret,
   isProduction: process.env.NODE_ENV === 'production',
+  /** Express `trust proxy`; see config/trust-proxy.ts. */
+  trustProxy,
   /** Where uploaded files are written (local disk storage). */
   uploadsDir: path.resolve(
     process.cwd(),

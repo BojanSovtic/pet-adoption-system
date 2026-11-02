@@ -15,8 +15,14 @@ The app is **not deployed** and is not production-ready. This lists what a deplo
 
 ## Reverse proxy and `trust proxy`
 
-- With `NODE_ENV=production` the API sets Express `trust proxy` to `1` (one proxy hop) in `apps/api/src/app.ts`. Change it to match the real number of proxies in front of the API.
-- It must be right: Express uses it to see that the original request was HTTPS (needed for `Secure` cookies) and to find the client IP (used by the rate limits). Too low breaks cookies; too high lets clients fake their IP.
+- Express's `trust proxy` comes from **`TRUST_PROXY`** (`apps/api/src/config/trust-proxy.ts`), validated at startup. With `NODE_ENV=production` it is **required**, so the API won't start until someone has decided it. Elsewhere it defaults to `false`.
+- It must match the real network: Express uses it to see that the original request was HTTPS (needed for `Secure` cookies) and to find the client IP (used by the per-IP rate limits). Too little trust breaks sign-in behind a TLS proxy and counts every user as the proxy's IP; too much lets clients choose their own IP and bypass the per-IP limits.
+- Values:
+  - `false`: no proxy. The client connects to the API directly (local development, Docker QA).
+  - **A list of the proxies' addresses** (preferred when you know them): e.g. `loopback` when the proxy runs on the same host, or the proxy's IP or subnet (`10.0.0.5`, `172.18.0.0/16`). Only requests that arrive from those addresses are trusted, so a client that reaches the API some other way can't fake its IP.
+  - **A hop count** (`1`–`10`): trust that many proxies, whoever they are. `1` is the old built-in production setting (one proxy, e.g. a platform's load balancer). Only safe if clients **cannot reach the API except through those proxies**; a client connecting directly could otherwise put any address in `X-Forwarded-For`.
+  - Refused: `true`, `0`, `0.0.0.0/0`, `::/0`, and anything malformed.
+- Each trusted proxy must **overwrite or append to** `X-Forwarded-For` and set `X-Forwarded-Proto` (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` and `X-Forwarded-Proto $scheme`; Caddy and most platforms do this by default). Check it on the real deployment (production-readiness.md, P0-4).
 
 ## CORS and CSRF
 
@@ -29,7 +35,8 @@ API (validated at startup in `apps/api/src/config/env.ts`):
 
 | Variable           | Notes                                                                                     |
 | ------------------ | ----------------------------------------------------------------------------------------- |
-| `NODE_ENV`         | `production` enables `Secure` cookies and `trust proxy`.                                  |
+| `NODE_ENV`         | `production` enables `Secure` cookies and makes `TRUST_PROXY` required.                   |
+| `TRUST_PROXY`      | Which proxies to trust (see "Reverse proxy and `trust proxy`" above). Required in production; `false` by default elsewhere. |
 | `SESSION_SECRET`   | Required, at least 32 random characters. Changing it signs everyone out.                  |
 | `MONGODB_URI`      | Required. Must be a **replica set** (transactions); managed MongoDB services usually are. |
 | `CORS_ORIGIN`      | Required. The web app's public origin.                                                    |

@@ -102,6 +102,11 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
+## Configurable trust proxy (2026-11-02)
+
+- `TRUST_PROXY` replaces the hard-coded production `trust proxy = 1`: `false`, a hop count 1–10, or a list of proxy addresses; `true`, `/0` ranges and malformed values are refused at startup; required with `NODE_ENV=production`. Docker QA sets `false`. Details, tests and limitations: production-readiness.md §6, Batch 7; how to choose the value: deployment.md, "Reverse proxy and `trust proxy`".
+- **Checks:** `config/trust-proxy.spec.ts` 32/32; API `lint typecheck test` ✅ (433); E2E ✅ 13/13 (the real API process starts with the new config); `docker compose -f docker-compose.qa.yml config` resolves `TRUST_PROXY: "false"`; loading `config/env.ts` with `true`, `0.0.0.0/0` and production without a value fails with a clear message, and `1`, `loopback` and an unset value (outside production) start. Web untouched, so its suite wasn't run. Not verified behind a real proxy.
+
 ## Readiness check and pet age limit (2026-11-02)
 
 - `GET /api/ready` (MongoDB ping, 503 `DATABASE_UNAVAILABLE` without details) next to the unchanged `/api/health`; ages limited to 0–100 whole years (`PET_AGE_MAX`) in the API, the model and the form. Details, tests and limitations: production-readiness.md §6, Batch 6. Open product decisions D5 (conversations about hidden listings) and D6 (suspended owners) are in its §4.

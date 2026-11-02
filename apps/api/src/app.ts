@@ -22,11 +22,10 @@ export const app: Express = express();
 
 app.disable('x-powered-by');
 
-if (env.isProduction) {
-  // Behind a TLS-terminating proxy, so `secure` cookies work. Adjust the hop
-  // count to the actual deployment.
-  app.set('trust proxy', 1);
-}
+// Which proxies' X-Forwarded-* headers to believe (client IP for the per-IP
+// rate limits, HTTPS for `Secure` cookies). From TRUST_PROXY, validated at
+// startup; it must match the real proxies in front of the API.
+app.set('trust proxy', env.trustProxy);
 
 /**
  * Security headers for a JSON API (helmet). The API serves no HTML, so the
