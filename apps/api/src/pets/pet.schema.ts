@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   DEFAULT_PET_PROFILE,
+  PET_AGE_MAX,
   PET_ALONE_TIME_VALUES,
   PET_BREED_MAX_LENGTH,
   PET_COMPATIBILITY_VALUES,
@@ -28,7 +29,7 @@ const compatibilityValue = z
 export const createPetSchema = z.object({
   name: z.string().trim().min(1).max(PET_NAME_MAX_LENGTH),
   species: z.enum(PET_SPECIES),
-  age: z.number().int().min(0),
+  age: z.number().int().min(0).max(PET_AGE_MAX),
   description: z.string().trim().min(1).max(PET_DESCRIPTION_MAX_LENGTH),
   sex: z.enum(PET_SEXES).default(DEFAULT_PET_PROFILE.sex),
   breed: z

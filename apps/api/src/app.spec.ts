@@ -1,9 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, inject, vi } from 'vitest';
 
 import { app } from './app';
+import { isDatabaseReady } from './config/database';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -21,6 +23,82 @@ describe('GET /api/health', () => {
     expect(response.body).toEqual({
       status: 'ok',
     });
+  });
+});
+
+describe('GET /api/ready', () => {
+  const database = () => {
+    if (!mongoose.connection.db) {
+      throw new Error('The test database is not connected');
+    }
+
+    return mongoose.connection.db;
+  };
+
+  it('is ready when MongoDB answers', async () => {
+    const response = await request(app).get('/api/ready');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
+    expect(response.headers['cache-control']).toBe('no-store');
+  });
+
+  it('returns 503 without details when the ping fails', async () => {
+    const consoleError = spyOnUnexpectedErrors();
+    vi.spyOn(database(), 'command').mockRejectedValueOnce(
+      new Error(
+        'connect ECONNREFUSED mongodb://admin:s3cret@db.internal:27017',
+      ),
+    );
+
+    const response = await request(app).get('/api/ready');
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ code: 'DATABASE_UNAVAILABLE' });
+    expect(response.text).not.toMatch(/s3cret|db\.internal|ECONNREFUSED/);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when the connection is not open', async () => {
+    const ping = vi.spyOn(database(), 'command');
+    // `readyState` is a getter on Mongoose's Connection prototype. An own
+    // property shadows it, and deleting that property restores it (a getter
+    // spy here wasn't restored reliably between tests).
+    Object.defineProperty(mongoose.connection, 'readyState', {
+      configurable: true,
+      get: () => mongoose.ConnectionStates.disconnected,
+    });
+
+    try {
+      const response = await request(app).get('/api/ready');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ code: 'DATABASE_UNAVAILABLE' });
+      expect(ping).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(mongoose.connection, 'readyState');
+    }
+
+    expect(mongoose.connection.readyState).toBe(
+      mongoose.ConnectionStates.connected,
+    );
+  });
+
+  it('is not ready when the ping does not answer in time', async () => {
+    const ping = vi
+      .spyOn(database(), 'command')
+      .mockReturnValueOnce(new Promise(() => undefined));
+
+    await expect(isDatabaseReady(20)).resolves.toBe(false);
+    expect(ping).toHaveBeenCalledWith({ ping: 1 });
+  });
+
+  it('is ready again once the ping succeeds', async () => {
+    vi.spyOn(database(), 'command').mockRejectedValueOnce(new Error('down'));
+
+    expect((await request(app).get('/api/ready')).status).toBe(503);
+    expect((await request(app).get('/api/ready')).status).toBe(200);
   });
 });
 

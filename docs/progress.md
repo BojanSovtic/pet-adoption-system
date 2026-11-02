@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-29. Branch `develop` at `7ee8223` (messaging and public profiles). Uncommitted: My pets and the account menu (see "My pets and account menu")._
+_Last updated: 2026-11-02. Branch `develop` at `b8610d7` (My pets and the account menu, committed; see "My pets and account menu"). The GitHub repository is public. `master` is at `6cf7ffc`, the merge of PR #1 (`develop` at `908f53f`); `develop` has 10 commits since then that aren't on `master`._
 
 ## Status
 
@@ -101,6 +101,12 @@ Verified by passing tests or by reading the code.
 - **Photo upload through Axios** is not verified in a browser (deferred to the manual QA checklist).
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
+
+## Readiness check and pet age limit (2026-11-02)
+
+- `GET /api/ready` (MongoDB ping, 503 `DATABASE_UNAVAILABLE` without details) next to the unchanged `/api/health`; ages limited to 0–100 whole years (`PET_AGE_MAX`) in the API, the model and the form. Details, tests and limitations: production-readiness.md §6, Batch 6. Open product decisions D5 (conversations about hidden listings) and D6 (suspended owners) are in its §4.
+- QA docs: AUTH-001, AUTH-004, AUTH-007, OWN-001, ADMIN-001 and ADMIN-002 now describe the account menu instead of header links; PETS-005 covers the age limit; the checklist names `pet-images-field.tsx`.
+- **Checks:** `nx run-many -t lint typecheck test --parallel=1` for all 4 projects ✅ (API 401, web 225). E2E and build not run (see Batch 6). Manual QA not run; planned after the vacation.
 
 ## My pets and account menu (2026-10-29)
 
@@ -409,7 +415,7 @@ Plan for the rest of the pre-admin work: [ux-benchmark.md §6](ux-benchmark.md#6
 
 ## Changes in commit `060eb5d` (2026-10-21)
 
-- **CI:** `.github/workflows/ci.yml` runs `lint typecheck test build` for every project on pushes and pull requests to `master` and `develop` (Node 22, pnpm 12.3.4, pnpm store and MongoDB binary caches). The API tests' required variables are set in the workflow, because `apps/api/.env` is not in Git; the tests still use the in-memory replica set. **E2E is not in CI yet** (possible later: a second job running `nx e2e` with Playwright's Chromium installed).
+- **CI:** `.github/workflows/ci.yml` runs `lint typecheck test build` for every project on pushes and pull requests to `master` and `develop` (Node 22, pnpm 12.3.4, pnpm store and MongoDB binary caches). The API tests' required variables are set in the workflow, because `apps/api/.env` is not in Git; the tests still use the in-memory replica set. **E2E is not in CI yet** (possible later: a second job running `nx e2e` with Playwright's Chromium installed). _(Update: added on 2026-10-28 in `f82d648`, see production-readiness.md §6, Batch 5.)_
 - **Application lists paginated** (API and web): `page`/`pageSize` (default 10, max 50), newest first with `_id` tie-breaker, `Paginated<T>` responses, `VALIDATION_FAILED` for bad parameters.
   - **`petOwner` on applications:** copied from the pet on submit, indexed with the list order, so `/received` no longer loads all of the owner's pet ids. Existing applications get it at API startup (`backfillApplicationPetOwners`, a no-op once done).
   - **`/mine?pet=<id>`:** the pet page now asks only for its pet's newest application (`pageSize=1`) instead of the user's whole list.
@@ -418,7 +424,7 @@ Plan for the rest of the pre-admin work: [ux-benchmark.md §6](ux-benchmark.md#6
 - **Language selector** in the header (English / Srpski). The choice is saved in `localStorage` (falls back to English if unavailable or invalid) and sets `<html lang>`. The header title is now translated. Forms now store validation keys and translate on render, so messages already on screen switch language too (login, register, pet form, application form).
 - **`env.ts`:** checked and left unchanged (see "Other outstanding issues").
 - **Docs:** README rewritten for portfolio readers (highlights, stack, screenshot placeholders, CI badge, limitations); new [deployment.md](deployment.md); requirements, architecture and `CLAUDE.md` updated.
-- **Branches:** GitHub's default branch is `master`, which still holds only the Nx scaffold (`5bd296a`). It is an ancestor of `develop`, so `master` can be fast-forwarded to `develop` without a merge commit or force-push. Not done yet: waiting for a green CI run on `develop` and the owner's approval.
+- **Branches:** GitHub's default branch is `master`, which still holds only the Nx scaffold (`5bd296a`). It is an ancestor of `develop`, so `master` can be fast-forwarded to `develop` without a merge commit or force-push. Not done yet: waiting for a green CI run on `develop` and the owner's approval. _(Update 2026-11-02: merged through PR #1 as merge commit `6cf7ffc` on 2026-10-28; see the header for the current state.)_
 
 **Check results:**
 
@@ -426,7 +432,7 @@ Plan for the rest of the pre-admin work: [ux-benchmark.md §6](ux-benchmark.md#6
 | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `nx run-many -t lint typecheck test build` (all 4 projects, no cache, `.env` loading disabled, CI variables only) | ✅ web 89/89 tests, API 151/151 tests, builds OK                                                                                       |
 | `nx e2e @pet-adoption/web-e2e`                                                                                    | ✅ 6/6                                                                                                                                 |
-| CI workflow on GitHub                                                                                             | ⏳ `develop` pushed; result not checked (the repository is private and `gh` isn't installed here, so the owner checks the Actions tab) |
+| CI workflow on GitHub                                                                                             | ⏳ `develop` pushed; result not checked (the repository is private and `gh` isn't installed here, so the owner checks the Actions tab). _Update 2026-11-02: the repository is now public. The runs for `060eb5d` and `18dc98e` failed; every run from `cf556c2` ("CI lint fixes") onwards is green._ |
 | Workflow YAML                                                                                                     | Parsed locally with `js-yaml`; not validated by GitHub yet                                                                             |
 
 **Not verified:** the new UI in a real browser by hand (pagination controls, language selector, edit-form errors); E2E covers only the original journeys.
@@ -527,5 +533,5 @@ Not deployed. Requirements for a future deployment (same-site cookies, HTTPS, `t
 
 0. **Production readiness first** ([production-readiness.md](production-readiness.md)): P0-1, P0-2, P0-3, P0-8 (one API instance) and P0-9 (route error boundary) are done; P0-10 (test reliability) is implemented and needs CI evidence (10 green runs incl. the new E2E job). Details in its §6; order in its §5. Batch B waits until these are done. Hosting, email, error-tracking and legal decisions (D1–D4) are needed before P0-4/5/6/7.
 1. **Finish the manual QA run on Docker QA** ([manual-qa-checklist.md](manual-qa-checklist.md)): started 2026-10-28 (ENV-001 passed at `48dad22`). Continue with the smoke suite, then the release (incl. the new UPL-007 and ADMIN cases) and Docker suites, and record each result in `docs/manual-qa-log.csv`.
-2. **Merge `develop` into `master`** (a fast-forward; `master` has no commits of its own) once CI is green for the latest `develop` commit and the QA run has no open failures.
+2. **Merge `develop` into `master` again** through a pull request, as for PR #1, once CI is green for the latest `develop` commit and the QA run has no open failures. It's no longer a fast-forward: `master`'s merge commit `6cf7ffc` isn't on `develop`, so the PR adds another merge commit. No conflicts are expected (that merge changed no files compared with `908f53f`).
 3. Add screenshots to the README (instructions are in the README).

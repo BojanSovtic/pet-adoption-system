@@ -63,6 +63,7 @@
       "nameTooLong": "Ime može imati najviše 100 karaktera.",
       "ageRequired": "Starost je obavezna.",
       "ageInvalid": "Starost mora biti nenegativan ceo broj.",
+      "ageTooHigh": "Starost može biti najviše 100 godina.",
       "descriptionRequired": "Opis je obavezan.",
       "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
       "imageType": "Izaberi JPEG, PNG ili WebP sliku.",

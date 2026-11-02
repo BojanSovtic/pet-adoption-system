@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
   DEFAULT_PET_PROFILE,
+  PET_AGE_MAX,
   PET_ALONE_TIME_VALUES,
   PET_BREED_MAX_LENGTH,
   PET_COMPATIBILITY_TARGETS,
@@ -72,6 +73,12 @@ const petFormSchema = z.object({
     .refine(
       (value) => Number.isInteger(Number(value)) && Number(value) >= 0,
       'form.validation.ageInvalid',
+    )
+    // Only for whole numbers, so "abc" gets just the message above.
+    .refine(
+      (value) =>
+        !Number.isInteger(Number(value)) || Number(value) <= PET_AGE_MAX,
+      'form.validation.ageTooHigh',
     )
     .transform(Number),
   description: z
@@ -443,6 +450,7 @@ const PetFormPage = () => {
                   onChange={(event) => updateField('age', event.target.value)}
                   type="number"
                   min="0"
+                  max={PET_AGE_MAX}
                   step="1"
                   required
                   placeholder={t('form.placeholders.age')}

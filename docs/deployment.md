@@ -45,11 +45,17 @@ Web (`apps/web`): `VITE_API_URL` is baked into the bundle **at build time** and 
 ## Uploaded photos
 
 - Photos are stored on local disk. Most container platforms have an ephemeral disk that is wiped on redeploy, so either mount a persistent volume and set `UPLOADS_DIR`, or add an object-storage implementation of the `FileStorage` interface (`apps/api/src/storage/`), e.g. S3 or Cloudflare R2. Object storage needs the provider's SDK as a new dependency.
-- **Deferred privacy improvement:** photos keep their original metadata (EXIF), which can include the GPS location where the photo was taken. Removing it would need an image library such as `sharp`.
+- **Metadata is removed:** every upload is decoded and re-encoded with `sharp` (`processPetImage` in `apps/api/src/pets/pet-image.ts`), so stored photos carry no EXIF (including GPS), XMP or ICC data; EXIF rotation is applied to the pixels and the longest side is capped at 2000 px. The uploaded bytes are never stored. Photos uploaded before this change (2026-10-27) may still sit in old Docker volumes: start a deployment with empty photo storage and never copy an old uploads directory into it (see production-readiness.md §6, Batch 2).
 
 ## Rate limiting with several API instances
 
 All rate limits (sign-in and registration per IP, admin per admin account, writes per user, writes per IP; see `middleware/rate-limit.ts`) keep their counters in the API process's memory. That's correct for one instance; a restart clears them. The IP-based limits also depend on `trust proxy` matching the real number of proxies; the per-user and admin limits don't (they key on the session's user id). The cap of 2 concurrent image jobs is per process too. With several instances behind a load balancer, each would count separately (and counters reset on restart), so the limits would need a shared store such as Redis or MongoDB.
+
+## Health checks
+
+- `GET /api/health`: liveness. 200 while the process answers; it doesn't check the database. Use it to decide whether to restart the container.
+- `GET /api/ready`: readiness. 200 when MongoDB answers a ping within 2 s, otherwise 503 `{ "code": "DATABASE_UNAVAILABLE" }` with no details. Use it to decide whether to send traffic to the instance. Restarting on a failed readiness check doesn't fix a database outage.
+- The Docker QA stack's API health check (`docker-compose.qa.yml`) uses `/api/health`. Nothing uses `/api/ready` yet; a production setup should (P0-4).
 
 ## Not covered yet
 

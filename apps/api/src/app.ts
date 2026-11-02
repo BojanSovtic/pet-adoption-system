@@ -9,7 +9,9 @@ import { sessionMiddleware } from './auth/session';
 import { conversationRouter } from './conversations/conversation.routes';
 import { petRouter } from './pets/pet.routes';
 import { userRouter } from './users/user.routes';
+import { isDatabaseReady } from './config/database';
 import { NotFoundError } from './errors/app-error';
+import { asyncHandler } from './middleware/async-handler';
 import { errorHandler } from './middleware/error-handler';
 import { writeIpRateLimit } from './middleware/rate-limit';
 import { requireTrustedOrigin } from './middleware/require-trusted-origin';
@@ -76,9 +78,27 @@ app.use(express.json());
 
 app.use(sessionMiddleware);
 
+// Liveness: the process is up and answering. Doesn't touch the database.
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Readiness: this instance can serve requests (MongoDB answers a ping), for a
+// load balancer or platform health check. A failure is a bare 503: no
+// connection details or error messages.
+app.get(
+  '/api/ready',
+  asyncHandler(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+
+    if (await isDatabaseReady()) {
+      res.json({ status: 'ok' });
+      return;
+    }
+
+    res.status(503).json({ code: 'DATABASE_UNAVAILABLE' });
+  }),
+);
 
 app.use('/api/auth', authRouter);
 app.use('/api/pets', petRouter);

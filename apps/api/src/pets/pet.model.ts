@@ -1,6 +1,7 @@
 import { Schema, model, type Types } from 'mongoose';
 import {
   DEFAULT_PET_PROFILE,
+  PET_AGE_MAX,
   PET_ALONE_TIME_VALUES,
   PET_BREED_MAX_LENGTH,
   PET_COMPATIBILITY_VALUES,
@@ -85,6 +86,7 @@ const petSchema = new Schema<PetRecord>(
       type: Number,
       required: true,
       min: 0,
+      max: PET_AGE_MAX,
     },
     description: {
       type: String,

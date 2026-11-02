@@ -54,7 +54,7 @@ The same user can be an owner of some pets and an applicant for others.
 ## Browsing and searching pets
 
 - Anyone can see the list of pets and each pet's details, without an account.
-- Each pet has a name, species (dog, cat, rabbit, bird, rodent or other), age in years, a description, optional photos and an adoption status.
+- Each pet has a name, species (dog, cat, rabbit, bird, rodent or other), age in whole years (0 to 100; the limit only catches typos, since some birds and tortoises live for decades), a description, optional photos and an adoption status.
 - Pets also have profile facts that help adopters judge whether a pet suits their home. Each one may be left as "not sure" (unknown), and pets posted before these facts existed show them as unknown:
   - sex (male, female or unknown) and an optional breed or type (free text, up to 60 characters);
   - whether the pet gets along with children, dogs and cats (yes, no or unknown, for each);

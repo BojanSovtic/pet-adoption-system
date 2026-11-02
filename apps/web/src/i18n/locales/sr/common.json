@@ -43,6 +43,7 @@
     "NOT_APPLICANT": "To može samo podnosilac zahteva.",
     "CANNOT_MESSAGE_OWN_PET": "Ne možeš poslati poruku o svom ljubimcu.",
     "CONVERSATION_NOT_FOUND": "Razgovor nije pronađen.",
+    "DATABASE_UNAVAILABLE": "Usluga je trenutno nedostupna. Pokušaj ponovo kasnije.",
     "INVALID_CONVERSATION_ID": "ID razgovora nije ispravan.",
     "IMAGE_REQUIRED": "Izaberi fotografiju za otpremanje.",
     "IMAGE_TOO_LARGE": "Fotografija je prevelika (najviše 5 MB).",

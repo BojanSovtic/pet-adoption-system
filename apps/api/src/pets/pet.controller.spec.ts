@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import request from 'supertest';
+import { PET_AGE_MAX } from '@pet-adoption/models';
 
 import { app } from '../app';
 import {
@@ -474,6 +475,51 @@ describe('POST /api/pets', () => {
     });
   });
 
+  it.each([0, 1, PET_AGE_MAX])('accepts age %s', async (age) => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, age });
+
+    expect(response.status).toBe(201);
+    expect(response.body.age).toBe(age);
+  });
+
+  it.each([
+    [PET_AGE_MAX + 1, 'too_big'],
+    [1_000_000_000, 'too_big'],
+    [-1, 'too_small'],
+  ])('rejects age %s as %s', async (age, code) => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, age });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'age', code }],
+    });
+    expect(await PetModel.countDocuments()).toBe(0);
+  });
+
+  it.each([2.5, '3'])('rejects a non-integer age (%s)', async (age) => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, age });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_FAILED');
+    expect(response.body.details).toEqual([
+      expect.objectContaining({ field: 'age' }),
+    ]);
+    expect(await PetModel.countDocuments()).toBe(0);
+  });
+
   it('rejects a malformed JSON body', async () => {
     const response = await request(app)
       .post('/api/pets')
@@ -737,6 +783,22 @@ describe('PUT /api/pets/:id', () => {
         { field: 'age', code: 'too_small' },
       ],
     });
+  });
+
+  it('rejects an age above the maximum and keeps the stored pet', async () => {
+    const owner = await createSignedInAgent();
+    const petId = await createPetAs(owner);
+
+    const response = await owner.agent
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, age: PET_AGE_MAX + 1 });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'age', code: 'too_big' }],
+    });
+    expect((await PetModel.findById(petId).lean())?.age).toBe(validPet.age);
   });
 });
 

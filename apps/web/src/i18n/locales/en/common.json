@@ -43,6 +43,7 @@
     "NOT_APPLICANT": "Only the applicant can do that.",
     "CANNOT_MESSAGE_OWN_PET": "You cannot send a message about your own pet.",
     "CONVERSATION_NOT_FOUND": "The conversation could not be found.",
+    "DATABASE_UNAVAILABLE": "The service is temporarily unavailable. Please try again later.",
     "INVALID_CONVERSATION_ID": "The conversation ID is invalid.",
     "IMAGE_REQUIRED": "Choose a photo to upload.",
     "IMAGE_TOO_LARGE": "The photo is too large (maximum 5 MB).",

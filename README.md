@@ -241,7 +241,7 @@ pnpm nx test @pet-adoption/api                  # one project's tests
 pnpm nx e2e @pet-adoption/web-e2e               # Playwright E2E against a production build (CI's e2e job; starts its own servers)
 ```
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. The E2E tests are not part of CI yet. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. A second job runs the Playwright E2E tests against a production build of the web app and uploads traces and screenshots when a test fails. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).
 
 ## Documentation
 

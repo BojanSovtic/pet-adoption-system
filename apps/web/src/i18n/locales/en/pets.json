@@ -62,6 +62,7 @@
       "nameTooLong": "Name must be at most 100 characters.",
       "ageRequired": "Age is required.",
       "ageInvalid": "Age must be a non-negative whole number.",
+      "ageTooHigh": "Age must be at most 100 years.",
       "descriptionRequired": "Description is required.",
       "descriptionTooLong": "Description must be at most 2000 characters.",
       "imageType": "Choose a JPEG, PNG or WebP image.",

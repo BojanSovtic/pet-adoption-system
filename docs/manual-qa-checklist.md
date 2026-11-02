@@ -108,6 +108,13 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 - [ ] **ADMIN-001** Make the first admin from the command line
 - [ ] **ADMIN-003** Suspend and reinstate a user
 - [ ] **ADMIN-004** Hide and restore a listing
+- [ ] **MSG-001** Message the owner about a pet
+- [ ] **MSG-002** Owner and adopter exchange messages
+- [ ] **MSG-004** Conversations when a pet becomes pending or adopted
+- [ ] **PROF-001** View another member's public profile
+- [ ] **PETS-011** My pets lists all your own pets with their status
+- [ ] **AUTH-012** Account menu with mouse, keyboard and touch
+- [ ] **UPL-008** Choose the main photo
 
 ### Docker suite
 
@@ -129,7 +136,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 | `apps/api/src/auth/**`, `apps/api/src/users/**`, `apps/api/src/middleware/rate-limit.ts`, `require-trusted-origin.ts`, `apps/web/src/features/auth/**`                                                                                         | `auth`                                              |
 | Pet create/edit/delete and details: `apps/api/src/pets/pet.controller.ts`, `pet.service.ts`, `pet.schema.ts`, `pet.model.ts`; `apps/web/src/features/pets/pages/pet-form-page.tsx`, `pet-details-page.tsx`, `components/delete-pet-button.tsx` | `pets`                                              |
 | Pet list, search, filters and paging: the list parts of `pet.service.ts` / `pet.schema.ts`; `pets-page.tsx`, `pet-card.tsx`, `utils/pet-list-params.ts`, `apps/web/src/components/pagination.tsx`                                              | `pet-list`                                          |
-| `apps/api/src/pets/pet-image.ts`, `apps/api/src/storage/**`, `components/pet-image-field.tsx`, `api/pet-image.ts`                                                                                                                              | `uploads`                                           |
+| `apps/api/src/pets/pet-image.ts`, `apps/api/src/storage/**`, `components/pet-images-field.tsx`, `api/pet-image.ts`                                                                                                                             | `uploads`                                           |
 | `apps/api/src/applications/**`, `packages/shared/models/src/lib/adoption-application.model.ts`, `apps/web/src/features/applications/**`                                                                                                        | `applications`                                      |
 | `apps/web/src/i18n/**`, `apps/web/src/app/language-select.tsx`                                                                                                                                                                                 | `i18n`                                              |
 | `apps/web/src/lib/api-client.ts`, `get-error-message.ts`, `apps/web/src/app/query-client.ts`, `apps/api/src/middleware/error-handler.ts`, `validate.ts`                                                                                        | `http`                                              |
@@ -137,6 +144,8 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 | `apps/api/src/admin/**`, `apps/api/src/auth/require-auth.ts`, `apps/api/src/scripts/admin-role.ts`, `apps/web/src/features/admin/**`                                                                                                           | `admin`                                             |
 | `apps/*/Dockerfile`, `docker-compose.yml`, `docker-compose.qa.yml`, `apps/web/nginx.conf`, `.env.example`, `apps/api/src/config/**`, `apps/api/src/scripts/qa-*.ts`, `reset-qa.ts`                                                             | `docker` (Docker suite)                             |
 | `apps/api/src/scripts/**`                                                                                                                                                                                                                      | `demo-scripts`                                      |
+| `apps/api/src/conversations/**`, `apps/web/src/features/messages/**`                                                                                                                                                                           | `messaging`                                         |
+| `apps/api/src/users/user.routes.ts`, `user.controller.ts`, `user.service.ts`; `apps/web/src/features/users/**`                                                                                                                                 | `profiles`                                          |
 | Other files in `packages/shared/models`                                                                                                                                                                                                        | The tags of the features that use the changed types |
 | Styling only (Tailwind classes, `components/ui/**`, `index.css`)                                                                                                                                                                               | None: automated checks + smoke                      |
 

@@ -17,6 +17,42 @@ export const connectDatabase = async (uri: string): Promise<void> => {
   console.log('[ database ] MongoDB connected');
 };
 
+/** How long the readiness check waits for MongoDB to answer. */
+export const DATABASE_READY_TIMEOUT_MS = 2000;
+
+/**
+ * Whether the shared Mongoose connection is open and MongoDB answers a ping
+ * within `timeoutMs`. Never throws: an error or a timeout means "not ready".
+ */
+export const isDatabaseReady = async (
+  timeoutMs = DATABASE_READY_TIMEOUT_MS,
+): Promise<boolean> => {
+  const { connection } = mongoose;
+
+  if (
+    connection.readyState !== mongoose.ConnectionStates.connected ||
+    !connection.db
+  ) {
+    return false;
+  }
+
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      connection.db.command({ ping: 1 }).then(() => true),
+      timedOut,
+    ]);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const disconnectDatabase = async (): Promise<void> => {
   await mongoose.disconnect();
   console.log('[ database ] MongoDB disconnected');

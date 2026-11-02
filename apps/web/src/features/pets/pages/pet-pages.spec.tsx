@@ -377,6 +377,40 @@ describe('PetFormPage', () => {
     expect(updatePet).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['101', 'Age must be at most 100 years.'],
+    ['1000000', 'Age must be at most 100 years.'],
+    ['2.5', 'Age must be a non-negative whole number.'],
+    ['-1', 'Age must be a non-negative whole number.'],
+  ])('refuses age %s with "%s"', async (age, message) => {
+    vi.mocked(updatePet).mockClear();
+    renderAt('/pets/pet-1/edit', owner);
+    const ageInput = await screen.findByLabelText('Age (years)');
+
+    fireEvent.change(ageInput, { target: { value: age } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(updatePet).not.toHaveBeenCalled();
+  });
+
+  it.each(['0', '100'])('saves age %s', async (age) => {
+    vi.mocked(updatePet).mockClear();
+    vi.mocked(updatePet).mockResolvedValue(pet);
+    renderAt('/pets/pet-1/edit', owner);
+    const ageInput = await screen.findByLabelText('Age (years)');
+
+    fireEvent.change(ageInput, { target: { value: age } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(updatePet).toHaveBeenCalledWith(
+        'pet-1',
+        expect.objectContaining({ age: Number(age) }),
+      );
+    });
+  });
+
   it('focuses a field the API rejected', async () => {
     vi.mocked(updatePet).mockRejectedValue(
       new ApiError(400, 'VALIDATION_FAILED', [
