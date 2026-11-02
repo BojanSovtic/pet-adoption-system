@@ -13,6 +13,7 @@ import {
 import { readAuditKey } from '../config/env-file';
 import { withTransaction } from '../config/database';
 import { AppError } from '../errors/app-error';
+import { logger, serializeError } from '../logging/logger';
 import {
   AdminAuditModel,
   AUDIT_CHAIN_HEAD_ID,
@@ -194,7 +195,10 @@ export const runAudited = async <T>(
         );
       } catch (auditError) {
         // Keep the original error for the client; the failure is logged.
-        console.error('[ audit ] Could not record a denied action', auditError);
+        logger.error('could not record a denied admin action', {
+          action: event.action,
+          err: serializeError(auditError),
+        });
       }
     }
 

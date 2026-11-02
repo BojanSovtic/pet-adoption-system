@@ -101,8 +101,9 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  req(["HTTP request"]) -- "/uploads/*" --> files["helmet (CORP cross-origin)<br/>static photo files<br/>(nosniff, immutable cache)"]
-  req --> headers["helmet<br/>CSP default-src 'none', DENY framing,<br/>nosniff, CORP same-origin; no X-Powered-By"]
+  req(["HTTP request"]) --> reqlog["requestLogger<br/>new random request id → X-Request-Id header,<br/>request context for the logger;<br/>one JSON log line when the response ends"]
+  reqlog -- "/uploads/*" --> files["helmet (CORP cross-origin)<br/>static photo files<br/>(nosniff, immutable cache)"]
+  reqlog --> headers["helmet<br/>CSP default-src 'none', DENY framing,<br/>nosniff, CORP same-origin; no X-Powered-By"]
   headers --> cors["cors<br/>origin = CORS_ORIGIN, credentials"]
   cors --> origin["requireTrustedOrigin<br/>unsafe method + foreign Origin → 403"]
   origin --> ipwrite["writeIpRateLimit (/api, not GET, not /api/auth)<br/>500 per 10 min per IP → 429 RATE_LIMITED"]
@@ -111,6 +112,7 @@ flowchart TB
   session --> router{"router"}
 
   router -- "/api/health" --> health["{ status: 'ok' }"]
+  router -- "/api/ready" --> ready["MongoDB ping<br/>→ { status: 'ok' } or 503 DATABASE_UNAVAILABLE"]
   router -- "/api/auth/*" --> rate["rate limiters<br/>(login, register only)"]
   router -- "GET /api/pets/mine<br/>POST/PUT/DELETE /api/pets/*<br/>all /api/applications/*<br/>POST /api/pets/:id/applications<br/>all /api/conversations/*<br/>POST /api/pets/:id/conversations<br/>GET /api/users/:id[/pets]" --> auth["requireAuth<br/>reads the user (role, suspension) now<br/>missing → 401 UNAUTHENTICATED<br/>suspended → session ended,<br/>403 ACCOUNT_SUSPENDED"]
   auth -- "changes" --> userrate["per-user write limits (user id from the session)<br/>applications / new pets / photo uploads / messages / other changes<br/>burst + daily window → 429 RATE_LIMITED"]
@@ -128,8 +130,10 @@ flowchart TB
   model --> db[("MongoDB")]
   controller --> ok(["JSON response / 201 / 204"])
 
-  cors & origin & ipwrite & json & rate & auth & userrate & admin & validate & controller & notfound -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s"]
+  cors & origin & ipwrite & json & rate & auth & userrate & admin & validate & controller & notfound -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s (with stack and request id)"]
 ```
+
+- **Logging and request ids.** `requestLogger` runs first. It gives every request a server-generated UUID (returned as `X-Request-Id`; a client-sent one is ignored) and runs the rest of the request in an `AsyncLocalStorage` context, so any log line written while handling it (error handler, storage, audit, readiness) carries the same `requestId`. The logger (`logging/logger.ts`) writes one JSON object per line to stdout, with explicitly chosen fields only.
 
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
 - **Errors leave through one place.** Every error, including rate-limit, validation and origin errors, reaches `errorHandler`. Response bodies are always `{ code, details? }`; the web translates `code`.

@@ -12,6 +12,7 @@ import { userRouter } from './users/user.routes';
 import { isDatabaseReady } from './config/database';
 import { NotFoundError } from './errors/app-error';
 import { asyncHandler } from './middleware/async-handler';
+import { requestLogger } from './middleware/request-logger';
 import { errorHandler } from './middleware/error-handler';
 import { writeIpRateLimit } from './middleware/rate-limit';
 import { requireTrustedOrigin } from './middleware/require-trusted-origin';
@@ -46,6 +47,10 @@ const apiSecurityHeaders = (
     frameguard: { action: 'deny' },
     strictTransportSecurity: false,
   });
+
+// First, so every response (photos, errors, 404s) gets a request id and a
+// log line, and later code runs in the request's logging context.
+app.use(requestLogger);
 
 // Uploaded pet photos (public). Before CORS and sessions: plain image
 // requests need neither. The web app shows them from another origin, so they

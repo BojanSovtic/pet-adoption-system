@@ -7,7 +7,12 @@ import path from 'node:path';
  * Docker, CI and E2E values are never overridden. Safe to call repeatedly.
  */
 export const loadEnvFile = (): void => {
-  dotenv.config({ path: path.resolve(process.cwd(), 'apps/api/.env') });
+  // `quiet`: dotenv 17 otherwise prints a plain-text banner, which would be
+  // the only non-JSON line in the API's log output.
+  dotenv.config({
+    path: path.resolve(process.cwd(), 'apps/api/.env'),
+    quiet: true,
+  });
 };
 
 type Source = Readonly<Record<string, string | undefined>>;

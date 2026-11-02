@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { logger, serializeError } from '../logging/logger';
 import type { FileStorage } from './file-storage';
 import { createLocalFileStorage } from './local-file-storage';
 
@@ -18,6 +19,9 @@ export const deleteStoredFileQuietly = async (key: string): Promise<void> => {
   try {
     await storage.delete(key);
   } catch (error) {
-    console.error(`[ storage ] Could not delete ${key}`, error);
+    logger.error('could not delete a stored file', {
+      key,
+      err: serializeError(error),
+    });
   }
 };

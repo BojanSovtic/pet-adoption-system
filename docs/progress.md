@@ -102,6 +102,11 @@ Verified by passing tests or by reading the code.
 - No component tests for the register page or the user menu.
 - Production settings (`Secure` cookies, `trust proxy`, a production replica set) are untested.
 
+## Structured logs and request ids (2026-11-02)
+
+- JSON logs on stdout (`logging/logger.ts`, no new dependency), `LOG_LEVEL` validated at startup; a server-generated request id per request (`X-Request-Id`, `AsyncLocalStorage` context) in every log line for that request; logs for requests, 500s with stacks, startup/shutdown, database and readiness, with explicitly chosen fields only. Details, tests and limitations: production-readiness.md §6, Batch 8; operating notes: deployment.md, "Logs".
+- **Checks:** `logging.spec.ts` 31/31, `app.spec.ts` 18/18, API `lint typecheck test` ✅ (464), E2E ✅ 13/13. Not run in a deployed environment; no log storage or alerting.
+
 ## Configurable trust proxy (2026-11-02)
 
 - `TRUST_PROXY` replaces the hard-coded production `trust proxy = 1`: `false`, a hop count 1–10, or a list of proxy addresses; `true`, `/0` ranges and malformed values are refused at startup; required with `NODE_ENV=production`. Docker QA sets `false`. Details, tests and limitations: production-readiness.md §6, Batch 7; how to choose the value: deployment.md, "Reverse proxy and `trust proxy`".
