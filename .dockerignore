@@ -6,6 +6,11 @@
 
 # Local data, secrets and tooling
 apps/api/uploads
+# Production backups live outside the repository (/var/backups/pet-adoption);
+# these only catch a dump or archive left here by mistake.
+backups
+**/*.archive.gz
+**/uploads-*.tar.gz
 **/.env
 **/.env.*
 !**/.env.example

@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-16, after the pre-deployment audit. Branch `develop` (`2e496d7` plus uncommitted audit cleanup); `master` is behind `develop` (last merged through PR #1). Earlier dated entries are in the Git history of this file._
+_Last updated: 2026-11-17, after addressing the production deployment review. Branch `develop` (`1f5c0bb` plus uncommitted review fixes); `master` is behind `develop` (last merged through PR #1). Earlier dated entries are in the Git history of this file._
 
 ## Status
 
@@ -40,7 +40,7 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 ## Next steps
 
-1. Review the prepared production configuration (`docker-compose.prod.yml`, `Caddyfile`, `.env.production.example`; checked locally 2026-11-17, deployment.md §5). B2–B4 stay open until it runs on the VM; B1 (Mongoose) is done. CI green on `develop`.
+1. Production configuration reviewed and corrected (2026-11-17). Changes: the backup is now a script, `scripts/backup.sh` (temporary files, gzip checks, upload before the monitoring ping, backups in `/var/backups/pet-adoption` outside the build context, cron log the deploy user can write). Also `nginx:1.30-alpine`, `no-new-privileges` on all services, and new deployment.md sections: updating a release with rollback (§9), firewall and Docker networking, a B2 key without delete, Atlas recovery, negative smoke checks. Checked locally: compose config, and the script with stand-in commands (deployment.md §5). Commit these changes. B2–B4 stay open until the stack runs on the VM; B1 (Mongoose) is done.
 2. Merge `develop` into `master` through a pull request.
 3. Deploy following [deployment.md](deployment.md) §6 (Oracle Cloud Always Free VM + MongoDB Atlas Free), then the smoke test and a restore drill.
 4. Before inviting users: B5 (privacy notice) and a decision on B6 (password reset).
