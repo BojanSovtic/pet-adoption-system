@@ -1,6 +1,6 @@
 # Design system
 
-How the web app (`apps/web`) is styled, and the rules to follow when redesigning a page. First applied to the pet list (`/pets`); the other pages still use the older markup with the new tokens.
+How the web app (`apps/web`) is styled, and the rules to follow when redesigning a page. All pages use the tokens and primitives; the applications page, sign-in and registration, pet details and member profiles don't start with `PageHeader` yet.
 
 ## Visual direction
 
@@ -62,7 +62,7 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 - **Card**: the one surface style (white, border, `rounded-lg`, `shadow-card`). Override padding/gap with `className` instead of creating a new surface.
 - **Badge**: `success`, `warning`, `neutral`, `destructive` for statuses, mapped per domain in `PetStatusBadge` and `ApplicationStatusBadge`. Don't pick colours ad hoc.
 - **Account menu** (`features/auth/components/user-menu.tsx`): the header's signed-in navigation. A disclosure (a `Button` with `aria-expanded`/`aria-controls` that shows a `<nav>` list of `NavLink`s plus Sign out), not an ARIA `menu`, so links behave as links and no menu library is needed. Closes on Escape (focus back to the button), outside pointer-down, focus leaving it, and any navigation; the chevron turns when open; the current page is marked with `aria-current`. Add new account destinations here instead of as header buttons.
-- **PageHeader**: the page `<h1>`, an optional description, and the main actions. Every page starts with it.
+- **PageHeader**: the page `<h1>`, an optional description, and the main actions. New pages start with it.
 - **StateMessage**: empty and error states (icon, title, hint, one action). `tone="error"` adds `role="alert"`.
 - **Skeleton**: loading placeholders shaped like the real content. Pair them with a visually hidden `role="status"` text (see `PetsPage`).
 - **Focus**: one global `:focus-visible` outline (2px `ring`, 2px offset). Don't add `outline-none` to focusable elements. The one exception is the card pattern below, where the card draws the outline instead.
@@ -100,7 +100,7 @@ Tailwind's mobile-first breakpoints: base styles are for phones, and `sm` (640px
 
 - Page width: `page-container` (16 → 24 → 32px side padding). The app shell already applies it to `<main>`, so pages don't add their own `max-w-*` unless they're narrower forms (`max-w-md`, `max-w-2xl`).
 - Grids: `sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4` for pet cards (the page size of 12 divides evenly).
-- Header: actions wrap onto a second row on narrow screens. If the navigation grows past ~4 items, replace this with a disclosure menu.
+- Header: the logo, the account menu and the language selector; they wrap onto a second row on narrow screens. Signed-in navigation lives in the account menu.
 - Form controls use `text-base` below `sm`, which stops iOS from zooming into them.
 
 ## Redesigning a page: checklist

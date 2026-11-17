@@ -17,7 +17,6 @@ type DeletePetButtonProps = {
    * pets, which drops the pet from its list). Default: the pet list.
    */
   redirectTo?: string | null;
-  /** Smaller button for lists. */
   size?: 'default' | 'sm';
 };
 

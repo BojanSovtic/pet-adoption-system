@@ -47,15 +47,15 @@ export const escapeRegex = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * One page of pets. Search and filters apply before paging, and the count uses
- * the same filter, so the metadata matches the results.
- */
-/**
  * Which pets a list may contain: the public list only shows visible pets;
  * the admin list can show hidden ones too.
  */
 export type PetVisibility = 'visible' | 'hidden' | 'all';
 
+/**
+ * One page of pets. Search and filters apply before paging, and the count uses
+ * the same filter, so the metadata matches the results.
+ */
 export const listPets = async (
   { search, species, status, sort, page, pageSize }: ParsedPetListQuery,
   visibility: PetVisibility = 'visible',
@@ -263,7 +263,6 @@ export const deleteOwnedPet = (
 
 type ImageFile = { data: Buffer; type: PetImageType };
 
-/** The storage keys of a pet's photos. */
 export const petImageKeys = (pet: Pick<PetRecord, 'images'>): string[] =>
   (pet.images ?? []).map((image) => image.key);
 

@@ -31,7 +31,7 @@ app.set('trust proxy', env.trustProxy);
 /**
  * Security headers for a JSON API (helmet). The API serves no HTML, so the
  * CSP allows nothing and forbids framing. HSTS is left to the TLS-terminating
- * proxy, which knows the real domain (P0-4); the web app's own headers (CSP
+ * proxy, which knows the real domain; the web app's own headers (CSP
  * for the built app) belong in its nginx config. Headers are defense in depth,
  * not a substitute for the checks in the handlers.
  */

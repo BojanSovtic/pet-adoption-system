@@ -18,7 +18,6 @@ import {
 import { Button } from '@/components/ui/button';
 
 type ConfirmDialogProps = {
-  /** The button that opens the dialog. */
   trigger: ReactElement;
   /** A short question, e.g. "Delete Milo?". */
   title: string;

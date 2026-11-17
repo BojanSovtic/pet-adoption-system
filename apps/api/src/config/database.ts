@@ -39,7 +39,7 @@ export const connectDatabase = async (uri: string): Promise<void> => {
   if (!hello?.setName) {
     throw new Error(
       'MongoDB must run as a replica set (transactions are required). ' +
-        'See "Local MongoDB" in docs/progress.md.',
+        'See "Local development" in README.md.',
     );
   }
 

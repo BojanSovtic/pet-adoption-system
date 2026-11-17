@@ -7,7 +7,6 @@ export const useDebouncedValue = <T>(value: T, delayMs: number): T => {
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedValue(value), delayMs);
 
-    // A new value cancels the pending update: only the last one wins.
     return () => clearTimeout(timeout);
   }, [value, delayMs]);
 

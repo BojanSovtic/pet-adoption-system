@@ -287,7 +287,6 @@ const PetFormPage = () => {
 
   const getFieldError = validation.getError;
 
-  // Props shared by every control: value, handlers and error wiring.
   const controlProps = (field: FieldName, describedBy?: string) => {
     const error = getFieldError(field);
     const ids = [describedBy, error ? `${field}-error` : undefined]

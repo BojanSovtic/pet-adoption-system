@@ -1,6 +1,6 @@
 # Architecture
 
-Diagrams of the **current** implementation (verified against the code on 2026-10-21, after the Docker Compose, Playwright E2E and Axios steps; roles and the admin area added on 2026-10-27; security headers, photo re-encoding, write rate limits and the three environments reviewed on 2026-10-28; messaging and public profiles, My pets and the account menu added on 2026-10-29). For user-facing rules, see [requirements.md](requirements.md); for status, open issues and the roadmap, see [progress.md](progress.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (last reviewed against the code on 2026-11-16). For user-facing rules, see [requirements.md](requirements.md); for status and open issues, see [progress.md](progress.md); for the planned production setup, see [deployment.md](deployment.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
@@ -86,7 +86,7 @@ sequenceDiagram
 ```
 
 - **React Router only picks the page component.** There are no route loaders or actions; data is fetched inside components with TanStack Query.
-  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `applicationQueryKeys.mine(query)` / `.received(query)` = `['applications', 'mine' | 'received', { page, … }]`, `conversationQueryKeys` (`['conversations', 'list' | 'detail' | 'messages', …]`), `userQueryKeys` (`['users', 'profile' | 'pets', id, …]`) and `['auth', 'me']`. Application, conversation, profile and admin data are removed on every identity change (`setCurrentUser`). Invalidating `['pets']` refreshes every list and detail.
+  - **Keys:** `petQueryKeys.list(query)` = `['pets', 'list', { search, species, status, sort, page, pageSize }]`, `petQueryKeys.detail(id)`, `applicationQueryKeys.mine(query)` / `.received(query)` = `['applications', 'mine' | 'received', { page, … }]`, `conversationQueryKeys` (`['conversations', 'list' | 'detail' | 'messages', …]`), `userQueryKeys` (`['users', 'profile' | 'pets', id, …]`) and `['auth', 'me']`. Application, conversation, profile, "My pets" and admin data are removed on every identity change (`setCurrentUser`). Invalidating `['pets']` refreshes every list and detail.
   - **The pet list keeps its state in the URL** (`?search=&species=&status=&sort=&page=`) through `useSearchParams`, so Back and shared links restore it. Search is debounced by 300 ms, and any change other than the page resets to page 1.
 - **Errors are handled in four places:**
   - The Axios response interceptor (`lib/api-client.ts`) turns every failure into an `ApiError`, including network errors (`NETWORK_ERROR`, status 0).
@@ -520,7 +520,7 @@ sequenceDiagram
 - **Trust boundary: tamper-evident, not tamper-proof.** The application can't change or delete entries, but anyone with database write access can.
   - Without the key, they can also rewrite the chain consistently.
   - With the key (kept outside the database), they can't forge entries, but they can still delete the newest entries and roll back the head.
-  - Detecting that needs a copy of the head outside the database (planned with hosting; see production-readiness.md A3).
+  - Detecting that needs a copy of the head outside the database (see deployment.md, "Admin audit log").
 
 ## 6. Runtime environments
 

@@ -16,7 +16,6 @@ export type MainImageChoice =
 
 /** What should happen to the photos when the form is saved. */
 export type PetImagesChange = {
-  /** Ids of existing photos to remove. */
   removeIds: string[];
   /** New files to add after the remaining photos. */
   add: File[];
@@ -34,7 +33,6 @@ export const hasImageChange = ({
   removeIds.length > 0 || add.length > 0 || Boolean(main);
 
 type PetImagesFieldProps = {
-  /** The pet's current photos (when editing). */
   existingImages: PetImage[];
   change: PetImagesChange;
   onChange: (change: PetImagesChange) => void;

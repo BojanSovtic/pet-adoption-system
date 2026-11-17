@@ -27,10 +27,6 @@ export default defineConfig(() => ({
     // alias doesn't depend on tsconfig discovery, which failed for Vitest in CI.
     alias: { '@': `${import.meta.dirname}/src` },
   },
-  // Uncomment this if you are using workers.
-  // worker: {
-  //   plugins: () => [ nxViteTsPaths() ],
-  // },
   build: {
     outDir: '../../dist/apps/web',
     emptyOutDir: true,

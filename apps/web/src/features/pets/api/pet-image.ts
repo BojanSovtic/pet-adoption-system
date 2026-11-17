@@ -17,7 +17,6 @@ export const addPetImages = async (
   return data;
 };
 
-/** Removes one photo. */
 export const deletePetImage = async (
   petId: string,
   imageId: string,

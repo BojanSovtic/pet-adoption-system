@@ -88,7 +88,6 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   // Pets created before ownership existed cannot receive applications.
   const canReceiveApplications = Boolean(pet.owner) && pet.status !== 'adopted';
 
-  // Shown instead of the form when nobody can apply any more.
   const adoptedNotice =
     pet.status === 'adopted' ? (
       <p className="text-sm text-muted-foreground">

@@ -1,6 +1,6 @@
 # Requirements
 
-What the Pet Adoption System does, from a user's point of view. This describes the current implementation (checked against the code on 2026-10-21; messaging and public profiles added on 2026-10-29). For how it is built, see [architecture.md](architecture.md); for status and the roadmap, see [progress.md](progress.md).
+What the Pet Adoption System does, from a user's point of view. This describes the current implementation (reviewed against the code on 2026-11-16). For how it is built, see [architecture.md](architecture.md); for status, see [progress.md](progress.md).
 
 ## Purpose
 
@@ -153,7 +153,7 @@ Not supported today:
 
 - Users can't report listings or accounts to admins; admins act on what they find themselves (see [Administration](#administration)).
 - No email verification, password reset, account editing or account deletion.
-- No sign-in with Google, GitHub or other providers (planned).
+- No sign-in with Google, GitHub or other providers.
 - Messaging is basic: no notifications (email or in-app), unread counts, live updates or attachments, and users can't block each other or report messages.
 - Public profiles show only the name, join date and listed pets; there is no bio or other profile information.
 - An accepted adoption cannot be undone, and a rejected applicant cannot reapply for the same pet.
@@ -162,9 +162,11 @@ Not supported today:
 - Pets created before ownership was introduced have no owner: they are visible, but nobody can edit, delete or apply for them.
 - A fresh installation starts empty. Optional demo data can be created with `pnpm dev:seed` or `pnpm qa:seed` (see the README).
 
-## Planned
+## Before launch
 
-From the roadmap in [progress.md](progress.md); not implemented:
+Not implemented yet, and required before real users register (see [production-readiness.md](production-readiness.md) §2):
 
-- Sign-in with Google or GitHub (OAuth/OIDC).
-- Cloud deployment (requirements in [deployment.md](deployment.md)).
+- A privacy notice with the operator's contact, and a note on the apply form that the pet's owner sees the applicant's name and email.
+- Password reset, unless the first release is limited to a small group of known users.
+
+Later ideas (sign-in with Google or GitHub, notifications, reports) are not planned work until after the first deployment.

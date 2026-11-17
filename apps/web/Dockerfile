@@ -1,4 +1,4 @@
-# Build context: the repository root (see docker-compose.yml).
+# Build context: the repository root (see docker-compose.qa.yml).
 
 FROM node:22-bookworm-slim AS build
 ENV NX_DAEMON=false \

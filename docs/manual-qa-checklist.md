@@ -1,12 +1,11 @@
 # Manual QA checklist
 
-My QA process for this project: risk-based, so a change gets the checks its risk calls for, not all 50 cases.
+My QA process for this project: risk-based, so a change gets the checks its risk calls for, not every case.
 
 | File                                                 | What it is                                                                                                                          |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | This guide                                           | When to run what, how to choose cases, and the order to run them in                                                                 |
 | [manual-qa-test-cases.csv](manual-qa-test-cases.csv) | The catalog and the only place with each case's preconditions, steps and expected result. Filterable in Excel. Never holds results. |
-| [manual-qa-log.csv](manual-qa-log.csv)               | The execution log: one row per case per run. Only ever appended to.                                                                 |
 
 Commands run in PowerShell in the repository root. UI text is quoted in English.
 
@@ -125,7 +124,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 
 ## 3. Choosing targeted regression cases
 
-1. **See what changed** since the last QA run: `git diff --name-only <commit>`, using the commit recorded in the log.
+1. **See what changed** since the last QA run: `git diff --name-only <commit>`, using the commit of the last QA run.
 2. **Translate the paths into tags** with the table below.
 3. **Filter the catalog** on `Run When Changed` (in Excel: _Text Filters → Contains_).
 4. **Run only** the cases marked "Partially covered" or "Manual only". Cases covered by Playwright or other automated tests are checked by those suites; if they passed, don't repeat them by hand.
@@ -159,22 +158,11 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 
 ## 4. Recording results
 
-Append one row per case I actually ran to [manual-qa-log.csv](manual-qa-log.csv). Cases I didn't run get no row, so there's no "Not Run" or "N/A".
+Results are not kept in a file.
 
-| Column      | What to write                                                                                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run ID      | Date plus a label, e.g. `2026-10-22-smoke`, `2026-10-22-retest`, `2026-11-02-release`. It gives the date and groups the rows of one run; it also sorts by date. |
-| Test ID     | From the catalog.                                                                                                                                               |
-| Status      | `Pass`, `Fail` or `Blocked` (couldn't run, e.g. a broken environment or a failing precondition).                                                                |
-| Environment | `Docker QA` (the only manual QA environment).                                                                                                                   |
-| Commit      | `git rev-parse --short HEAD`, so a regression can be narrowed down to the commits between two runs.                                                             |
-| Notes       | Only for Fail/Blocked: what happened instead.                                                                                                                   |
-| Issue       | For a Fail: a GitHub issue number, or `progress.md` if it is noted there under outstanding issues.                                                              |
-
-- **A failure:** log it as Fail. Fix it at once, or record it (GitHub issue or `docs/progress.md`) and put the reference in Issue.
-- **Retest:** after the fix, start a new run (`…-retest`) with just the failed cases plus the smoke suite. The newest row for a Test ID is its current status; older rows stay as history.
-- **Editing the log:** VS Code works well (add a line per case). In Excel, open it via _Data → From Text/CSV_ (UTF-8, comma), add rows, and save as "CSV UTF-8 (Comma delimited)". Commit the log together with the code it tested, at least for release runs.
-- **Changing the catalog:** add new cases with a new ID; never reuse or renumber IDs, so old log rows stay meaningful.
+- **A failure:** fix it at once, or record it as a GitHub issue (or under open issues in `docs/progress.md`).
+- **Retest:** after the fix, rerun the failed cases plus the smoke suite.
+- **Changing the catalog:** add new cases with a new ID; never reuse or renumber IDs, so references to a case stay meaningful.
 
 ## 5. Test cases
 

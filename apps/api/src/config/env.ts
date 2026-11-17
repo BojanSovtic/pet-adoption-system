@@ -46,7 +46,6 @@ export const env = {
   trustProxy,
   /** Minimum level written by the logger; see logging/logger.ts. */
   logLevel,
-  /** Where uploaded files are written (local disk storage). */
   uploadsDir: path.resolve(
     process.cwd(),
     process.env.UPLOADS_DIR ?? 'apps/api/uploads',

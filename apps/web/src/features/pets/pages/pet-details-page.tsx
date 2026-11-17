@@ -223,7 +223,6 @@ const PetDetailsPage = () => {
             <PetApplicationSection pet={pet} />
           </div>
 
-          {/* Signed-in visitors only, never on one's own pet. */}
           {currentUser && !isOwner && pet.owner && (
             <div className="border-t pt-6">
               <PetContactSection pet={pet} />

@@ -88,7 +88,6 @@ const RegisterPage = () => {
     mutation.mutate({ name, email, password });
   };
 
-  // Props shared by every field: value, handlers and error.
   const fieldProps = (field: keyof RegisterValues) => ({
     id: field,
     value: values[field],

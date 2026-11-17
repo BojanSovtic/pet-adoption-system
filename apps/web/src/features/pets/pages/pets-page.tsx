@@ -38,7 +38,6 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-// Placeholder cards while the first page loads.
 const SKELETON_COUNT = 8;
 
 // 1 column on phones, up to 4 on wide screens (12 per page divides evenly by 2, 3 and 4).
@@ -90,7 +89,6 @@ const PetsPage = () => {
   } = useQuery({
     queryKey: petQueryKeys.list(query),
     queryFn: () => getPets(query),
-    // Keep showing the previous page while the next one loads.
     placeholderData: keepPreviousData,
   });
 

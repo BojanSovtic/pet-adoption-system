@@ -41,7 +41,6 @@ const handleUnauthenticated = (error: Error) => {
     return;
   }
 
-  // A suspended account's session was ended by the API: signed out now.
   if (error.code === 'UNAUTHENTICATED' || error.code === 'ACCOUNT_SUSPENDED') {
     setCurrentUser(queryClient, null);
   }

@@ -1,6 +1,6 @@
 # UX benchmark and redesign roadmap
 
-_Researched 2026-10-26. This doc covers what we learned from established adoption sites, how our app compares, and the order in which we'll improve it._
+_Researched 2026-10-26; kept as background. Batch 1 and Batch A are done. Batches B–D and favourites are **not planned before the first deployment** (see [production-readiness.md](production-readiness.md) §4). Since this was written, confirmations moved from inline buttons to a dialog (`ConfirmDialog`), and the demo commands were replaced by `pnpm dev:seed` / `pnpm qa:seed`._
 
 ## 1. Platforms reviewed
 

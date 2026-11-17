@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 type PageHeaderProps = {
   title: ReactNode;
   description?: ReactNode;
-  /** Main page actions, shown to the right on wider screens. */
   actions?: ReactNode;
 };
 
