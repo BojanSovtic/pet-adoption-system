@@ -169,7 +169,7 @@ Validated at startup (`apps/api/src/config/env.ts`); the API refuses to start on
 | ARM64 | **Checked in the lockfile and packages** (§2), not built: Docker wasn't available locally, and the real build happens on the VM. |
 | `Caddyfile` syntax | **Reviewed by hand only.** Validate on the VM before the first start: `docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" -e SITE_DOMAIN=example.com -e ACME_EMAIL=a@example.com caddy:2 caddy validate --config /etc/caddy/Caddyfile`. |
 | Containers running together, certificates, real proxy headers, Atlas (TLS, SRV, transactions on the Free tier), shutdown timing, the CSP in a browser | **Not yet verified:** needs the VM and the Atlas cluster (§6 and the smoke test in §7). |
-| Backups | **Script prepared and tested locally with stand-in commands** (2026-11-17, `dash` and `bash`): with fake `docker`, `rclone` and `curl`, a successful run produced both files, uploaded them, then pinged. A failed, truncated or empty dump left `daily/` and `tmp/` empty with no upload and no ping. A failed upload sent no ping. A run killed by a signal cleaned up its partial file. Old files were pruned. **Not run for real:** `mongodump` against Atlas, the photo volume, the B2 key's permissions, cron, the monitoring ping and a restore are all still to verify on the VM (§8). |
+| Backups | **Script prepared and tested locally with stand-in commands** (2026-11-17, `dash` and `bash`): with fake `docker`, `rclone` and `curl`, a successful run produced both files, uploaded them, then pinged. A failed, truncated or empty dump left `daily/` and `tmp/` empty with no upload and no ping. A failed upload sent no ping. A run killed by a signal cleaned up its partial file. Old files were pruned. A missing photo volume stopped the run before anything was dumped (added in the final review). **Not run for real:** `mongodump` against Atlas, the photo volume, the B2 key's permissions, cron, the monitoring ping and a restore are all still to verify on the VM (§8). |
 
 ## 6. First deployment, step by step
 
@@ -300,6 +300,7 @@ Backups are kept **outside `/opt/pet-adoption`** on purpose. That directory is t
 
 In order, stopping at the first failure:
 
+0. Check that the photo volume exists. Otherwise `docker run -v` would silently create an empty one, and the "backup" would contain no photos.
 1. Dump the database with `mongodump` (from the `mongo:8` image, `MONGODB_URI` from `.env.production`) into `tmp/`.
 2. Check that the file is non-empty and a complete gzip file, then move it to `daily/`.
 3. Do the same for the photo volume (read-only mount, `tar.gz`).
@@ -318,7 +319,7 @@ On any failure it exits non-zero, removes its partial file, logs `backup FAILED`
    b2 key create --bucket pet-adoption-backups pet-adoption-vm listBuckets,listFiles,writeFiles
    ```
 
-   (Older versions of the B2 CLI call this `b2 create-key`; check `b2 --help`.) Check the capabilities listed for the new key: no `deleteFiles`, and no access to other buckets. Why: if the VM is compromised, an attacker with this key can add files but can't delete the existing backups. Overwriting a name only adds a new version, and the lifecycle rule keeps the older one for another 7 days. That `rclone copy` works with exactly these capabilities is still to confirm on the first run. If it is refused, add only the capability the error names, never `deleteFiles`.
+   (Older versions of the B2 CLI call this `b2 create-key`; check `b2 --help`.) Check the capabilities listed for the new key: no `deleteFiles`, and no access to other buckets. Why: if the VM is compromised, an attacker with this key can't delete the existing backups. They can still add files, overwrite a name (which adds a new version) or *hide* files (B2 counts hiding as a write). The lifecycle rule then deletes hidden and superseded versions 7 days later, so a compromise gives you **7 days** to notice and recover those versions with your master key. B2's Object Lock (set on the bucket, with a retention period) would make versions undeletable for that period; it isn't needed to start, but consider it once real data is at stake. That `rclone copy` works with exactly these capabilities is still to confirm on the first run. If it is refused, add only the capability the error names, never `deleteFiles`.
 
    Also create a second, **read-only** key for restores (`listBuckets,listFiles,readFiles`). Keep it in the password manager, not on the VM; it is used temporarily in the drill and in recovery.
 3. **Directories** (owned by `ubuntu`, readable by nobody else):
@@ -382,7 +383,22 @@ It proves the backups are usable without touching production. Files go to `resto
 
    The Atlas user needs `readWrite` on `restore-test` too, for the drill only.
 3. Unpack the photos into a scratch volume: `docker volume create restore-test-uploads`, then `docker run --rm -v restore-test-uploads:/data -v /var/backups/pet-adoption/restore-drill:/r:ro alpine:3 tar xzf /r/uploads-<time>.tar.gz -C /data`.
-4. Check: document counts per collection in `restore-test` match `pet-adoption` (Atlas → Collections), and every photo key in `restore-test.pets` (`images.key`) exists as a file in the scratch volume.
+4. Check:
+   - document counts per collection in `restore-test` match `pet-adoption` (Atlas → Collections);
+   - every photo key in `restore-test.pets` exists as a file in the scratch volume:
+
+     ```sh
+     cd /var/backups/pet-adoption/restore-drill
+     # Photo keys in the restored database ("pets/<id>.<ext>")
+     docker run --rm --env-file /opt/pet-adoption/.env.production mongo:8 sh -c \
+       'uri=$(echo "$MONGODB_URI" | sed "s#/pet-adoption?#/restore-test?#"); mongosh "$uri" --quiet --eval "db.pets.find({}, { images: 1 }).forEach((p) => (p.images || []).forEach((i) => print(i.key)))"' | sort > keys-db.txt
+     # Files in the restored photo volume
+     docker run --rm -v restore-test-uploads:/data:ro alpine:3 sh -c 'cd /data && find . -type f | sed "s#^\./##"' | sort > keys-files.txt
+     wc -l keys-db.txt keys-files.txt          # plausible numbers, not 0
+     comm -23 keys-db.txt keys-files.txt       # keys without a file: must print nothing
+     ```
+
+     A few files without a key are fine: the archive is taken a moment after the dump, and a failed upload can leave an orphaned file.
 5. Clean up:
    - drop the `restore-test` database in Atlas and remove the drill's `readWrite` grant;
    - `docker volume rm restore-test-uploads` (that scratch volume only);
@@ -404,12 +420,18 @@ Downloads for recovery go to `restore-drill/` as in drill step 1. In the command
   dc start api
   ```
 
-- **Lost photos:** `dc stop api`, unpack the archive into `pet-adoption-prod_uploads_data` as in drill step 3 (files keep their owner, uid 1000 = `node`), then `dc start api`.
+- **Lost photos:** unpack the archive into the production volume. Files keep their owner (uid 1000 = `node`). Existing files with the same name are replaced; other files stay.
+
+  ```sh
+  dc stop api
+  docker run --rm -v pet-adoption-prod_uploads_data:/data -v /var/backups/pet-adoption/restore-drill:/r:ro alpine:3 tar xzf /r/uploads-<time>.tar.gz -C /data
+  dc start api
+  ```
 - **Atlas is down** (check <https://status.mongodb.com>): there is nothing to restore. `/api/ready` returns 503, the uptime monitor alerts, and pages that need data show errors. The driver reconnects by itself when Atlas is back; if `/api/ready` stays at 503 afterwards, `dc restart api`.
 - **Atlas data is corrupted or the cluster is lost:**
   1. If the cluster still exists and a snapshot from before the damage is available (the last 4 days), restore it in the Atlas UI. You're done.
   2. Otherwise, build a replacement:
-     - Create a new Free cluster in the same region. Atlas allows one Free cluster per project, so delete the broken one first or use a new project.
+     - Create a new Free cluster in the same region, and turn on its daily snapshots. Atlas allows one Free cluster per project, so delete the broken one first or use a new project.
      - Create the database user `pet-adoption-api` (`readWrite` on `pet-adoption`) with a new letters-and-digits password, and allow the VM's IP in Network Access.
      - Update `MONGODB_URI` in `.env.production` (new host and password; also in the password manager).
      - Restore the newest dump from B2 with the command above, without `--drop` (the database is empty).
@@ -445,7 +467,7 @@ For every release after the first: a new tag (`v1.1.0`) on `master`, with CI gre
 4. **Rebuild, then restart:**
 
    ```sh
-   dc build      # the running containers keep serving while this builds
+   dc build --pull   # --pull: fetch patched base images; the running containers keep serving meanwhile
    dc up -d      # recreates the services whose image or configuration changed
    ```
 
@@ -476,6 +498,17 @@ For every release after the first: a new tag (`v1.1.0`) on `master`, with CI gre
    ```
 
    Never `docker volume prune`, `docker system prune --volumes` or `dc down -v`: they can delete the photo and certificate volumes. `docker image prune -a` would also remove `mongo:8` and `alpine:3`, which the next backup then downloads again.
+
+### Regular maintenance (monthly, about 15 minutes)
+
+Nothing here happens by itself. Without it the server slowly falls behind on security fixes or fills its disk.
+
+- **Operating system:** `unattended-upgrades` installs Ubuntu's security updates, but doesn't reboot, and doesn't update Docker (it comes from Docker's own repository). Run `sudo apt update && sudo apt upgrade`, which updates Docker too and restarts its daemon and the containers (brief downtime). If `/var/run/reboot-required` exists, reboot at a quiet time with `sudo reboot`. The services come back by themselves (`restart: unless-stopped`); check `dc ps` and `/api/ready`.
+- **Container images:** a cached build keeps using the old base images, so security fixes in Node, nginx and Alpine only arrive with `--pull`. Even without a release, run `dc build --pull && dc pull caddy && dc up -d`, plus `docker pull mongo:8 alpine:3` for the backup tools. Then run the smoke test's first two checks.
+- **Disk:** `df -h /` and `docker system df`. Clean up as in step 8 above the 70% mark.
+- **Backups:** the end of `backup.log`, the monitoring check's history, and the B2 bucket size against the 10 GB free tier (§3).
+- **Accounts:** Atlas "Data Size" against 512 MB, and any emails from Oracle (idle reclamation, §3), Atlas, Let's Encrypt or Backblaze.
+- **Every few months:** the restore drill (§8) and `pnpm audit:verify` (§6 step 9).
 
 ## 10. Migration path when the free tier isn't enough
 

@@ -47,6 +47,8 @@ Not blockers, but cheap and worth doing early:
 
 - **Web security headers and compression** at the proxy (HSTS, CSP, `Referrer-Policy`, `nosniff`, gzip): configured in the [`Caddyfile`](../Caddyfile); check the headers and the browser console on the first deployment. Expected: one CSP warning from zod's `eval` probe (harmless; `z.config({ jitless: true })` at startup would remove it, a one-line code change).
 - **Uptime monitoring** on `/api/ready` with email alerts, and a dead man's switch for the nightly backup (an external check pinged by `scripts/backup.sh`; [deployment.md](deployment.md) §8).
+- **A monthly maintenance routine** (OS and Docker updates with reboots, `dc build --pull` for base-image fixes, disk, B2 size, account emails; [deployment.md](deployment.md) §9). Nothing applies these automatically.
+- **B2 Object Lock** on the backup bucket: the VM's key can't delete, but it can hide files, which the lifecycle rule removes after 7 days ([deployment.md](deployment.md) §8).
 - **HSTS for a year from the first HTTPS response** (`Caddyfile`): intended, but it can't be withdrawn quickly; optionally start with a short `max-age` until the smoke test passes ([deployment.md](deployment.md) §4).
 - **Require `UPLOADS_BASE_URL` in production** in `config/env.ts`, like `TRUST_PROXY`. The production compose file always sets it from `SITE_DOMAIN`, so this only protects other setups; low priority now.
 - **Shutdown timeout:** `server.close()` waits for idle keep-alive connections; Docker kills the process after 10 s anyway, but closing idle connections (`server.closeIdleConnections()`) makes restarts clean.

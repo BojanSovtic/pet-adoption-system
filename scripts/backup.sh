@@ -74,6 +74,13 @@ finish() {
 
 log "backup started"
 mkdir -p "$DAILY_DIR" "$TMP_DIR"
+# `docker run -v <name>:...` silently creates a missing volume (empty, owned
+# by root): the backup would "succeed" without photos, and the API, which
+# runs as `node`, couldn't write to that volume later.
+if ! docker volume inspect "$UPLOADS_VOLUME" >/dev/null 2>&1; then
+  log "error: volume $UPLOADS_VOLUME not found (is the stack running?)"
+  exit 1
+fi
 # Leftovers of a run that was killed (power loss, OOM) before its trap ran.
 find "$TMP_DIR" -type f -name '*.partial' -mmin +720 -exec rm -f {} +
 
