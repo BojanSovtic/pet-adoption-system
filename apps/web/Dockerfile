@@ -1,4 +1,4 @@
-# Build context: the repository root (see docker-compose.yml).
+# Build context: the repository root (see docker-compose.qa.yml).
 
 FROM node:22-bookworm-slim AS build
 ENV NX_DAEMON=false \
@@ -22,7 +22,8 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm nx build @pet-adoption/web
 
 # --- Runtime: static files served by nginx ---
-FROM nginx:1.27-alpine
+# The stable line (even minor version); rebuilding picks up its patch releases.
+FROM nginx:1.30-alpine
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/dist/apps/web /usr/share/nginx/html
 EXPOSE 80

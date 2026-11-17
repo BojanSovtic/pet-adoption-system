@@ -5,12 +5,16 @@ import enAdmin from './locales/en/admin.json';
 import enApplications from './locales/en/applications.json';
 import enAuth from './locales/en/auth.json';
 import enCommon from './locales/en/common.json';
+import enMessages from './locales/en/messages.json';
 import enPets from './locales/en/pets.json';
+import enProfile from './locales/en/profile.json';
 import srAdmin from './locales/sr/admin.json';
 import srApplications from './locales/sr/applications.json';
 import srAuth from './locales/sr/auth.json';
 import srCommon from './locales/sr/common.json';
+import srMessages from './locales/sr/messages.json';
 import srPets from './locales/sr/pets.json';
+import srProfile from './locales/sr/profile.json';
 
 export const resources = {
   en: {
@@ -18,14 +22,18 @@ export const resources = {
     applications: enApplications,
     auth: enAuth,
     common: enCommon,
+    messages: enMessages,
     pets: enPets,
+    profile: enProfile,
   },
   sr: {
     admin: srAdmin,
     applications: srApplications,
     auth: srAuth,
     common: srCommon,
+    messages: srMessages,
     pets: srPets,
+    profile: srProfile,
   },
 } as const;
 
@@ -68,7 +76,15 @@ i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   supportedLngs: [...SUPPORTED_LANGUAGES],
   defaultNS: 'common',
-  ns: ['common', 'pets', 'auth', 'applications', 'admin'],
+  ns: [
+    'common',
+    'pets',
+    'auth',
+    'applications',
+    'admin',
+    'messages',
+    'profile',
+  ],
   interpolation: {
     escapeValue: false,
   },

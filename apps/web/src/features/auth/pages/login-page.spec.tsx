@@ -6,7 +6,7 @@ import type { User } from '@pet-adoption/models';
 
 import '../../../i18n/config';
 import { ApiError } from '../../../lib/api-client';
-import { currentUserQueryKey } from '../api/get-current-user';
+import { currentUserQueryKey, getCurrentUser } from '../api/get-current-user';
 import { login } from '../api/login';
 import { LoginPage } from './login-page';
 
@@ -48,7 +48,9 @@ const renderLoginPage = (from?: string) => {
   return { queryClient, router };
 };
 
-const fillAndSubmit = (email: string, password: string) => {
+const fillAndSubmit = async (email: string, password: string) => {
+  // The form appears once the session check has finished.
+  await screen.findByLabelText('Email');
   fireEvent.change(screen.getByLabelText('Email'), {
     target: { value: email },
   });
@@ -63,10 +65,23 @@ describe('LoginPage', () => {
     vi.mocked(login).mockReset();
   });
 
+  it('sends a signed-in user on without showing the form', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(user);
+    const { router } = renderLoginPage();
+
+    // Nothing is shown while the session is checked.
+    expect(screen.queryByLabelText('Email')).toBeNull();
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/pets');
+    });
+    expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+
   it('validates the form before sending a request', async () => {
     renderLoginPage();
 
-    fillAndSubmit('not-an-email', '');
+    await fillAndSubmit('not-an-email', '');
 
     expect(
       await screen.findByText('Enter a valid email address.'),
@@ -81,18 +96,65 @@ describe('LoginPage', () => {
     );
     renderLoginPage();
 
-    fillAndSubmit('milo@example.com', 'wrong password');
+    await fillAndSubmit('milo@example.com', 'wrong password');
 
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Incorrect email or password.',
     );
   });
 
+  it('shows server field errors on their field, focuses it and clears it only when that field is edited', async () => {
+    vi.mocked(login).mockRejectedValue(
+      new ApiError(400, 'VALIDATION_FAILED', [
+        { field: 'email', code: 'invalid_format' },
+      ]),
+    );
+    renderLoginPage();
+
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    const email = screen.getByLabelText('Email');
+    expect(
+      await screen.findByText('This value has an invalid format.'),
+    ).toBeTruthy();
+    expect(email.getAttribute('aria-invalid')).toBe('true');
+    await waitFor(() => expect(document.activeElement).toBe(email));
+
+    // Editing another field keeps the email's message.
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'another password' },
+    });
+    expect(screen.getByText('This value has an invalid format.')).toBeTruthy();
+
+    fireEvent.change(email, { target: { value: 'milo@example.org' } });
+    expect(screen.queryByText('This value has an invalid format.')).toBeNull();
+  });
+
+  it('disables the submit button only while signing in', async () => {
+    // Never settles, so the request stays in progress.
+    vi.mocked(login).mockReturnValue(new Promise(() => undefined));
+    renderLoginPage();
+    await screen.findByLabelText('Email');
+    const button = () =>
+      screen.getByRole('button', {
+        name: /Sign(ing)? in/,
+      }) as HTMLButtonElement;
+
+    // Enabled on the empty, invalid form.
+    expect(button().disabled).toBe(false);
+
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
+
+    await waitFor(() => expect(button().disabled).toBe(true));
+    fireEvent.click(button());
+    expect(login).toHaveBeenCalledTimes(1);
+  });
+
   it('stores the user and navigates to the pet list on success', async () => {
     vi.mocked(login).mockResolvedValue(user);
     const { queryClient, router } = renderLoginPage();
 
-    fillAndSubmit('  milo@example.com ', 'correct horse battery');
+    await fillAndSubmit('  milo@example.com ', 'correct horse battery');
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/pets');
@@ -108,7 +170,7 @@ describe('LoginPage', () => {
     vi.mocked(login).mockResolvedValue(user);
     const { router } = renderLoginPage('/pets/new');
 
-    fillAndSubmit('milo@example.com', 'correct horse battery');
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/pets/new');
@@ -119,7 +181,7 @@ describe('LoginPage', () => {
     vi.mocked(login).mockResolvedValue(user);
     const { router } = renderLoginPage('//evil.example');
 
-    fillAndSubmit('milo@example.com', 'correct horse battery');
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/pets');
@@ -130,7 +192,7 @@ describe('LoginPage', () => {
     vi.mocked(login).mockResolvedValue(user);
     const { router } = renderLoginPage('/\\evil.example');
 
-    fillAndSubmit('milo@example.com', 'correct horse battery');
+    await fillAndSubmit('milo@example.com', 'correct horse battery');
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/pets');

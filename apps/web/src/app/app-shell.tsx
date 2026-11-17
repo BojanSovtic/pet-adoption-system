@@ -22,7 +22,6 @@ const AppShell = ({ children }: AppShellProps) => {
         {t('skipToContent')}
       </a>
 
-      {/* On narrow screens the actions wrap onto a second row instead of overflowing. */}
       <header className="border-b bg-card">
         <div className="page-container flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3">
           <Link

@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -74,20 +80,21 @@ describe('DeletePetButton', () => {
     vi.mocked(deletePet).mockReset();
   });
 
-  it('asks for confirmation and can be cancelled', () => {
+  it('asks for confirmation in a dialog and can be cancelled', async () => {
     renderButton();
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete Milo?' });
     expect(
-      screen.getByText('Delete Milo? This cannot be undone.'),
+      within(dialog).getByText(
+        'The listing and its photos are removed permanently. This cannot be undone.',
+      ),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-    expect(
-      screen.queryByText('Delete Milo? This cannot be undone.'),
-    ).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(deletePet).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, PawPrint, SearchX, TriangleAlert } from 'lucide-react';
 import type { Pet } from '@pet-adoption/models';
@@ -16,19 +16,23 @@ import { getPet } from '../api/get-pet';
 import { petQueryKeys } from '../api/pet-query-keys';
 import { PetApplicationSection } from '../../applications/components/pet-application-section';
 import { useCurrentUser } from '../../auth/hooks/use-current-user';
+import { PetContactSection } from '../../messages/components/pet-contact-section';
 import { AdoptionSteps } from '../components/adoption-steps';
 import { DeletePetButton } from '../components/delete-pet-button';
 import { PetGallery } from '../components/pet-gallery';
 import { PetLifestyle } from '../components/pet-lifestyle';
 import { PetStatusBadge } from '../components/pet-status-badge';
 import { isPetOwner } from '../utils/is-pet-owner';
+import { getPetListReturnPath } from '../utils/pet-list-params';
 
+/** Returns to the list page, search and filters the pet was opened from. */
 const BackToPets = () => {
   const { t } = useTranslation('pets');
+  const location = useLocation();
 
   return (
     <Button asChild variant="ghost" size="sm" className="-ml-3">
-      <Link to="/pets">
+      <Link to={getPetListReturnPath(location.state)}>
         <ArrowLeft aria-hidden="true" />
         {t('backToPets')}
       </Link>
@@ -92,6 +96,7 @@ const PetDetailsPage = () => {
   const { id } = useParams();
   const { t } = useTranslation('pets');
   const { data: currentUser } = useCurrentUser();
+  const location = useLocation();
 
   const {
     data: pet,
@@ -157,6 +162,8 @@ const PetDetailsPage = () => {
   }
 
   const isOwner = isPetOwner(pet, currentUser);
+  // Passed on to the edit page, so "Back to pets" still works after a save.
+  const listReturnState = location.state;
 
   return (
     <section className="space-y-6">
@@ -182,6 +189,12 @@ const PetDetailsPage = () => {
           <div className="space-y-3">
             <PetStatusBadge status={pet.status} />
             <h1 className="text-3xl sm:text-4xl">{pet.name}</h1>
+            {/* "Pending" reads like "taken"; applications are still open. */}
+            {!isOwner && pet.status === 'pending' && (
+              <p className="text-sm text-muted-foreground">
+                {t('statusHint.pending')}
+              </p>
+            )}
             <PetFacts pet={pet} />
           </div>
 
@@ -198,7 +211,9 @@ const PetDetailsPage = () => {
           {isOwner && (
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline">
-                <Link to={`/pets/${pet._id}/edit`}>{t('form.editTitle')}</Link>
+                <Link to={`/pets/${pet._id}/edit`} state={listReturnState}>
+                  {t('form.editTitle')}
+                </Link>
               </Button>
               <DeletePetButton pet={pet} />
             </div>
@@ -207,6 +222,12 @@ const PetDetailsPage = () => {
           <div className="border-t pt-6">
             <PetApplicationSection pet={pet} />
           </div>
+
+          {currentUser && !isOwner && pet.owner && (
+            <div className="border-t pt-6">
+              <PetContactSection pet={pet} />
+            </div>
+          )}
         </Card>
 
         <div className="space-y-8 lg:col-start-1">

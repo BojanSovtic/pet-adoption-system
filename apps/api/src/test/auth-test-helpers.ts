@@ -11,11 +11,12 @@ export type SignedInAgent = {
 /** Registers a user (which signs them in) and returns a cookie-keeping agent. */
 export const createSignedInAgent = async (
   email = 'owner@example.com',
+  name = 'Test User',
 ): Promise<SignedInAgent> => {
   const agent = request.agent(app);
   const response = await agent.post('/api/auth/register').send({
     email,
-    name: 'Test User',
+    name,
     password: 'correct horse battery',
   });
 

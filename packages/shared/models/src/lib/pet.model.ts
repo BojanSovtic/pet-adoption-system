@@ -65,9 +65,17 @@ export const PET_NAME_MAX_LENGTH = 100;
 export const PET_DESCRIPTION_MAX_LENGTH = 2000;
 
 /**
+ * Age is a whole number of years, 0 to `PET_AGE_MAX`. The bound only rejects
+ * typos and absurd values: some birds and tortoises live for decades, so it is
+ * deliberately generous.
+ */
+export const PET_AGE_MAX = 100;
+
+/**
  * Pet photos: up to `PET_IMAGE_MAX_COUNT` per pet, each at most
  * `PET_IMAGE_MAX_BYTES`. Added with `POST /api/pets/:id/images`, removed one
- * by one with `DELETE /api/pets/:id/images/:imageId`.
+ * by one with `DELETE /api/pets/:id/images/:imageId`. The first photo is the
+ * main one; `POST /api/pets/:id/images/:imageId/main` moves a photo to the front.
  */
 export const PET_IMAGE_MAX_COUNT = 5;
 export const PET_IMAGE_MAX_BYTES = 5 * 1024 * 1024;

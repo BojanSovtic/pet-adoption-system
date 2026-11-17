@@ -63,6 +63,7 @@
       "nameTooLong": "Ime može imati najviše 100 karaktera.",
       "ageRequired": "Starost je obavezna.",
       "ageInvalid": "Starost mora biti nenegativan ceo broj.",
+      "ageTooHigh": "Starost može biti najviše 100 godina.",
       "descriptionRequired": "Opis je obavezan.",
       "descriptionTooLong": "Opis može imati najviše 2000 karaktera.",
       "imageType": "Izaberi JPEG, PNG ili WebP sliku.",
@@ -98,15 +99,18 @@
       "yes": "Da",
       "no": "Ne",
       "unknown": "Ne znam"
-    }
+    },
+    "setMainImage": "Postavi kao glavnu",
+    "setMainImageNumber": "Postavi fotografiju {{number}} kao glavnu"
   },
   "delete": {
     "button": "Obriši",
-    "confirmQuestion": "Obrisati ljubimca {{name}}? Ovo se ne može poništiti.",
     "confirm": "Da, obriši",
     "cancel": "Otkaži",
     "deleting": "Brisanje...",
-    "success": "Ljubimac {{name}} je obrisan."
+    "success": "Ljubimac {{name}} je obrisan.",
+    "title": "Obrisati ljubimca {{name}}?",
+    "description": "Oglas i njegove fotografije biće trajno uklonjeni. Ovo se ne može poništiti."
   },
   "sortBy": "Sortiraj",
   "sort": {
@@ -182,5 +186,27 @@
     "dogs": "Dobar sa psima",
     "cats": "Dobar sa mačkama"
   },
-  "hiddenNotice": "Administratori su sakrili ovaj oglas. Vidiš ga samo ti i administratori i ne prima nove zahteve. Postojeće zahteve i dalje možeš da rešiš."
+  "hiddenNotice": "Administratori su sakrili ovaj oglas. Vidiš ga samo ti i administratori i ne prima nove zahteve. Postojeće zahteve i dalje možeš da rešiš.",
+  "statusHint": {
+    "pending": "Neko se već prijavio, a vlasnik još nije odlučio. I dalje možeš da se prijaviš."
+  },
+  "yourPet": "Tvoj ljubimac",
+  "myPets": {
+    "title": "Moji ljubimci",
+    "subtitle": "Ljubimci koje si postavio/la, bez obzira na status.",
+    "loading": "Učitavanje tvojih ljubimaca...",
+    "error": "Tvoje ljubimce nije moguće učitati.",
+    "empty": "Još nisi dodao/la nijednog ljubimca",
+    "emptyHint": "Dodaj prvog ljubimca i pronađi mu novi dom.",
+    "count_one": "{{count}} ljubimac",
+    "count_few": "{{count}} ljubimca",
+    "count_other": "{{count}} ljubimaca",
+    "pagination": "Strane mojih ljubimaca",
+    "edit": "Izmeni",
+    "hidden": "Sakrili su ga administratori sajta. Drugi ne vide ovaj oglas.",
+    "cannotDelete": {
+      "pending": "Ne može se obrisati dok zahtevi čekaju tvoju odluku.",
+      "adopted": "Ne može se obrisati: zahtev je prihvaćen."
+    }
+  }
 }

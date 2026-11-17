@@ -57,5 +57,55 @@ jobs:
 
       # Every project that defines one of these targets runs it (the shared
       # models library has lint and typecheck only). Any failure fails the job.
-      # E2E tests (Playwright) are not run here yet.
+      # E2E tests run in the e2e job below.
       - run: pnpm nx run-many -t lint typecheck test build --outputStyle=static
+
+  e2e:
+    name: E2E (production build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NX_DAEMON: 'false'
+      NX_NO_CLOUD: 'true'
+    # Runs alongside the check job. Playwright starts everything itself (see
+    # apps/web-e2e/playwright.config.ts): the API from source with a throwaway
+    # in-memory MongoDB, and the web app built with `vite build` and served by
+    # `vite preview`. No database service, secrets or .env files are needed.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Same cache as the check job (mongodb-memory-server's binary).
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+
+      # The browser version matches the locked @playwright/test.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm nx e2e @pet-adoption/web-e2e --outputStyle=static
+
+      # Traces and screenshots of failed tests, plus the HTML report. Only kept
+      # when something failed (passing tests leave no traces anyway).
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/web-e2e/test-results/
+            apps/web-e2e/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore

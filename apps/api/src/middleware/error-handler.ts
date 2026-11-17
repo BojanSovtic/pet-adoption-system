@@ -2,6 +2,15 @@ import type { NextFunction, Request, Response } from 'express';
 import type { ApiErrorResponse } from '@pet-adoption/models';
 
 import { AppError } from '../errors/app-error';
+import { logger, serializeError } from '../logging/logger';
+
+// Method and path without the query string; the request id comes from the
+// request context. Never the body, headers or query.
+const errorFields = (req: Request, error: unknown) => ({
+  method: req.method,
+  path: req.originalUrl.split('?')[0],
+  err: serializeError(error),
+});
 
 /**
  * Client errors raised by express.json() (body-parser), keyed by their `type`.
@@ -43,6 +52,8 @@ export const errorHandler = (
   next: NextFunction,
 ): void => {
   if (res.headersSent) {
+    // Too late for an error response; Express closes the connection.
+    logger.error('error after the response started', errorFields(req, error));
     next(error);
     return;
   }
@@ -50,8 +61,10 @@ export const errorHandler = (
   const appError = toAppError(error);
 
   if (!appError) {
-    // Only unexpected errors are logged; expected 4xx errors are normal traffic.
-    console.error('[ error ]', error);
+    // Only unexpected errors are logged; expected 4xx errors are normal
+    // traffic (the request log line has their status). The stack stays in
+    // the server log; the client gets only the code and the X-Request-Id.
+    logger.error('unexpected error', errorFields(req, error));
 
     res
       .status(500)

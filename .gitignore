@@ -10,9 +10,16 @@ out-tsc/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # User-uploaded files (local file storage)
 apps/api/uploads/
+
+# Database dumps and photo archives (production backups belong in
+# /var/backups/pet-adoption on the server, never in the repository)
+backups/
+*.archive.gz
+uploads-*.tar.gz
 
 # Test / coverage output
 coverage/
@@ -45,6 +52,10 @@ blob-report/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Office lock files (LibreOffice, Excel) while a document is open
+.~lock.*#
+~$*
 
 # Logs
 npm-debug.log*

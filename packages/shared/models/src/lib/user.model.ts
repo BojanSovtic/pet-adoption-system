@@ -32,3 +32,15 @@ export type LoginInput = {
   email: string;
   password: string;
 };
+
+/**
+ * What one signed-in user may see about another (`GET /api/users/:id`).
+ * Deliberately small: no email, role, suspension or other account data. The
+ * id is the same one pets already expose as `owner`.
+ */
+export type PublicUserProfile = {
+  _id: string;
+  name: string;
+  /** When the account was created (ISO date). */
+  memberSince: string;
+};

@@ -17,11 +17,21 @@ export const addPetImages = async (
   return data;
 };
 
-/** Removes one photo. */
 export const deletePetImage = async (
   petId: string,
   imageId: string,
 ): Promise<Pet> => {
   const { data } = await http.delete<Pet>(`/pets/${petId}/images/${imageId}`);
+  return data;
+};
+
+/** Makes one saved photo the main one (moves it to the front). */
+export const setMainPetImage = async (
+  petId: string,
+  imageId: string,
+): Promise<Pet> => {
+  const { data } = await http.post<Pet>(
+    `/pets/${petId}/images/${imageId}/main`,
+  );
   return data;
 };

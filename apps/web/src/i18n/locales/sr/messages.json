@@ -1,0 +1,54 @@
+{
+  "title": "Poruke",
+  "subtitle": "Tvoji razgovori sa vlasnicima ljubimaca i sa onima koje zanimaju tvoji ljubimci.",
+  "loading": "Učitavanje razgovora...",
+  "error": "Razgovore nije moguće učitati.",
+  "empty": "Još nema razgovora",
+  "emptyHint": "Da pitaš nešto o ljubimcu, otvori njegov oglas i izaberi „Pošalji poruku vlasniku”.",
+  "browsePets": "Pregledaj ljubimce",
+  "pagination": "Strane razgovora",
+  "pageOutOfRange": "Na ovoj strani nema razgovora.",
+  "firstPage": "Idi na prvu stranu",
+  "role": {
+    "owner": "Tvoj ljubimac",
+    "adopter": "Tvoje pitanje"
+  },
+  "withUser": "sa: {{name}}",
+  "fromMe": "Ti: {{body}}",
+  "you": "Ti",
+  "contact": {
+    "title": "Oglas je postavio/la",
+    "viewProfile": "Pogledaj profil",
+    "start": "Pošalji poruku vlasniku",
+    "continue": "Nastavi razgovor",
+    "hint": "Pitaj šta te zanima pre nego što pošalješ zahtev. Tvoja imejl adresa se ne deli.",
+    "adoptedNotice": "Ljubimac {{pet}} je udomljen, pa novi razgovori nisu mogući.",
+    "ownerError": "Podatke o vlasniku nije moguće učitati."
+  },
+  "form": {
+    "toOwner": "Tvoja poruka za: {{name}}",
+    "reply": "Odgovori korisniku {{name}}",
+    "send": "Pošalji poruku",
+    "sending": "Slanje...",
+    "sent": "Poruka je poslata.",
+    "error": "Poruku nije moguće poslati. Pokušaj ponovo.",
+    "required": "Napiši poruku.",
+    "tooLong": "Poruka može imati najviše 2000 karaktera.",
+    "cancel": "Otkaži"
+  },
+  "conversation": {
+    "back": "Nazad na poruke",
+    "loading": "Učitavanje razgovora...",
+    "notFound": "Razgovor nije pronađen",
+    "notFoundHint": "Možda je obrisan zajedno sa oglasom ljubimca, ili je link pogrešan.",
+    "error": "Razgovor nije moguće učitati.",
+    "title": "Razgovor sa: {{name}}",
+    "aboutPet": "O ljubimcu",
+    "viewProfile": "Pogledaj profil: {{name}}",
+    "messagesLabel": "Poruke",
+    "loadOlder": "Učitaj starije poruke",
+    "loadingOlder": "Učitavanje...",
+    "messagesError": "Poruke nije moguće učitati.",
+    "noMessages": "Još nema poruka."
+  }
+}

@@ -51,10 +51,12 @@
   "noAccount": "Nemaš nalog?",
   "createAccount": "Napravi ga",
   "confirm": {
-    "accept": "Prihvatiti ovaj zahtev? Ljubimac će biti označen kao udomljen, a svi ostali zahtevi na čekanju biće odbijeni. Ovo se ne može poništiti.",
+    "accept": "Ljubimac će biti označen kao udomljen, a svi ostali zahtevi na čekanju biće odbijeni. Ovo se ne može poništiti.",
     "acceptButton": "Da, prihvati",
-    "reject": "Odbiti ovaj zahtev? Podnosilac neće moći ponovo da pošalje zahtev za ovog ljubimca.",
+    "reject": "Podnosilac neće moći ponovo da pošalje zahtev za ovog ljubimca.",
     "rejectButton": "Da, odbij",
-    "cancel": "Otkaži"
+    "cancel": "Otkaži",
+    "acceptTitle": "Prihvatiti ovaj zahtev?",
+    "rejectTitle": "Odbiti ovaj zahtev?"
   }
 }

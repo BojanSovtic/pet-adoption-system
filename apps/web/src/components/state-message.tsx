@@ -7,7 +7,6 @@ type StateMessageProps = {
   title: ReactNode;
   description?: ReactNode;
   icon?: LucideIcon;
-  /** Usually one Button (retry, clear filters…). */
   action?: ReactNode;
   /** `error` is announced to screen readers (`role="alert"`). */
   tone?: 'neutral' | 'error';

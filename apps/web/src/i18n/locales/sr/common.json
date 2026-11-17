@@ -11,6 +11,11 @@
     "description": "Stranica koju tražiš ne postoji ili je premeštena.",
     "backToPets": "Nazad na ljubimce"
   },
+  "errorPage": {
+    "title": "Došlo je do greške",
+    "description": "Ova stranica ne može da se prikaže. Ponovo učitaj stranicu ili se vrati na listu ljubimaca.",
+    "reload": "Ponovo učitaj"
+  },
   "errors": {
     "INTERNAL_SERVER_ERROR": "Došlo je do greške.",
     "NETWORK_ERROR": "Server nije dostupan. Proveri vezu i pokušaj ponovo.",
@@ -36,6 +41,10 @@
     "APPLICATION_NOT_FOUND": "Zahtev nije pronađen.",
     "INVALID_APPLICATION_ID": "ID zahteva nije ispravan.",
     "NOT_APPLICANT": "To može samo podnosilac zahteva.",
+    "CANNOT_MESSAGE_OWN_PET": "Ne možeš poslati poruku o svom ljubimcu.",
+    "CONVERSATION_NOT_FOUND": "Razgovor nije pronađen.",
+    "DATABASE_UNAVAILABLE": "Usluga je trenutno nedostupna. Pokušaj ponovo kasnije.",
+    "INVALID_CONVERSATION_ID": "ID razgovora nije ispravan.",
     "IMAGE_REQUIRED": "Izaberi fotografiju za otpremanje.",
     "IMAGE_TOO_LARGE": "Fotografija je prevelika (najviše 5 MB).",
     "UNSUPPORTED_IMAGE_TYPE": "Podržane su samo statične JPEG, PNG i WebP fotografije.",
@@ -73,5 +82,8 @@
   "skipToContent": "Pređi na glavni sadržaj",
   "language": {
     "label": "Jezik"
+  },
+  "form": {
+    "requiredNote": "Polja označena sa * su obavezna."
   }
 }

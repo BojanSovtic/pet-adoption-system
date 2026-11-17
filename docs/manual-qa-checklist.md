@@ -1,12 +1,11 @@
 # Manual QA checklist
 
-My QA process for this project: risk-based, so a change gets the checks its risk calls for, not all 50 cases.
+My QA process for this project: risk-based, so a change gets the checks its risk calls for, not every case.
 
 | File                                                 | What it is                                                                                                                          |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | This guide                                           | When to run what, how to choose cases, and the order to run them in                                                                 |
 | [manual-qa-test-cases.csv](manual-qa-test-cases.csv) | The catalog and the only place with each case's preconditions, steps and expected result. Filterable in Excel. Never holds results. |
-| [manual-qa-log.csv](manual-qa-log.csv)               | The execution log: one row per case per run. Only ever appended to.                                                                 |
 
 Commands run in PowerShell in the repository root. UI text is quoted in English.
 
@@ -108,6 +107,13 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 - [ ] **ADMIN-001** Make the first admin from the command line
 - [ ] **ADMIN-003** Suspend and reinstate a user
 - [ ] **ADMIN-004** Hide and restore a listing
+- [ ] **MSG-001** Message the owner about a pet
+- [ ] **MSG-002** Owner and adopter exchange messages
+- [ ] **MSG-004** Conversations when a pet becomes pending or adopted
+- [ ] **PROF-001** View another member's public profile
+- [ ] **PETS-011** My pets lists all your own pets with their status
+- [ ] **AUTH-012** Account menu with mouse, keyboard and touch
+- [ ] **UPL-008** Choose the main photo
 
 ### Docker suite
 
@@ -118,7 +124,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 
 ## 3. Choosing targeted regression cases
 
-1. **See what changed** since the last QA run: `git diff --name-only <commit>`, using the commit recorded in the log.
+1. **See what changed** since the last QA run: `git diff --name-only <commit>`, using the commit of the last QA run.
 2. **Translate the paths into tags** with the table below.
 3. **Filter the catalog** on `Run When Changed` (in Excel: _Text Filters → Contains_).
 4. **Run only** the cases marked "Partially covered" or "Manual only". Cases covered by Playwright or other automated tests are checked by those suites; if they passed, don't repeat them by hand.
@@ -129,7 +135,7 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 | `apps/api/src/auth/**`, `apps/api/src/users/**`, `apps/api/src/middleware/rate-limit.ts`, `require-trusted-origin.ts`, `apps/web/src/features/auth/**`                                                                                         | `auth`                                              |
 | Pet create/edit/delete and details: `apps/api/src/pets/pet.controller.ts`, `pet.service.ts`, `pet.schema.ts`, `pet.model.ts`; `apps/web/src/features/pets/pages/pet-form-page.tsx`, `pet-details-page.tsx`, `components/delete-pet-button.tsx` | `pets`                                              |
 | Pet list, search, filters and paging: the list parts of `pet.service.ts` / `pet.schema.ts`; `pets-page.tsx`, `pet-card.tsx`, `utils/pet-list-params.ts`, `apps/web/src/components/pagination.tsx`                                              | `pet-list`                                          |
-| `apps/api/src/pets/pet-image.ts`, `apps/api/src/storage/**`, `components/pet-image-field.tsx`, `api/pet-image.ts`                                                                                                                              | `uploads`                                           |
+| `apps/api/src/pets/pet-image.ts`, `apps/api/src/storage/**`, `components/pet-images-field.tsx`, `api/pet-image.ts`                                                                                                                             | `uploads`                                           |
 | `apps/api/src/applications/**`, `packages/shared/models/src/lib/adoption-application.model.ts`, `apps/web/src/features/applications/**`                                                                                                        | `applications`                                      |
 | `apps/web/src/i18n/**`, `apps/web/src/app/language-select.tsx`                                                                                                                                                                                 | `i18n`                                              |
 | `apps/web/src/lib/api-client.ts`, `get-error-message.ts`, `apps/web/src/app/query-client.ts`, `apps/api/src/middleware/error-handler.ts`, `validate.ts`                                                                                        | `http`                                              |
@@ -137,6 +143,8 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 | `apps/api/src/admin/**`, `apps/api/src/auth/require-auth.ts`, `apps/api/src/scripts/admin-role.ts`, `apps/web/src/features/admin/**`                                                                                                           | `admin`                                             |
 | `apps/*/Dockerfile`, `docker-compose.yml`, `docker-compose.qa.yml`, `apps/web/nginx.conf`, `.env.example`, `apps/api/src/config/**`, `apps/api/src/scripts/qa-*.ts`, `reset-qa.ts`                                                             | `docker` (Docker suite)                             |
 | `apps/api/src/scripts/**`                                                                                                                                                                                                                      | `demo-scripts`                                      |
+| `apps/api/src/conversations/**`, `apps/web/src/features/messages/**`                                                                                                                                                                           | `messaging`                                         |
+| `apps/api/src/users/user.routes.ts`, `user.controller.ts`, `user.service.ts`; `apps/web/src/features/users/**`                                                                                                                                 | `profiles`                                          |
 | Other files in `packages/shared/models`                                                                                                                                                                                                        | The tags of the features that use the changed types |
 | Styling only (Tailwind classes, `components/ui/**`, `index.css`)                                                                                                                                                                               | None: automated checks + smoke                      |
 
@@ -150,22 +158,11 @@ Run in this order, signed in as one user per window. PETS-004 and UPL-001 are on
 
 ## 4. Recording results
 
-Append one row per case I actually ran to [manual-qa-log.csv](manual-qa-log.csv). Cases I didn't run get no row, so there's no "Not Run" or "N/A".
+Results are not kept in a file.
 
-| Column      | What to write                                                                                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run ID      | Date plus a label, e.g. `2026-10-22-smoke`, `2026-10-22-retest`, `2026-11-02-release`. It gives the date and groups the rows of one run; it also sorts by date. |
-| Test ID     | From the catalog.                                                                                                                                               |
-| Status      | `Pass`, `Fail` or `Blocked` (couldn't run, e.g. a broken environment or a failing precondition).                                                                |
-| Environment | `Docker QA` (the only manual QA environment).                                                                                                                   |
-| Commit      | `git rev-parse --short HEAD`, so a regression can be narrowed down to the commits between two runs.                                                             |
-| Notes       | Only for Fail/Blocked: what happened instead.                                                                                                                   |
-| Issue       | For a Fail: a GitHub issue number, or `progress.md` if it is noted there under outstanding issues.                                                              |
-
-- **A failure:** log it as Fail. Fix it at once, or record it (GitHub issue or `docs/progress.md`) and put the reference in Issue.
-- **Retest:** after the fix, start a new run (`…-retest`) with just the failed cases plus the smoke suite. The newest row for a Test ID is its current status; older rows stay as history.
-- **Editing the log:** VS Code works well (add a line per case). In Excel, open it via _Data → From Text/CSV_ (UTF-8, comma), add rows, and save as "CSV UTF-8 (Comma delimited)". Commit the log together with the code it tested, at least for release runs.
-- **Changing the catalog:** add new cases with a new ID; never reuse or renumber IDs, so old log rows stay meaningful.
+- **A failure:** fix it at once, or record it as a GitHub issue (or under open issues in `docs/progress.md`).
+- **Retest:** after the fix, rerun the failed cases plus the smoke suite.
+- **Changing the catalog:** add new cases with a new ID; never reuse or renumber IDs, so references to a case stay meaningful.
 
 ## 5. Test cases
 

@@ -1,0 +1,15 @@
+{
+  "loading": "Učitavanje profila...",
+  "error": "Profil nije moguće učitati.",
+  "notFound": "Profil nije pronađen",
+  "notFoundHint": "Ovaj član ne postoji ili je link pogrešan.",
+  "browsePets": "Pregledaj ljubimce",
+  "memberSince": "Član od {{date}}",
+  "ownProfileHint": "Ovako drugi članovi vide tvoj profil. Tvoja imejl adresa se nikad ne prikazuje.",
+  "petsTitle": "Ljubimci koji traže dom",
+  "petsEmpty": "Korisnik {{name}} trenutno nema ljubimce za udomljavanje.",
+  "petsError": "Ljubimce nije moguće učitati.",
+  "petsPagination": "Strane ljubimaca",
+  "pageOutOfRange": "Na ovoj strani nema ljubimaca.",
+  "firstPage": "Idi na prvu stranu"
+}

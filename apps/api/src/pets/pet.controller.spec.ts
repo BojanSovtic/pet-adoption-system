@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import request from 'supertest';
+import { PET_AGE_MAX } from '@pet-adoption/models';
 
 import { app } from '../app';
 import {
@@ -312,6 +313,101 @@ describe('GET /api/pets/:id', () => {
   });
 });
 
+describe('GET /api/pets/mine', { timeout: 20_000 }, () => {
+  it('requires authentication', async () => {
+    const response = await request(app).get('/api/pets/mine');
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ code: 'UNAUTHENTICATED' });
+  });
+
+  it("returns only the signed-in user's pets, including adopted and hidden ones", async () => {
+    const owner = await createSignedInAgent('owner@example.com');
+    const other = await createSignedInAgent('other@example.com');
+
+    await PetModel.insertMany([
+      { ...validPet, name: 'Mine', owner: owner.userId },
+      { ...validPet, name: 'Adopted', owner: owner.userId, status: 'adopted' },
+      {
+        ...validPet,
+        name: 'Hidden',
+        owner: owner.userId,
+        hiddenAt: new Date(),
+      },
+      { ...validPet, name: 'Theirs', owner: other.userId },
+    ]);
+
+    const response = await owner.agent.get('/api/pets/mine');
+
+    expect(response.status).toBe(200);
+    expect(
+      response.body.items.map((pet: { name: string }) => pet.name).sort(),
+    ).toEqual(['Adopted', 'Hidden', 'Mine']);
+    expect(response.body).toMatchObject({ page: 1, totalItems: 3 });
+    expect(
+      response.body.items.find(
+        (pet: { name: string }) => pet.name === 'Hidden',
+      ),
+    ).toMatchObject({ hidden: true });
+  });
+
+  it('ignores an owner sent by the client', async () => {
+    const owner = await createSignedInAgent('owner@example.com');
+    const other = await createSignedInAgent('other@example.com');
+    await PetModel.insertMany([
+      { ...validPet, name: 'Theirs', owner: other.userId },
+    ]);
+
+    const response = await owner.agent.get(
+      `/api/pets/mine?owner=${other.userId}&userId=${other.userId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ items: [], totalItems: 0 });
+  });
+
+  it('pages the list and validates paging', async () => {
+    const owner = await createSignedInAgent();
+    await PetModel.insertMany(
+      Array.from({ length: 3 }, (_, index) => ({
+        ...validPet,
+        name: `Pet ${index}`,
+        owner: owner.userId,
+      })),
+    );
+
+    const second = await owner.agent.get('/api/pets/mine?page=2&pageSize=2');
+    expect(second.body).toMatchObject({
+      page: 2,
+      totalItems: 3,
+      totalPages: 2,
+    });
+    expect(second.body.items).toHaveLength(1);
+
+    const invalid = await owner.agent.get('/api/pets/mine?page=0');
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('keeps the deletion rule: a pet with a pending application stays', async () => {
+    const owner = await createSignedInAgent('owner@example.com');
+    const applicant = await createSignedInAgent('applicant@example.com');
+    const petId = await createPetAs(owner);
+    await applicant.agent
+      .post(`/api/pets/${petId}/applications`)
+      .send({ message: 'We have a garden.' });
+
+    const deletion = await owner.agent.delete(`/api/pets/${petId}`);
+    expect(deletion.status).toBe(409);
+    expect(deletion.body).toEqual({ code: 'PET_HAS_ACTIVE_APPLICATIONS' });
+
+    const mine = await owner.agent.get('/api/pets/mine');
+    expect(mine.body.items).toEqual([
+      expect.objectContaining({ _id: petId, status: 'pending' }),
+    ]);
+  });
+});
+
 describe('POST /api/pets', () => {
   it('requires authentication', async () => {
     const response = await request(app).post('/api/pets').send(validPet);
@@ -377,6 +473,51 @@ describe('POST /api/pets', () => {
         { field: 'description', code: 'too_small' },
       ],
     });
+  });
+
+  it.each([0, 1, PET_AGE_MAX])('accepts age %s', async (age) => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, age });
+
+    expect(response.status).toBe(201);
+    expect(response.body.age).toBe(age);
+  });
+
+  it.each([
+    [PET_AGE_MAX + 1, 'too_big'],
+    [1_000_000_000, 'too_big'],
+    [-1, 'too_small'],
+  ])('rejects age %s as %s', async (age, code) => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, age });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'age', code }],
+    });
+    expect(await PetModel.countDocuments()).toBe(0);
+  });
+
+  it.each([2.5, '3'])('rejects a non-integer age (%s)', async (age) => {
+    const owner = await createSignedInAgent();
+
+    const response = await owner.agent
+      .post('/api/pets')
+      .send({ ...validPet, age });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_FAILED');
+    expect(response.body.details).toEqual([
+      expect.objectContaining({ field: 'age' }),
+    ]);
+    expect(await PetModel.countDocuments()).toBe(0);
   });
 
   it('rejects a malformed JSON body', async () => {
@@ -642,6 +783,22 @@ describe('PUT /api/pets/:id', () => {
         { field: 'age', code: 'too_small' },
       ],
     });
+  });
+
+  it('rejects an age above the maximum and keeps the stored pet', async () => {
+    const owner = await createSignedInAgent();
+    const petId = await createPetAs(owner);
+
+    const response = await owner.agent
+      .put(`/api/pets/${petId}`)
+      .send({ ...validPet, age: PET_AGE_MAX + 1 });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'age', code: 'too_big' }],
+    });
+    expect((await PetModel.findById(petId).lean())?.age).toBe(validPet.age);
   });
 });
 

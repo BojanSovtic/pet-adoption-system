@@ -11,7 +11,7 @@ A full-stack web app where people post pets that need a new home, others apply t
 
 Pet profiles include species, age, sex, breed and how the pet gets along with children, dogs and cats. The interface is available in English and Serbian. The full rules are in [docs/requirements.md](docs/requirements.md).
 
-**Status:** a learning and portfolio project, not deployed. Production hardening is tracked in [docs/production-readiness.md](docs/production-readiness.md); several launch blockers (deployment, monitoring, backups, password reset) are still open.
+**Status:** a learning and portfolio project, feature-complete for a first version and not deployed yet. The remaining launch blockers (production configuration, backups, a privacy notice, password reset) are in [docs/production-readiness.md](docs/production-readiness.md); the deployment plan is in [docs/deployment.md](docs/deployment.md).
 
 ## Screenshots
 
@@ -110,7 +110,7 @@ A `SESSION_SECRET` can come from a password generator, or from `node -e "console
 
 ### Administrators
 
-Every new account is an ordinary user, and registration ignores any `role` field. Admins open the administration area (**Admin** in the header, `/admin`). The first admin is created from the command line by someone with access to the server's configuration:
+Every new account is an ordinary user, and registration ignores any `role` field. Admins open the administration area (**Admin** in the account menu, `/admin`). The first admin is created from the command line by someone with access to the server's configuration:
 
 1. The person registers in the app as usual. No passwords or default accounts are stored in the repository.
 2. On the machine with the API's settings (`apps/api/.env`, or the API container's environment), from the repository root:
@@ -138,7 +138,9 @@ In the app, admins can also **suspend** accounts and **hide** listings (both rev
 pnpm audit:verify   # exit code 1 if an entry was changed, removed or reordered in the database
 ```
 
-This detects tampering; it doesn't prevent it. Anyone with database write access can still delete recent entries (see [production-readiness.md](docs/production-readiness.md), A3).
+This detects tampering; it doesn't prevent it. Anyone with database write access can still delete recent entries (see [deployment.md](docs/deployment.md), "Admin audit log").
+
+In production, run these commands from the API image's build stage ([deployment.md](docs/deployment.md), §6 step 9).
 
 ### Demo data
 
@@ -236,12 +238,12 @@ Accounts: see [Demo data](#demo-data).
 ## Tests
 
 ```sh
-pnpm nx run-many -t lint typecheck test build   # everything CI runs (API tests use an in-memory MongoDB)
+pnpm nx run-many -t lint typecheck test build   # CI's check job (API tests use an in-memory MongoDB)
 pnpm nx test @pet-adoption/api                  # one project's tests
-pnpm nx e2e @pet-adoption/web-e2e               # Playwright end-to-end tests (starts its own servers)
+pnpm nx e2e @pet-adoption/web-e2e               # Playwright E2E against a production build (CI's e2e job; starts its own servers)
 ```
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. The E2E tests are not part of CI yet. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. A second job runs the Playwright E2E tests against a production build of the web app and uploads traces and screenshots when a test fails. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).
 
 ## Documentation
 
@@ -249,21 +251,19 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | [docs/requirements.md](docs/requirements.md)                                                                 | Roles, workflows, business rules, rate limits, known limitations                                             |
 | [docs/architecture.md](docs/architecture.md)                                                                 | Mermaid diagrams of the system, request pipeline, auth, admin, data model, adoption workflow, Docker and E2E |
-| [docs/production-readiness.md](docs/production-readiness.md)                                                 | What blocks a public launch (P0), what can follow (P1), and the hardening log                                |
-| [docs/deployment.md](docs/deployment.md)                                                                     | Requirements for a future deployment (HTTPS, proxy, cookies, env, rate-limit store)                          |
-| [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)                                                   | How to run manual QA: suites, choosing cases, recording results                                              |
-| [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv) / [manual-qa-log.csv](docs/manual-qa-log.csv) | The test-case catalog / the execution log                                                                    |
-| [docs/design-system.md](docs/design-system.md), [docs/ux-benchmark.md](docs/ux-benchmark.md)                 | UI tokens and components; the UX review and its batches                                                      |
-| [docs/learning/](docs/learning/)                                                                             | Notes on React, TanStack Query, Express, the adoption workflow and authorization                             |
-| [docs/progress.md](docs/progress.md)                                                                         | Current status, open issues and the roadmap                                                                  |
+| [docs/production-readiness.md](docs/production-readiness.md)                                                 | Verified security controls, launch blockers, recommendations and open decisions                              |
+| [docs/deployment.md](docs/deployment.md)                                                                     | Deployment plan and production reference (topology, env vars, proxy, backups, smoke test, rollback)          |
+| [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)                                                   | How to run manual QA: suites and choosing cases                                                              |
+| [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv)                                               | The manual test-case catalog                                                                                 |
+| [docs/design-system.md](docs/design-system.md), [docs/ux-benchmark.md](docs/ux-benchmark.md)                 | UI tokens and components; the UX research (historical)                                                       |
+| [docs/progress.md](docs/progress.md)                                                                         | Current status, open issues and next steps                                                                   |
 
 ## Known limitations
 
-- **Not deployed and not production-ready.** There is no production configuration, monitoring or backup yet; see [docs/production-readiness.md](docs/production-readiness.md) and [docs/deployment.md](docs/deployment.md).
+- **Not deployed yet.** There is no production configuration, monitoring or backup yet; see [docs/production-readiness.md](docs/production-readiness.md) and [docs/deployment.md](docs/deployment.md).
 - No email verification, password reset or account deletion; no privacy notice yet.
-- No messaging between owners and applicants; they contact each other outside the app.
+- Messaging between owners and interested users is basic: text only, no notifications, unread counts or live updates.
 - Users can't report listings or accounts to admins yet.
-- Rate limits are kept in memory, which suits a single API instance only.
-- A render error blanks the page (no React error boundary yet).
+- Rate limits are kept in memory and photos on local disk, which suits a single API instance only.
 
 More detail: [docs/requirements.md](docs/requirements.md#known-limitations).

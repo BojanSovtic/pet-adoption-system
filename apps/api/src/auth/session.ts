@@ -11,7 +11,6 @@ declare module 'express-session' {
   }
 }
 
-// Any request type works, whatever its typed params/body.
 type SessionRequest = Pick<Request, 'session'>;
 
 const SESSION_COOKIE_NAME = 'sid';
@@ -82,7 +81,6 @@ export const startUserSession = (
     });
   });
 
-/** Deletes the session from the store and clears the cookie. */
 export const endUserSession = (
   req: SessionRequest,
   res: Response,

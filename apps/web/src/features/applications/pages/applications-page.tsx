@@ -188,7 +188,6 @@ const ApplicationsPage = () => {
     queryKey: applicationQueryKeys.received(receivedQuery),
     queryFn: () => getReceivedApplications(receivedQuery),
     enabled: isSignedIn,
-    // Keep showing the previous page while the next one loads.
     placeholderData: keepPreviousData,
   });
 

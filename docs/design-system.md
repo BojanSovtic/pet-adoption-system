@@ -1,15 +1,15 @@
 # Design system
 
-How the web app (`apps/web`) is styled, and the rules to follow when redesigning a page. First applied to the pet list (`/pets`); the other pages still use the older markup with the new tokens.
+How the web app (`apps/web`) is styled, and the rules to follow when redesigning a page. All pages use the tokens and primitives; the applications page, sign-in and registration, pet details and member profiles don't start with `PageHeader` yet.
 
 ## Visual direction
 
-Warm, calm and photo-first. The interface stays quiet so pet photos carry the colour.
+Calm, trustworthy and photo-first. The interface stays quiet so pet photos carry the colour.
 
-- **Palette:** warm off-white page, white cards, warm near-black text. One brand colour, **terracotta** (`primary`), used for main actions, links and focus. It reads as warm and friendly, and it's distinct from both the error red and the green "available" status.
+- **Palette:** a cool off-white page, white cards and blue-tinted near-black text. One brand colour, **blue** (`primary`, `#2368bd`; hover `#1e55a4`), used for main actions, links, selected states and focus. It reads as calm and trustworthy, and it's distinct from the error red, the amber "pending" and the green "available" status. Changed from terracotta on 2026-10-28; every pair was re-checked for AA. There is no dark theme yet.
 - **Status colours** are tints with dark text of the same hue: green = available/accepted, amber = pending, red = rejected/errors, grey = adopted/withdrawn.
 - **Type:** [Figtree](https://fonts.google.com/specimen/Figtree), one variable font, self-hosted through `@fontsource-variable/figtree`. No CDN request, and it works offline and in Docker. It covers Serbian Latin (č ć đ š ž). Hierarchy comes from size and weight (600 for headings), not from a second font.
-- **Shape:** 8px radius for controls, 12px for cards and panels, pills only for badges. Thin warm borders plus a very soft shadow. No gradients and no decorative blobs.
+- **Shape:** 8px radius for controls, 12px for cards and panels, pills only for badges. Thin cool-grey borders plus a very soft shadow. No gradients and no decorative blobs.
 - **Motion:** colour/shadow transitions at 150ms, and a slight photo zoom on card hover. Everything is turned off under `prefers-reduced-motion`.
 
 All text/background pairs meet WCAG AA (4.5:1). Input borders and the focus outline meet 3:1. Re-check contrast when you change a colour.
@@ -29,7 +29,8 @@ The app already used Tailwind CSS 4 + shadcn/ui, with tokens as CSS custom prope
 | `apps/web/src/styles/base.css`        | Document defaults: font, heading weight, global focus outline, selection colour, reduced motion.                               |
 | `apps/web/src/main.tsx`               | Imports the font, then `index.css`.                                                                                            |
 | `apps/web/src/components/ui/`         | Primitives: `button`, `badge`, `card`, `input`, `textarea`, `native-select`, `label`, `skeleton`, `field-control.ts` (shared form-control classes). |
-| `apps/web/src/components/`            | App-level building blocks: `page-header`, `state-message`, `pagination`.                                                       |
+| `apps/web/src/components/`            | App-level building blocks: `page-header`, `state-message`, `pagination`, `field-error`.                                        |
+| `apps/web/src/lib/use-form-validation.ts` | Shared form validation timing, server field errors and focus on failed submit (uses `focus-first-invalid-field.ts`).     |
 | `apps/web/src/features/*/components/` | Feature components (`pet-card`, `pet-status-badge`…).                                                                          |
 
 ## Tokens
@@ -55,10 +56,13 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 ## Primitives
 
 - **Button**: variants `default` (one main action per area), `outline` (secondary), `secondary`, `ghost` (toolbars, header), `destructive`, `link`. Sizes: `sm` 32px (header, dense lists), `default` 40px, `lg` 44px, `icon`. Use `asChild` to style a router `Link` as a button. Put icons before the text and mark them `aria-hidden`.
+- **Required fields**: `<Label required>` adds a red `*` after the label (outside the `<label>` and `aria-hidden`, so the field's name stays the label text). Also set `required` on the control. Forms with several fields start with `<RequiredFieldsNote />` ("Fields marked * are required."), except sign-in and registration, where every field is required and the `*` alone is enough. Optional fields keep "(optional)" in the label.
+- **Pointer cursor**: `Button` and `NativeSelect` set `cursor-pointer`; `styles/base.css` gives raw buttons, file-picker buttons, checkboxes, radios and `summary` a pointer, and never to disabled controls.
 - **Input / Textarea / NativeSelect / Label**: same height, border, hover, focus and `aria-invalid` styles through `fieldControlClassName`. `NativeSelect` is a real `<select>` with a custom arrow. Its `className` styles the select and `containerClassName` styles the wrapper (width, grid span). Every control needs a label: a visible `<label>`, or `aria-label` when the context is clear (search, filters).
 - **Card**: the one surface style (white, border, `rounded-lg`, `shadow-card`). Override padding/gap with `className` instead of creating a new surface.
 - **Badge**: `success`, `warning`, `neutral`, `destructive` for statuses, mapped per domain in `PetStatusBadge` and `ApplicationStatusBadge`. Don't pick colours ad hoc.
-- **PageHeader**: the page `<h1>`, an optional description, and the main actions. Every page starts with it.
+- **Account menu** (`features/auth/components/user-menu.tsx`): the header's signed-in navigation. A disclosure (a `Button` with `aria-expanded`/`aria-controls` that shows a `<nav>` list of `NavLink`s plus Sign out), not an ARIA `menu`, so links behave as links and no menu library is needed. Closes on Escape (focus back to the button), outside pointer-down, focus leaving it, and any navigation; the chevron turns when open; the current page is marked with `aria-current`. Add new account destinations here instead of as header buttons.
+- **PageHeader**: the page `<h1>`, an optional description, and the main actions. New pages start with it.
 - **StateMessage**: empty and error states (icon, title, hint, one action). `tone="error"` adds `role="alert"`.
 - **Skeleton**: loading placeholders shaped like the real content. Pair them with a visually hidden `role="status"` text (see `PetsPage`).
 - **Focus**: one global `:focus-visible` outline (2px `ring`, 2px offset). Don't add `outline-none` to focusable elements. The one exception is the card pattern below, where the card draws the outline instead.
@@ -66,15 +70,29 @@ Use tokens, never raw colours (`bg-[#b64c1b]`, `text-orange-700`). To add one, a
 
 ## UX conventions (from the [UX benchmark](ux-benchmark.md))
 
+- **Your pets are marked on cards:** a `secondary` "Your pet" badge (icon + text) in the photo's top-right corner, from `isPetOwner` with the cached current user (display only; nothing shows while the session loads or when signed out).
 - **Photos are 4:3 everywhere** (cards, gallery, thumbnails), so a pet looks the same on the list and on its page. With several photos, show a "1 / N" counter.
 - **One primary action per page, near the top.** On detail pages it sits in a panel beside the photo on desktop (sticky) and right after the photo on mobile, before long text.
 - **Facts before the story:** short label/value tiles (`dl`) ahead of the description.
-- **Confirm final actions inline** (delete a pet, accept or reject an application): the button turns into a one-line warning with Confirm and Cancel, and focus moves to Cancel. Reversible actions (withdraw) don't ask.
+- **Confirm destructive or final actions in a dialog** with `ConfirmDialog` (`components/confirm-dialog.tsx`, built on Radix AlertDialog in `components/ui/alert-dialog.tsx`): a short question as the title, the consequence in words that match the real rules, Cancel and a clearly labelled confirm button (red for destructive actions). Focus starts on Cancel and returns to the trigger; Esc cancels; while the action runs both buttons are disabled and the dialog can't be closed. Errors go to the global toast. Used for deleting a pet, accepting or rejecting an application, and admin moderation. Reversible actions (withdraw) don't ask. Never use `window.confirm`.
 - **Set expectations before a commitment:** explain what happens next beside a form (see `adoption-steps.tsx`), using wording that matches the real business rules.
 - **Unknown answers:** profile facts can be "unknown". Cards and fact tiles leave unknown facts out (no "Unknown" noise); the "Home and lifestyle" list shows them as "Not known yet", so adopters see what still needs asking. Positive answers get a ✓ chip on cards.
 - **Long forms are grouped** into `fieldset`s with a `legend` (e.g. "Basics", "Home and lifestyle"), and related selects (children/dogs/cats) share an inner `fieldset`.
-- **Data lists (admin area) are rows, not tables:** a `Card` holding a `ul.divide-y`, one `li` per record with `flex-wrap`, so they reflow on phones without horizontal scrolling. Filters sit in a `role="search"` panel and live in the URL; section navigation uses `NavLink` tabs (`aria-current="page"`). Per-row actions name their target in the accessible name ("Make admin: Ana") when the visible label repeats on every row. Consequential admin actions use `ConfirmAction` (`features/admin/components/confirm-action.tsx`): the button turns into the consequence, an optional reason field, and Confirm/Cancel, with focus on Cancel. Status badges for moderation use `destructive` ("Suspended", "Hidden").
-- **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field, and a character counter when there's a limit.
+- **Data lists (admin area) are rows, not tables:** a `Card` holding a `ul.divide-y`, one `li` per record with `flex-wrap`, so they reflow on phones without horizontal scrolling. Filters sit in a `role="search"` panel and live in the URL; section navigation uses `NavLink` tabs (`aria-current="page"`). Per-row actions name their target in the accessible name ("Make admin: Ana") when the visible label repeats on every row. Consequential admin actions use `ConfirmAction` (`features/admin/components/confirm-action.tsx`), a `ConfirmDialog` titled with the row's accessible name, with an optional reason field. Status badges for moderation use `destructive` ("Suspended", "Hidden").
+- **Forms:** a visible label, a hint linked with `aria-describedby`, the error below the field (`FieldError`, linked with `aria-describedby`, `aria-invalid` on the control), and a character counter when there's a limit.
+
+### Form validation and errors
+
+Every form uses `useFormValidation` (`lib/use-form-validation.ts`) with its zod schema, so they all behave the same:
+
+- **Submit stays enabled** while the form is invalid. It's disabled only while the request runs, with the "…ing" label; that also prevents double submits. The API validates everything again; client checks only give faster feedback.
+- **No field errors before the first submit attempt**, even when a field is left.
+- **A failed submit** shows every field error, then focuses the first invalid control in page order (`focusFirstInvalidField`). It scrolls only when that control isn't fully visible, centres it so the label and message show, and never scrolls smoothly. Focus goes to the control, not the message: screen readers read its label, "invalid" and the message (through `aria-describedby`).
+- **After the first attempt:** an error clears on change as soon as the field is valid; a new or different error shows only on blur or the next submit, never while typing. Linked fields are re-checked together (`dependentFields`, e.g. password → confirm password).
+- **Server `VALIDATION_FAILED` with field details:** shown on those fields and focused the same way. Each stays until its own field is edited or the form is submitted again; editing another field doesn't clear it. Other API errors stay as a `role="alert"` message above the submit button and don't move focus.
+- **No live regions on field errors** (they would announce while typing). Only the form-level API error uses `role="alert"`.
+- **Exceptions:** photo-file problems (type, size, count) show as soon as files are picked, and character counters update live.
+- There's no error summary: the forms are short enough that focusing the first invalid field is enough. Consider one (GOV.UK pattern) if a form grows much longer or is split into steps.
 
 ## Responsive layout
 
@@ -82,7 +100,7 @@ Tailwind's mobile-first breakpoints: base styles are for phones, and `sm` (640px
 
 - Page width: `page-container` (16 → 24 → 32px side padding). The app shell already applies it to `<main>`, so pages don't add their own `max-w-*` unless they're narrower forms (`max-w-md`, `max-w-2xl`).
 - Grids: `sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4` for pet cards (the page size of 12 divides evenly).
-- Header: actions wrap onto a second row on narrow screens. If the navigation grows past ~4 items, replace this with a disclosure menu.
+- Header: the logo, the account menu and the language selector; they wrap onto a second row on narrow screens. Signed-in navigation lives in the account menu.
 - Form controls use `text-base` below `sm`, which stops iOS from zooming into them.
 
 ## Redesigning a page: checklist

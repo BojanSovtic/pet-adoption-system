@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { ClientSession, QueryFilter, SortOrder, Types } from 'mongoose';
+import {
+  Types,
+  type ClientSession,
+  type QueryFilter,
+  type SortOrder,
+} from 'mongoose';
 import {
   canTransitionPetStatus,
   PET_IMAGE_MAX_COUNT,
@@ -13,6 +18,10 @@ import {
 
 import { ApplicationModel } from '../applications/application.model';
 import { withTransaction } from '../config/database';
+import {
+  ConversationModel,
+  MessageModel,
+} from '../conversations/conversation.model';
 import { ConflictError, NotFoundError } from '../errors/app-error';
 import { deleteStoredFileQuietly, storage } from '../storage';
 import { IMAGE_EXTENSIONS, tooManyImagesError } from './pet-image';
@@ -38,15 +47,15 @@ export const escapeRegex = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * One page of pets. Search and filters apply before paging, and the count uses
- * the same filter, so the metadata matches the results.
- */
-/**
  * Which pets a list may contain: the public list only shows visible pets;
  * the admin list can show hidden ones too.
  */
 export type PetVisibility = 'visible' | 'hidden' | 'all';
 
+/**
+ * One page of pets. Search and filters apply before paging, and the count uses
+ * the same filter, so the metadata matches the results.
+ */
 export const listPets = async (
   { search, species, status, sort, page, pageSize }: ParsedPetListQuery,
   visibility: PetVisibility = 'visible',
@@ -82,6 +91,41 @@ export const listPets = async (
 
   const [items, totalItems] = await Promise.all([
     findPage.lean(),
+    PetModel.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    page,
+    pageSize,
+    totalItems,
+    totalPages: Math.ceil(totalItems / pageSize),
+  };
+};
+
+/**
+ * One page of one owner's pets, newest first. `listed` (public profiles):
+ * only pets that are not hidden by an admin and not adopted. `all` (the
+ * owner's own "My pets" page): every pet they own, including adopted and
+ * hidden ones. `ownerId` must come from the route or the session, never from
+ * a filter the client controls.
+ */
+export const listPetsByOwner = async (
+  ownerId: string,
+  { page, pageSize }: { page: number; pageSize: number },
+  scope: 'listed' | 'all',
+): Promise<Paginated<PetRecord>> => {
+  const filter: QueryFilter<PetRecord> =
+    scope === 'listed'
+      ? { owner: ownerId, hiddenAt: null, status: { $ne: 'adopted' } }
+      : { owner: ownerId };
+
+  const [items, totalItems] = await Promise.all([
+    PetModel.find(filter)
+      .sort(SORTS.newest)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean(),
     PetModel.countDocuments(filter),
   ]);
 
@@ -176,9 +220,10 @@ export const transitionPetStatus = async (
 
 /**
  * Deletes the pet only if `ownerId` owns it and it has no pending or accepted
- * applications. Its inactive (rejected/withdrawn) applications are deleted
- * with it. Returns the deleted pet (so the caller can remove its photo after
- * the transaction), or `null` if no owned pet matched.
+ * applications. Its inactive (rejected/withdrawn) applications and its
+ * conversations (with their messages) are deleted with it. Returns the
+ * deleted pet (so the caller can remove its photo after the transaction), or
+ * `null` if no owned pet matched.
  */
 export const deleteOwnedPet = (
   id: string,
@@ -201,6 +246,16 @@ export const deleteOwnedPet = (
     }
 
     await ApplicationModel.deleteMany({ pet: pet._id }, { session });
+
+    const conversationIds = await ConversationModel.find({ pet: pet._id })
+      .session(session)
+      .distinct('_id');
+
+    await MessageModel.deleteMany(
+      { conversation: { $in: conversationIds } },
+      { session },
+    );
+    await ConversationModel.deleteMany({ pet: pet._id }, { session });
     await PetModel.deleteOne({ _id: pet._id }, { session });
 
     return pet;
@@ -208,7 +263,6 @@ export const deleteOwnedPet = (
 
 type ImageFile = { data: Buffer; type: PetImageType };
 
-/** The storage keys of a pet's photos. */
 export const petImageKeys = (pet: Pick<PetRecord, 'images'>): string[] =>
   (pet.images ?? []).map((image) => image.key);
 
@@ -329,6 +383,45 @@ export const removePetImageById = async (
   }
 
   return PetModel.findById(id).lean();
+};
+
+/**
+ * Moves one photo to the front, which makes it the main photo (`imageUrl`,
+ * used on cards). A single pipeline update, so it can't interleave with
+ * another photo change. Returns `null` if no owned pet matched; throws
+ * IMAGE_NOT_FOUND if the pet has no such photo.
+ */
+export const setMainPetImage = async (
+  id: string,
+  ownerId: string,
+  imageId: string,
+): Promise<PetRecord | null> => {
+  // Pipelines aren't cast by Mongoose, so the id must already be an ObjectId.
+  const imageObjectId = new Types.ObjectId(imageId);
+  const isChosen = { $eq: ['$$this._id', imageObjectId] };
+
+  const pet = await PetModel.findOneAndUpdate(
+    { _id: id, owner: ownerId, 'images._id': imageObjectId },
+    [
+      {
+        $set: {
+          images: {
+            $concatArrays: [
+              { $filter: { input: '$images', cond: isChosen } },
+              { $filter: { input: '$images', cond: { $not: [isChosen] } } },
+            ],
+          },
+        },
+      },
+    ],
+    { returnDocument: 'after', updatePipeline: true },
+  ).lean();
+
+  if (!pet && (await isPetOwnedBy(id, ownerId))) {
+    throw new NotFoundError('IMAGE_NOT_FOUND');
+  }
+
+  return pet;
 };
 
 /**

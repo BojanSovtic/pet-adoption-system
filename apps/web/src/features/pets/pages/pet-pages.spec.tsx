@@ -30,6 +30,23 @@ vi.mock('../../applications/api/applications', async (importOriginal) => ({
   getMyApplications: vi.fn().mockResolvedValue(pageOf([])),
 }));
 
+// ...and, for signed-in non-owners, the owner contact section.
+vi.mock('../../messages/api/conversations', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../messages/api/conversations')
+  >()),
+  getConversations: vi.fn().mockResolvedValue(pageOf([])),
+}));
+
+vi.mock('../../users/api/users', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../users/api/users')>()),
+  getUserProfile: vi.fn().mockResolvedValue({
+    _id: 'owner-1',
+    name: 'Ana',
+    memberSince: '2026-01-01T00:00:00.000Z',
+  }),
+}));
+
 vi.mock('../../auth/api/get-current-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/api/get-current-user')>()),
   getCurrentUser: vi.fn(),
@@ -72,7 +89,7 @@ const profiledPet: Pet = {
   aloneTime: 'part-day',
 };
 
-const renderAt = (path: string, user: User | null) => {
+const renderAt = (path: string, user: User | null, state?: unknown) => {
   vi.mocked(getCurrentUser).mockResolvedValue(user);
 
   const router = createMemoryRouter(
@@ -81,8 +98,9 @@ const renderAt = (path: string, user: User | null) => {
       { path: '/pets/:id/edit', element: <PetFormPage /> },
       { path: '/pets/new', element: <PetFormPage /> },
       { path: '/login', element: <p>Login page</p> },
+      { path: '/pets', element: <p>Pet list</p> },
     ],
-    { initialEntries: [path] },
+    { initialEntries: [{ pathname: path, state }] },
   );
 
   render(
@@ -103,6 +121,45 @@ describe('PetDetailsPage', () => {
     vi.mocked(getPet).mockResolvedValue(pet);
   });
 
+  it('goes back to the list page, search and filters it was opened from', async () => {
+    const router = renderAt('/pets/pet-1', null, {
+      petListSearch: '?search=mil&species=dog&page=2',
+    });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Back to pets' }));
+
+    expect(await screen.findByText('Pet list')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/pets');
+    expect(router.state.location.search).toBe('?search=mil&species=dog&page=2');
+  });
+
+  it('goes back to the first list page when opened directly', async () => {
+    const router = renderAt('/pets/pet-1', null);
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Back to pets' }));
+
+    expect(await screen.findByText('Pet list')).toBeTruthy();
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('explains a pending status to visitors, not to the owner', async () => {
+    const hint =
+      "Someone has applied and the owner hasn't decided yet. You can still apply.";
+    vi.mocked(getPet).mockResolvedValue({ ...pet, status: 'pending' });
+
+    renderAt('/pets/pet-1', otherUser);
+    expect(await screen.findByText(hint)).toBeTruthy();
+  });
+
+  it('hides the pending explanation from the owner', async () => {
+    vi.mocked(getPet).mockResolvedValue({ ...pet, status: 'pending' });
+
+    renderAt('/pets/pet-1', owner);
+    // The owner's controls show once the current user is known.
+    expect(await screen.findByRole('link', { name: 'Edit pet' })).toBeTruthy();
+    expect(screen.queryByText(/You can still apply/)).toBeNull();
+  });
+
   it('shows edit and delete to the owner', async () => {
     renderAt('/pets/pet-1', owner);
 
@@ -121,6 +178,38 @@ describe('PetDetailsPage', () => {
     await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
     expect(screen.queryByRole('link', { name: 'Edit pet' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  it('shows who listed the pet and how to contact them to another user', async () => {
+    renderAt('/pets/pet-1', otherUser);
+
+    const section = (
+      await screen.findByRole('heading', { name: 'Listed by' })
+    ).closest('section') as HTMLElement;
+
+    expect(await within(section).findByText('Ana')).toBeTruthy();
+    expect(
+      within(section)
+        .getByRole('link', { name: 'View profile' })
+        .getAttribute('href'),
+    ).toBe('/users/owner-1');
+    expect(
+      await within(section).findByRole('button', { name: 'Message the owner' }),
+    ).toBeTruthy();
+  });
+
+  it.each([
+    ['the owner', owner],
+    ['a signed-out visitor', null],
+  ])('shows no contact section to %s', async (_label, user) => {
+    renderAt('/pets/pet-1', user);
+
+    expect(await screen.findByRole('heading', { name: 'Milo' })).toBeTruthy();
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
+    expect(screen.queryByRole('heading', { name: 'Listed by' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Message the owner' }),
+    ).toBeNull();
   });
 
   it('shows the profile facts and the home and lifestyle answers', async () => {
@@ -266,5 +355,101 @@ describe('PetFormPage', () => {
         aloneTime: 'part-day',
       });
     });
+  });
+
+  it('focuses the first invalid field when saving fails validation', async () => {
+    vi.mocked(updatePet).mockClear();
+    renderAt('/pets/pet-1/edit', owner);
+    const description = await screen.findByLabelText('Description');
+    const age = screen.getByLabelText('Age (years)');
+
+    fireEvent.change(description, { target: { value: '   ' } });
+    fireEvent.change(age, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    // Age comes before Description on the page.
+    expect(await screen.findByText('Age is required.')).toBeTruthy();
+    expect(screen.getByText('Description is required.')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(age));
+    expect(screen.getByLabelText('Name').getAttribute('aria-invalid')).toBe(
+      'false',
+    );
+    expect(updatePet).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['101', 'Age must be at most 100 years.'],
+    ['1000000', 'Age must be at most 100 years.'],
+    ['2.5', 'Age must be a non-negative whole number.'],
+    ['-1', 'Age must be a non-negative whole number.'],
+  ])('refuses age %s with "%s"', async (age, message) => {
+    vi.mocked(updatePet).mockClear();
+    renderAt('/pets/pet-1/edit', owner);
+    const ageInput = await screen.findByLabelText('Age (years)');
+
+    fireEvent.change(ageInput, { target: { value: age } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(updatePet).not.toHaveBeenCalled();
+  });
+
+  it.each(['0', '100'])('saves age %s', async (age) => {
+    vi.mocked(updatePet).mockClear();
+    vi.mocked(updatePet).mockResolvedValue(pet);
+    renderAt('/pets/pet-1/edit', owner);
+    const ageInput = await screen.findByLabelText('Age (years)');
+
+    fireEvent.change(ageInput, { target: { value: age } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(updatePet).toHaveBeenCalledWith(
+        'pet-1',
+        expect.objectContaining({ age: Number(age) }),
+      );
+    });
+  });
+
+  it('focuses a field the API rejected', async () => {
+    vi.mocked(updatePet).mockRejectedValue(
+      new ApiError(400, 'VALIDATION_FAILED', [
+        { field: 'description', code: 'too_big' },
+      ]),
+    );
+    renderAt('/pets/pet-1/edit', owner);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Save changes' }),
+    );
+
+    const description = screen.getByLabelText('Description');
+    expect(
+      await screen.findByText('This value is too long or too large.'),
+    ).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(description));
+    expect(description.getAttribute('aria-describedby')).toBe(
+      'description-error',
+    );
+  });
+
+  it('keeps the list state through edit and save, for "Back to pets"', async () => {
+    vi.mocked(getPet).mockResolvedValue(pet);
+    vi.mocked(updatePet).mockResolvedValue(pet);
+    const router = renderAt('/pets/pet-1', owner, { petListSearch: '?page=2' });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit pet' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Save changes' }),
+    );
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/pets/pet-1');
+    });
+    expect(
+      (await screen.findByRole('link', { name: 'Back to pets' })).getAttribute(
+        'href',
+      ),
+    ).toBe('/pets?page=2');
   });
 });

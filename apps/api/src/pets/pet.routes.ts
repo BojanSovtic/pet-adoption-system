@@ -15,7 +15,9 @@ import {
   createPetController,
   deletePetController,
   deletePetImageByIdController,
+  setMainPetImageController,
   deletePetImageController,
+  getMyPetsController,
   getPetByIdController,
   getPetsController,
   requirePetImageCapacity,
@@ -28,6 +30,8 @@ export const petRouter: Router = Router();
 
 // Browsing is public.
 petRouter.get('/', asyncHandler(getPetsController));
+// The signed-in user's own pets. Before '/:id', which would read "mine" as an id.
+petRouter.get('/mine', requireAuth, asyncHandler(getMyPetsController));
 petRouter.get('/:id', asyncHandler(getPetByIdController));
 
 // Changes require a signed-in user (checked before validation, so anonymous
@@ -78,7 +82,8 @@ petRouter.delete(
 );
 
 // Photo gallery: POST adds 1-5 files in the field "images" (at most 5 photos
-// per pet); DELETE removes one photo by id.
+// per pet); DELETE removes one photo by id; POST .../main moves one photo to
+// the front, which makes it the main photo.
 petRouter.post(
   '/:id/images',
   requireAuth,
@@ -94,4 +99,11 @@ petRouter.delete(
   requireAuth,
   otherWriteRateLimit,
   asyncHandler(deletePetImageByIdController),
+);
+
+petRouter.post(
+  '/:id/images/:imageId/main',
+  requireAuth,
+  otherWriteRateLimit,
+  asyncHandler(setMainPetImageController),
 );

@@ -6,8 +6,13 @@ import { adminRouter } from './admin/admin.routes';
 import { applicationRouter } from './applications/application.routes';
 import { authRouter } from './auth/auth.routes';
 import { sessionMiddleware } from './auth/session';
+import { conversationRouter } from './conversations/conversation.routes';
 import { petRouter } from './pets/pet.routes';
+import { userRouter } from './users/user.routes';
+import { isDatabaseReady } from './config/database';
 import { NotFoundError } from './errors/app-error';
+import { asyncHandler } from './middleware/async-handler';
+import { requestLogger } from './middleware/request-logger';
 import { errorHandler } from './middleware/error-handler';
 import { writeIpRateLimit } from './middleware/rate-limit';
 import { requireTrustedOrigin } from './middleware/require-trusted-origin';
@@ -18,16 +23,15 @@ export const app: Express = express();
 
 app.disable('x-powered-by');
 
-if (env.isProduction) {
-  // Behind a TLS-terminating proxy, so `secure` cookies work. Adjust the hop
-  // count to the actual deployment.
-  app.set('trust proxy', 1);
-}
+// Which proxies' X-Forwarded-* headers to believe (client IP for the per-IP
+// rate limits, HTTPS for `Secure` cookies). From TRUST_PROXY, validated at
+// startup; it must match the real proxies in front of the API.
+app.set('trust proxy', env.trustProxy);
 
 /**
  * Security headers for a JSON API (helmet). The API serves no HTML, so the
  * CSP allows nothing and forbids framing. HSTS is left to the TLS-terminating
- * proxy, which knows the real domain (P0-4); the web app's own headers (CSP
+ * proxy, which knows the real domain; the web app's own headers (CSP
  * for the built app) belong in its nginx config. Headers are defense in depth,
  * not a substitute for the checks in the handlers.
  */
@@ -43,6 +47,10 @@ const apiSecurityHeaders = (
     frameguard: { action: 'deny' },
     strictTransportSecurity: false,
   });
+
+// First, so every response (photos, errors, 404s) gets a request id and a
+// log line, and later code runs in the request's logging context.
+app.use(requestLogger);
 
 // Uploaded pet photos (public). Before CORS and sessions: plain image
 // requests need neither. The web app shows them from another origin, so they
@@ -74,14 +82,34 @@ app.use(express.json());
 
 app.use(sessionMiddleware);
 
+// Liveness: the process is up and answering. Doesn't touch the database.
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Readiness: this instance can serve requests (MongoDB answers a ping), for a
+// load balancer or platform health check. A failure is a bare 503: no
+// connection details or error messages.
+app.get(
+  '/api/ready',
+  asyncHandler(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+
+    if (await isDatabaseReady()) {
+      res.json({ status: 'ok' });
+      return;
+    }
+
+    res.status(503).json({ code: 'DATABASE_UNAVAILABLE' });
+  }),
+);
+
 app.use('/api/auth', authRouter);
 app.use('/api/pets', petRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/users', userRouter);
 app.use('/api', applicationRouter);
+app.use('/api', conversationRouter);
 
 // Any /api path no router handled: a JSON 404 instead of Express's HTML page.
 // Must stay after every API router and before the error handler.

@@ -71,6 +71,9 @@ services:
       SESSION_SECRET: ${QA_SESSION_SECRET:?Set QA_SESSION_SECRET (32+ random characters) in the root .env file}
       # Plain http on 127.0.0.1, so session cookies must not be Secure.
       NODE_ENV: development
+      # The browser calls the API directly (published port, no proxy in
+      # front of it), so no X-Forwarded-For header is believed.
+      TRUST_PROXY: 'false'
     ports:
       - '127.0.0.1:3336:3333'
     volumes:

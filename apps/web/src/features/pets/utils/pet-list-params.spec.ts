@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { petQueryKeys } from '../api/pet-query-keys';
 import {
+  getPetListReturnPath,
   parsePetListParams,
   toPetListQuery,
   toPetListSearchParams,
@@ -92,5 +93,28 @@ describe('petQueryKeys.list', () => {
 
     expect(key.slice(0, 2)).toEqual([...petQueryKeys.lists()]);
     expect(key[0]).toBe(petQueryKeys.all[0]);
+  });
+});
+
+describe('getPetListReturnPath', () => {
+  it('returns to the saved list page, search and filters', () => {
+    expect(
+      getPetListReturnPath({ petListSearch: '?search=max&status=pending&page=2' }),
+    ).toBe('/pets?search=max&status=pending&page=2');
+  });
+
+  it.each([
+    ['no state (a direct link)', null],
+    ['state from another page', { from: '/applications' }],
+    ['a non-string value', { petListSearch: 2 }],
+    ['the first page with defaults', { petListSearch: '' }],
+  ])('falls back to the first list page for %s', (_case, state) => {
+    expect(getPetListReturnPath(state)).toBe('/pets');
+  });
+
+  it('drops unknown or invalid params', () => {
+    expect(
+      getPetListReturnPath({ petListSearch: '?page=abc&species=dragon&x=1&sort=name' }),
+    ).toBe('/pets?sort=name');
   });
 });

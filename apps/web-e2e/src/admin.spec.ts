@@ -19,6 +19,7 @@ test('an admin reviews the platform and makes another user an admin', async ({
   await registerUser(request, colleague);
 
   await page.goto('/pets');
+  await page.getByRole('button', { name: /Account menu/ }).click();
   await page.getByRole('link', { name: 'Admin' }).click();
 
   await expect(page).toHaveURL(/\/admin$/);
@@ -68,7 +69,8 @@ test('ordinary users cannot reach the admin area or its API', async ({
   await registerUser(page.request, user);
 
   await page.goto('/pets');
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await page.getByRole('button', { name: /Account menu/ }).click();
+  await expect(page.getByRole('link', { name: 'My pets' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
   // Direct navigation shows the forbidden page, not admin data.
