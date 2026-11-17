@@ -11,6 +11,9 @@ out-tsc/
 .env.*
 !.env.example
 !.env.production.example
+!.env.render.example
+# Cloudflare Wrangler's local secrets file (local Pages Functions runs)
+.dev.vars
 
 # User-uploaded files (local file storage)
 apps/api/uploads/

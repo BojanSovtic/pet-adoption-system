@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { configureLogger, readLogLevel } from '../logging/logger';
 import { loadEnvFile, readAuditKey, readMongodbUri } from './env-file';
+import { readProxySecret } from './proxy-secret';
+import { readCloudinaryConfig, readStorageDriver } from './storage-config';
 import { readTrustProxy } from './trust-proxy';
 
 // The web server's full configuration, validated at startup. Command-line
@@ -17,6 +19,13 @@ const sessionSecret = process.env.SESSION_SECRET;
 readAuditKey();
 // Fails at startup if malformed, unsafe, or missing in production.
 const trustProxy = readTrustProxy();
+// Fails at startup if set but too short or not header-safe; null when unset.
+const proxySecret = readProxySecret();
+// Fails at startup on an unknown driver, or when Cloudinary is selected and
+// one of its settings is missing or malformed.
+const storageDriver = readStorageDriver();
+const cloudinary =
+  storageDriver === 'cloudinary' ? readCloudinaryConfig() : null;
 // Fails at startup if not a known level; applies to every log line after this.
 const logLevel = readLogLevel();
 configureLogger({ level: logLevel });
@@ -44,13 +53,23 @@ export const env = {
   isProduction: process.env.NODE_ENV === 'production',
   /** Express `trust proxy`; see config/trust-proxy.ts. */
   trustProxy,
+  /** Shared secret required from the reverse proxy; see config/proxy-secret.ts. */
+  proxySecret,
   /** Minimum level written by the logger; see logging/logger.ts. */
   logLevel,
+  /** Where pet photos are stored; see config/storage-config.ts. */
+  storageDriver,
+  /** Cloudinary account settings when `storageDriver` is `cloudinary`. */
+  cloudinary,
+  /** Local storage only. */
   uploadsDir: path.resolve(
     process.cwd(),
     process.env.UPLOADS_DIR ?? 'apps/api/uploads',
   ),
-  /** Public base URL of uploaded files; set it when the API runs behind a proxy. */
+  /**
+   * Local storage only: public base URL of uploaded files; set it when the
+   * API runs behind a proxy.
+   */
   uploadsBaseUrl:
     process.env.UPLOADS_BASE_URL ?? `http://${host}:${port}/uploads`,
 };
