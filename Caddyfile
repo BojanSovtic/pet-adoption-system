@@ -1,0 +1,41 @@
+# Caddy for docker-compose.prod.yml: HTTPS (Let's Encrypt) for one origin,
+# with /api and /uploads proxied to the API and everything else to the web app.
+# SITE_DOMAIN and ACME_EMAIL come from .env.production.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	@api path /api/* /uploads/*
+	handle @api {
+		# Photo uploads: up to 5 files of 5 MB each, plus multipart overhead.
+		request_body {
+			max_size 30MB
+		}
+		# Caddy replaces client-sent X-Forwarded-For with the real client IP
+		# and sets X-Forwarded-Proto; the API trusts exactly one proxy.
+		# The API sets its own security headers (helmet).
+		reverse_proxy api:3333
+	}
+
+	handle {
+		header {
+			# 'unsafe-inline' styles: the toast library and React inject <style> tags.
+			# zod probes for eval support; the blocked probe logs one CSP warning
+			# and zod falls back. Don't add 'unsafe-eval'.
+			Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		}
+		reverse_proxy web:80
+	}
+}

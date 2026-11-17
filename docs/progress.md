@@ -40,7 +40,7 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 ## Next steps
 
-1. Fix the remaining blockers before deployment (production-readiness.md §2: B2–B4; B1, the Mongoose upgrade, is done), with CI green on `develop`.
+1. Review the prepared production configuration (`docker-compose.prod.yml`, `Caddyfile`, `.env.production.example`; checked locally 2026-11-17, deployment.md §5). B2–B4 stay open until it runs on the VM; B1 (Mongoose) is done. CI green on `develop`.
 2. Merge `develop` into `master` through a pull request.
 3. Deploy following [deployment.md](deployment.md) §6 (Oracle Cloud Always Free VM + MongoDB Atlas Free), then the smoke test and a restore drill.
 4. Before inviting users: B5 (privacy notice) and a decision on B6 (password reset).

@@ -30,9 +30,9 @@ The application itself is in good shape for a small first release: the security 
 | # | Problem | What to do |
 | - | ------- | ---------- |
 | B1 | ~~**`mongoose` 9.9.5 had two high advisories**~~ (GHSA-gg4r-jv3p-qx3c, connection-level `sanitizeFilter` not applied, which this app doesn't use; prototype walking on hydrate/set/merge) and two moderate ones. | **Resolved 2026-11-17:** `mongoose ~9.11.4` and `mongodb ~7.7.0` (the driver Mongoose 9.11 uses, so connect-mongo and Mongoose share one copy) in the root and `apps/api/package.json`. `pnpm audit --prod --audit-level high` passes; only React Router's two moderate advisories remain (§4). |
-| B2 | **No production configuration exists.** The only built-image stack is Docker QA (`NODE_ENV=development`, plain HTTP, ports on 127.0.0.1). | Add `docker-compose.prod.yml` and a `Caddyfile` as described in [deployment.md](deployment.md) §4: the QA stack without its MongoDB (the database is Atlas), plus Caddy for TLS; `NODE_ENV=production`, `TRUST_PROXY=1`, `CORS_ORIGIN`, **`UPLOADS_BASE_URL`** (its default is an `http://` URL), secrets in `.env.production` on the server, only Caddy's ports published, container log rotation. |
-| B3 | **No backups.** The database and the photo volume would have no copy. | Atlas Free daily snapshots, plus a nightly `mongodump` and photo archive copied to Backblaze B2 (off Oracle), and one restore drill before launch ([deployment.md](deployment.md) §8). |
-| B4 | **Untested behind a real proxy.** `Secure` cookies, client IPs and HTTPS detection depend on `TRUST_PROXY` matching the proxy. | Run the smoke test ([deployment.md](deployment.md) §7) on the deployed stack before inviting users. It also confirms transactions on Atlas Free and the ARM build of `sharp` and `argon2`. |
+| B2 | **Production configuration not yet run on a server.** | **Prepared 2026-11-17, not resolved:** [`docker-compose.prod.yml`](../docker-compose.prod.yml), [`Caddyfile`](../Caddyfile) and [`.env.production.example`](../.env.production.example) ([deployment.md](deployment.md) §4). Verified locally: `docker compose config` and a production-mode run of the API bundle behind simulated proxy headers (16/16 checks, [deployment.md](deployment.md) §5). Resolved once the stack runs on the VM with the real `.env.production` and passes the smoke test. |
+| B3 | **No backups.** The database and the photo volume would have no copy. | **Procedure documented, not configured:** Atlas Free daily snapshots, plus a nightly `mongodump` and photo archive to a private Backblaze B2 bucket, and a restore drill ([deployment.md](deployment.md) §8). Resolved only after the script runs on the VM and one restore drill succeeds. |
+| B4 | **Untested behind the real proxy and Atlas.** `Secure` cookies, client IPs and HTTPS detection depend on `TRUST_PROXY` matching Caddy; transactions on Atlas Free, the ARM64 build and the CSP have not run for real. | The same behaviour passed locally with simulated proxy headers; run the smoke test ([deployment.md](deployment.md) §7) on the deployed stack before inviting users. |
 
 ### Before real users register
 
@@ -45,9 +45,9 @@ The application itself is in good shape for a small first release: the security 
 
 Not blockers, but cheap and worth doing early:
 
-- **Web security headers and compression** at the proxy (HSTS, CSP, `Referrer-Policy`, `nosniff`, gzip); a starting Caddyfile is in [deployment.md](deployment.md).
+- **Web security headers and compression** at the proxy (HSTS, CSP, `Referrer-Policy`, `nosniff`, gzip): configured in the [`Caddyfile`](../Caddyfile); check the headers and the browser console on the first deployment. Expected: one CSP warning from zod's `eval` probe (harmless; `z.config({ jitless: true })` at startup would remove it, a one-line code change).
 - **Uptime monitoring** on `/api/ready` with email alerts.
-- **Require `UPLOADS_BASE_URL` in production** in `config/env.ts`, like `TRUST_PROXY`, so a missing value fails at startup instead of producing broken photo URLs.
+- **Require `UPLOADS_BASE_URL` in production** in `config/env.ts`, like `TRUST_PROXY`. The production compose file always sets it from `SITE_DOMAIN`, so this only protects other setups; low priority now.
 - **Shutdown timeout:** `server.close()` waits for idle keep-alive connections; Docker kills the process after 10 s anyway, but closing idle connections (`server.closeIdleConnections()`) makes restarts clean.
 - **Account deletion process.** There is no deletion yet, and deleting a user directly in the database would leave pets, applications and conversations pointing at a missing user. Until it exists, the privacy notice must say how deletion requests are handled.
 - **Decide D5 and D6** (below) and document the result in `requirements.md`.

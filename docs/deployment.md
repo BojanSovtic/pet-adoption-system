@@ -74,9 +74,10 @@ Browser ──────────────▶ Oracle VM (Ubuntu, Docker 
                          cron ──▶ nightly backup ──▶ Backblaze B2 (off-site)
 ```
 
-- **One origin**, so the session cookie is first-party, `SameSite=Lax` works, and `CORS_ORIGIN` is the site URL.
+- **One origin**, so the session cookie is first-party, `SameSite=Lax` works, and `CORS_ORIGIN` is the site URL. The web app calls the API at the relative path `/api` (`VITE_API_URL=/api`), so the web image doesn't depend on the domain.
 - **One API instance**, which is what the in-memory rate limits and local photo storage assume.
-- The VM is ARM (Ampere). The base images (`node:22-bookworm-slim`, `nginx`, `caddy`) are multi-architecture, and `sharp` and `argon2` ship prebuilt `linux-arm64` binaries. Confirm on the first build (step 7 in §6).
+- **The files:** [`docker-compose.prod.yml`](../docker-compose.prod.yml), [`Caddyfile`](../Caddyfile) and [`.env.production.example`](../.env.production.example) in the repository root (§4).
+- **ARM64 (Ampere):** the images are built on the VM itself. The base images (`node:22-bookworm-slim`, `nginx:1.27-alpine`, `caddy:2`, and `mongo:8` for backup tools) publish `arm64` variants. Every native dependency has a `linux-arm64` glibc build: the lockfile has `@img/sharp-linux-arm64`, `@nx/nx-linux-arm64-gnu`, `@rolldown/binding-linux-arm64-gnu`, `@esbuild/linux-arm64`, `@tailwindcss/oxide-linux-arm64-gnu`, `lightningcss-linux-arm64-gnu` and `@swc/core-linux-arm64-gnu`, and `argon2` 0.45.1 bundles `prebuilds/linux-arm64/argon2.armv8.glibc.node`. The first build on the VM is what proves it (§6, step 7).
 
 Services and accounts needed: Oracle Cloud, MongoDB Atlas, DuckDNS (or a domain registrar), Backblaze B2, and an uptime monitor (any free one, e.g. UptimeRobot).
 
@@ -87,115 +88,115 @@ Services and accounts needed: Oracle Cloud, MongoDB Atlas, DuckDNS (or a domain 
 | Atlas Free: 512 MB | Users, pets, applications and messages are small (KBs per record). Sessions expire after 7 days (TTL). Photos are not in the database. Hundreds of active users fit. Watch "Data Size" in Atlas; upgrade path in §9. |
 | Atlas Free: 100 ops/s, 10 GB transfer per 7 days | Far above a small site's traffic. Pages are paginated (12–50 items). |
 | Atlas Free: paused after 30 days with zero connections | The running API keeps a connection open, so it doesn't pause. A stopped VM for a month would pause it; resume it in the Atlas UI. |
-| Atlas Free: snapshots daily, 4 kept | The nightly `mongodump` (§7) is the longer-term, portable copy. |
+| Atlas Free: snapshots daily, 4 kept | The nightly `mongodump` (§8) is the longer-term, portable copy. |
 | Oracle: idle reclamation (7 days below 20% CPU, network and memory) | A quiet site can look idle. Watch Oracle's emails; keep backups current, because recovery means a new VM and the steps in §6. Upgrading the account to Pay As You Go keeps Always Free resources at no charge and is widely reported to stop idle reclamation, but Oracle's docs don't say so; it also puts a card on an account that could then be billed for anything outside the free limits. Don't run fake-load scripts to dodge the rule. |
 | Oracle: home region is permanent; A1 only in it | Choose an EU region at signup: Frankfurt, Milan or Zurich (good latency from Serbia), or Serbia Central (Jovanovac) if it's offered for Always Free; it has one availability domain. |
 | Backblaze B2: 10 GB free | Photos are re-encoded (≤ 2000 px, usually well under 1 MB) and database dumps are small, so 7 days of copies fit for a long time. |
 
 ## 4. Production configuration
 
+Prepared in the repository root (2026-11-17); checked locally (§5), **not yet run on a server**:
+
+| File | Purpose |
+| --- | --- |
+| [`docker-compose.prod.yml`](../docker-compose.prod.yml) | `caddy`, `api` and `web` on one internal network; no MongoDB service (Atlas). Only Caddy publishes ports (80, 443 TCP and UDP). Restart `unless-stopped`, health checks on `api` and `web`, log rotation (10 MB × 5) on every service, named volumes for photos and certificates. |
+| [`Caddyfile`](../Caddyfile) | HTTPS for `SITE_DOMAIN` (Let's Encrypt), HSTS, compression; `/api/*` and `/uploads/*` to the API (30 MB body limit), everything else to the web app with CSP, `nosniff`, `Referrer-Policy` and `Permissions-Policy`. No access log, so client IPs and query strings aren't logged. |
+| [`.env.production.example`](../.env.production.example) | Placeholders for the values that differ per deployment. Copied to `.env.production` on the server. |
+
+Start, stop and inspect it with `--env-file`, which feeds `.env.production` into the compose file:
+
+```sh
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml ps
+docker compose --env-file .env.production -f docker-compose.prod.yml logs -f api
+```
+
+Never run `down -v`: it deletes the photo volume. `docker compose ... config` prints the secrets, so don't paste its output anywhere.
+
 ### Where each setting lives
 
 | Setting | Configured in |
 | --- | --- |
-| API environment (below) | `/opt/pet-adoption/.env.production` on the VM (`chmod 600`), plus a copy of the secrets in your password manager. Never in Git. |
-| `VITE_API_URL` | Web image build arg in the production compose file |
-| Domain, TLS, security headers | `Caddyfile` on the VM; DNS record at DuckDNS or the registrar |
-| Database user, password, IP allowlist, snapshots | Atlas UI |
-| Firewall | Oracle VCN security list **and** the VM's own firewall (Oracle's Ubuntu images ship restrictive `iptables` rules) |
-| Backup credentials | B2 application key in the backup script's `rclone` config on the VM |
+| `SITE_DOMAIN`, `ACME_EMAIL`, `MONGODB_URI`, `SESSION_SECRET`, `AUDIT_HMAC_KEY`, `LOG_LEVEL` | `/opt/pet-adoption/.env.production` on the VM (`chmod 600`), plus the secrets in your password manager. Ignored by Git and by the Docker build context. Compose refuses to start while a required value is empty. |
+| `NODE_ENV`, `HOST`, `PORT`, `TRUST_PROXY`, `CORS_ORIGIN`, `UPLOADS_DIR`, `UPLOADS_BASE_URL` | Fixed in `docker-compose.prod.yml`; the URLs are built from `SITE_DOMAIN`, so they can't disagree with each other. |
+| `VITE_API_URL` | `/api`, the web build arg in the compose file. |
+| TLS, security headers, body size limit | `Caddyfile`. |
+| DNS record | DuckDNS (or the registrar): `SITE_DOMAIN` → the VM's public IP. |
+| Database user, IP allowlist, snapshots | Atlas UI. |
+| Firewall | Oracle VCN security list **and** the VM's own firewall (Oracle's Ubuntu images ship restrictive `iptables` rules). |
+| Backup credentials | `rclone` configuration on the VM (§8). |
 
-### API environment
+### API environment as the compose file sets it
 
 Validated at startup (`apps/api/src/config/env.ts`); the API refuses to start on a missing or invalid value.
 
-| Variable | Production value | Secret | Notes |
+| Variable | Value | Secret | Why |
 | --- | --- | --- | --- |
 | `NODE_ENV` | `production` | | `Secure` session cookie; makes `TRUST_PROXY` required. |
-| `HOST` / `PORT` | `0.0.0.0` / `3333` | | Inside the container. Don't publish the port on the host. |
-| `MONGODB_URI` | `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/pet-adoption?retryWrites=true&w=majority` | **yes** | From Atlas "Connect → Drivers". The user should have `readWrite` on `pet-adoption` only. |
-| `SESSION_SECRET` | 32+ random characters | **yes** | Changing it signs everyone out. |
-| `CORS_ORIGIN` | `https://<name>.duckdns.org` | | Exact origin of the site; also the CSRF `Origin` check. |
-| `TRUST_PROXY` | `1` | | One proxy (Caddy). Safe only because the API port is reachable from Caddy alone. |
-| `UPLOADS_DIR` | `/app/uploads` | | A named volume. |
-| `UPLOADS_BASE_URL` | `https://<name>.duckdns.org/uploads` | | **Must be set**: the default is an `http://` URL. |
-| `LOG_LEVEL` | `info` | | |
-| `AUDIT_HMAC_KEY` | 32+ random characters | **yes** | Signs the admin audit log. Never change it. |
+| `HOST` / `PORT` | `0.0.0.0` / `3333` | | Inside the container; not published. |
+| `TRUST_PROXY` | `1` | | Exactly one proxy (Caddy), and nothing else can reach the API. Caddy sets `X-Forwarded-For` to the real client IP and `X-Forwarded-Proto: https`. |
+| `CORS_ORIGIN` | `https://${SITE_DOMAIN}` | | The site's origin; also the CSRF `Origin` check. |
+| `UPLOADS_DIR` | `/app/uploads` | | The `pet-adoption-prod_uploads_data` volume. |
+| `UPLOADS_BASE_URL` | `https://${SITE_DOMAIN}/uploads` | | Photo URLs in API responses. (The code's default is an `http://` URL, which is why the compose file always sets it.) |
+| `MONGODB_URI` | from `.env.production` | **yes** | Atlas SRV string with the database name in the path. |
+| `SESSION_SECRET` | from `.env.production` | **yes** | 32+ characters. |
+| `AUDIT_HMAC_KEY` | from `.env.production` | **yes** | Optional in the code; required by the production compose file. |
+| `LOG_LEVEL` | from `.env.production`, default `info` | | |
 
-Generate secrets with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
+**Values with `$`:** Compose interpolates `.env.production`, so a `$` in a value breaks it. Use letters and digits for the Atlas password (Atlas's "Autogenerate" does) and the base64url secrets from the generator command.
 
-### Compose file
+### How it fits the application
 
-Start from `docker-compose.qa.yml` and change:
+- **Cookies:** the API sees `X-Forwarded-Proto: https` from Caddy, Express (`trust proxy` 1) marks the request secure, and express-session sends `sid` with `HttpOnly; Secure; SameSite=Lax`. If the proxy settings were wrong, express-session would **silently not send the cookie**: registration and sign-in return success, but the user isn't signed in. The smoke test checks the cookie for this reason.
+- **CORS and CSRF:** browser requests come from `https://${SITE_DOMAIN}` to the same origin, so `Origin` matches `CORS_ORIGIN`; any other `Origin` on a change gets 403 `UNTRUSTED_ORIGIN`.
+- **Photos:** the API stores files in the volume and returns `https://${SITE_DOMAIN}/uploads/pets/<random>.<ext>`; Caddy routes `/uploads/*` to the API, which serves them with `nosniff` and long-term caching. The image creates `/app/uploads` owned by the `node` user, and a new named volume copies that ownership, as in Docker QA.
+- **Atlas:** `mongodb+srv` uses TLS and DNS SRV lookups (Docker's default DNS is enough). The API checks at startup that the server is a replica set; Atlas clusters are.
+- **Shutdown:** `docker compose stop` sends SIGTERM to `node main.js` (PID 1, with its own handlers): the server stops accepting connections, Node 22 closes idle keep-alive connections, then the database connection closes. `stop_grace_period` is 20 s before Docker kills it.
+- **Startup failures** (Atlas unreachable, a bad setting) exit the API with a logged reason; `restart: unless-stopped` retries with Docker's back-off, and Caddy answers 502 for `/api` meanwhile.
+- **CSP:** the built app has no inline scripts and uses no `eval`. Inline `<style>` tags (the toast library, React) need `style-src 'unsafe-inline'`. zod probes for `eval` support with `Function('')` inside a try/catch; the CSP blocks it, the browser logs one CSP warning, and zod falls back to its normal mode. Don't add `'unsafe-eval'` for it.
 
-- **remove the `mongodb` service** and `depends_on: mongodb`; the database is Atlas;
-- `env_file: .env.production` for the API instead of inline values;
-- no `ports:` on `api` or `web`; only a new `caddy` service (`caddy:2`) publishes 80 and 443, with volumes for `/data` and `/config` (certificates) and the `Caddyfile`;
-- web build arg `VITE_API_URL: https://<name>.duckdns.org/api`;
-- keep the `uploads_data` volume and the health checks;
-- log rotation on every service, otherwise logs grow until the disk is full:
+## 5. Status: prepared, verified locally, still to verify
 
-  ```yaml
-  logging:
-    driver: json-file
-    options: { max-size: 10m, max-file: '5' }
-  ```
-
-- drop the QA-only parts (`x-no-host-access`, the QA names that `qa-config.ts` checks).
-
-### Caddyfile (starting point, not yet tested)
-
-```caddyfile
-<name>.duckdns.org {
-  encode zstd gzip
-  header Strict-Transport-Security "max-age=31536000"
-
-  @api path /api/* /uploads/*
-  handle @api {
-    request_body { max_size 30MB }
-    reverse_proxy api:3333
-  }
-
-  handle {
-    header {
-      Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-      X-Content-Type-Options nosniff
-      Referrer-Policy strict-origin-when-cross-origin
-    }
-    reverse_proxy web:80
-  }
-}
-```
-
-Caddy gets and renews the certificate itself and sets `X-Forwarded-For` / `X-Forwarded-Proto`, which the API needs for `Secure` cookies and client IPs. The API adds its own headers (helmet). Check the CSP in the browser console on the first deploy.
-
-## 5. What is verified, and what to verify on the real stack
-
-- **Unchanged and tested:** sessions, cookies, CORS/CSRF, uploads, rate limits and logging (API, web and E2E suites). The Docker images are the ones Docker QA runs.
-- **Verify on the first deployment:**
-  - transactions on Atlas Free: accepting an application (smoke test) runs a multi-document transaction; a failure would show as a 500 with a transaction error in the log;
-  - the `Secure` cookie and HTTPS detection behind Caddy;
-  - the ARM build (`sharp`, `argon2` load at startup; a photo upload works);
-  - the CSP.
+| | Status |
+| --- | --- |
+| Configuration files | **Prepared** (§4). |
+| `docker compose config` | **Verified locally:** with test values it resolves `NODE_ENV=production`, `TRUST_PROXY=1`, the `https://` origin and photo URL, `VITE_API_URL=/api`, ports only on Caddy, and log rotation, restart policies and volumes on every service. With `.env.production.example` as is (empty secrets) it refuses to start. |
+| Production behaviour of the API | **Verified locally** (2026-11-17) by running the built bundle (`apps/api/dist/main.js`) with `NODE_ENV=production`, `TRUST_PROXY=1` and an `https://` origin against a throwaway in-memory replica set, with requests carrying the headers Caddy adds. 16/16 checks passed: refuses to start without `TRUST_PROXY`; `/api/ready` 200; `sid` is `HttpOnly; Secure; SameSite=Lax`, and missing without `X-Forwarded-Proto`; a foreign `Origin` gets 403; a photo upload is re-encoded into `UPLOADS_DIR` and returned as `https://<site>/uploads/pets/…`, then served with `nosniff`; apply + accept (transactions) adopts the pet; rate limits key on the forwarded client IP; logs are JSON with request ids and contain no emails, passwords, cookies, messages or IPs. |
+| Web bundle against the CSP | **Checked locally** by reading the built `index.html` and bundle (no inline scripts, no `eval`); not yet loaded in a browser under the CSP. |
+| ARM64 | **Checked in the lockfile and packages** (§2), not built: Docker wasn't available locally, and the real build happens on the VM. |
+| `Caddyfile` syntax | **Reviewed by hand only.** Validate on the VM before the first start: `docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" -e SITE_DOMAIN=example.com -e ACME_EMAIL=a@example.com caddy:2 caddy validate --config /etc/caddy/Caddyfile`. |
+| Containers running together, certificates, real proxy headers, Atlas (TLS, SRV, transactions on the Free tier), shutdown timing, the CSP in a browser | **Not yet verified:** needs the VM and the Atlas cluster (§6 and the smoke test in §7). |
+| Backups | **Procedure documented** (§8); not configured or tested. |
 
 ## 6. First deployment, step by step
 
-These are manual steps: accounts, payment details and DNS are yours to set up.
+These are manual steps: accounts, payment details and DNS are yours to set up. Commands run on the VM in `/opt/pet-adoption` unless noted. `dc` below is short for `docker compose --env-file .env.production -f docker-compose.prod.yml`.
 
 1. **Code ready:** the blockers in [production-readiness.md](production-readiness.md) §2 are done, CI is green on `develop`, `develop` is merged into `master`, and the release is tagged (`v1.0.0`).
-2. **Atlas:** create an account and a Free cluster in Frankfurt (AWS `eu-central-1`, or the nearest EU region offered). Create a database user with `readWrite` on `pet-adoption` and a long generated password. Turn on the Free cluster's daily snapshots. Leave Network Access empty until the VM's IP is known.
+2. **Atlas:** create an account and a Free cluster in Frankfurt (AWS `eu-central-1`, or the nearest EU region offered). Create a database user `pet-adoption-api` with `readWrite` on `pet-adoption` only, with an autogenerated (letters and digits) password. Turn on the Free cluster's daily snapshots. Leave Network Access empty until the VM's IP is known.
 3. **Oracle:** sign up (real credit card, accurate details, no VPN), choosing an EU home region (§3). Create an instance: shape `VM.Standard.A1.Flex` (2 OCPU, 12 GB), Ubuntu 24.04, your SSH public key, a public IP. If A1 capacity is unavailable, retry later or try another availability domain.
-4. **Network:** in the VCN security list, allow inbound TCP 80 and 443 (22 is open by default; restrict it to your IP if you can). On the VM, open 80/443 in its own firewall as well. Disable SSH password login; enable automatic security updates (`unattended-upgrades`). Install Docker Engine with the Compose plugin.
-5. **Address:** at DuckDNS, sign in and create `<name>.duckdns.org` pointing at the VM's public IP (or add an `A` record at your registrar). In Atlas → Network Access, allow the VM's public IP only.
-6. **Files:** clone the repository at the tag into `/opt/pet-adoption`; add `docker-compose.prod.yml`, `Caddyfile` and `.env.production` (§4).
-7. **Build and start:** `docker compose -f docker-compose.prod.yml up -d --build` (the first build takes several minutes). `docker compose -f docker-compose.prod.yml ps` shows all services healthy; the API log has `database connected` and `listening`. If the API exits at startup, the log names the setting or module that failed.
+4. **Server basics:** in the VCN security list, allow inbound TCP 80 and 443, plus UDP 443 for HTTP/3 (22 is open by default; restrict it to your IP if you can). On the VM, open the same ports in its own firewall; Oracle's Ubuntu images ship `iptables` rules that block them. Disable SSH password login; enable `unattended-upgrades`. Install Docker Engine with the Compose plugin, and `rclone` for backups.
+5. **Address:** at DuckDNS, create `<name>.duckdns.org` pointing at the VM's public IP (or an `A` record at your registrar). In Atlas → Network Access, allow the VM's public IP only.
+6. **Files:** `git clone` the repository at the tag into `/opt/pet-adoption`, then `cp .env.production.example .env.production`, fill it in (§4), and `chmod 600 .env.production`.
+7. **Check, build and start:**
+
+   ```sh
+   docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" --env-file .env.production caddy:2 caddy validate --config /etc/caddy/Caddyfile
+   dc config --quiet          # fails if a required value is missing
+   dc up -d --build           # first build: several minutes, on the VM's ARM CPU
+   dc ps                      # api and web "healthy", caddy "running"
+   dc logs api                # "database connected", "listening"
+   dc logs caddy              # "certificate obtained successfully"
+   ```
+
+   If the API exits at startup, its log names the setting or module that failed (e.g. a native module that didn't load on ARM, or Atlas refusing the IP).
 8. **Indexes:** Mongoose creates them at startup. In Atlas → Collections → each collection → Indexes, confirm `users` has a unique `email` index and `adoptionapplications` two unique partial indexes (they back the adoption rules).
 9. **First admin:** register in the app, then run the CLI from the API image's build stage (it has the workspace and `tsx`):
 
    ```sh
    docker build --target build -t pet-adoption-tools -f apps/api/Dockerfile .
-   docker run --rm --env-file .env.production pet-adoption-tools pnpm admin:grant you@example.com   # dry run: check the database line
-   # then the same with --yes
+   docker run --rm --env-file .env.production pet-adoption-tools pnpm admin:grant you@example.com        # dry run: check the database line
+   docker run --rm --env-file .env.production pet-adoption-tools pnpm admin:grant you@example.com --yes
    ```
 
    The same image runs `pnpm audit:verify`. **Never** run `pnpm dev:seed` or `qa:seed` against production: the demo password is public.
@@ -205,31 +206,84 @@ These are manual steps: accounts, payment details and DNS are yours to set up.
 
 ## 7. Health checks and smoke test
 
-- `GET /api/health`: liveness; used by the Compose health check to restart the container.
-- `GET /api/ready`: 200 when MongoDB answers a ping within 2 s, else 503 `DATABASE_UNAVAILABLE`; used by the uptime monitor.
+- `GET /api/health`: liveness; the Compose health check of `api` (every 30 s).
+- `GET /api/ready`: 200 when MongoDB answers a ping within 2 s, else 503 `DATABASE_UNAVAILABLE` (logged as `database not ready` with the reason); for the uptime monitor.
+- The `web` health check fetches `/` from nginx.
 
 After every deployment:
 
 - `/api/health` and `/api/ready` return `{"status":"ok"}`; `http://` redirects to `https://`; the certificate is valid.
-- Register a test account: the `sid` cookie is `HttpOnly; Secure; SameSite=Lax` (DevTools → Application → Cookies). Sign out and in again.
-- Create a pet with a photo; the photo loads from `https://…/uploads/…` with no mixed-content warning. Edit it.
-- With a second account, apply and message the owner; as the owner, **accept** (this exercises a transaction). The pet shows as adopted.
-- The API log (`docker compose -f docker-compose.prod.yml logs api`) has `request completed` lines and no `unexpected error`; the browser console has no CSP errors.
+- Register a test account. In DevTools → Application → Cookies, `sid` is `HttpOnly`, `Secure`, `SameSite=Lax`. Reload: still signed in. **If registration succeeds but you're not signed in, the cookie wasn't sent: check `TRUST_PROXY` and Caddy's headers before anything else.** Sign out and in again.
+- Response headers in DevTools: pages have the CSP, HSTS and `nosniff`; `/api` responses have `X-Request-Id`.
+- Create a pet with a photo; the photo loads from `https://<site>/uploads/pets/…` with no mixed-content warning. Edit it.
+- With a second account, apply and message the owner; as the owner, **accept**. This runs a multi-document transaction on Atlas Free; a failure would be a 500 with `unexpected error` in the log. The pet shows as adopted.
+- `dc logs api` has `request completed` lines and no `unexpected error`. The browser console has no errors except one CSP warning from zod's `eval` probe (§4).
+- `dc restart api`: the log has `shutting down`, `HTTP server closed` and `database disconnected (shutdown)` before the new `starting`, and photos still load (the volume persists).
 - Delete the test pets. Test accounts can't be deleted yet, so use addresses you control.
 
 ## 8. Backups and recovery
 
-What must be recoverable: the **database** (Atlas) and the **photos** (the VM's uploads volume; the database stores only their keys). Secrets live in the password manager, not in backups.
+**Status: a procedure, not yet configured or tested.** Don't consider backups working until the restore drill below has succeeded.
 
-- **Atlas snapshots:** daily, last 4 kept (Atlas UI → Backup). The fastest restore after a recent mistake.
-- **Nightly script on the VM** (cron), kept off Oracle so losing the VM or the account loses nothing:
-  - `docker run --rm mongo:8 mongodump --uri "$MONGODB_URI" --archive --gzip > backups/db-$(date +%F).archive.gz` (on Atlas Free, `mongodump` works for application databases; it can't dump `admin` or use `--oplog`, which this app doesn't need);
-  - `tar czf backups/uploads-$(date +%F).tar.gz -C <uploads volume path> .`;
-  - `rclone copy backups/ b2:<bucket>/` with a B2 key limited to that bucket; keep 7 daily and 4 weekly copies; delete local copies older than 3 days.
-- **Before every deployment:** run the same database dump.
-- **Restore drill** (once before launch, then occasionally): restore the latest dump into a scratch database (`mongorestore --uri <scratch> --archive --gzip`), unpack the photos into a scratch volume, start the API against both, and open a few pets with photos. Note how long it took.
-- **Losing the VM:** create a new one (§6, steps 3–7), restore the photo archive into the uploads volume, and point DNS at the new IP. The database is untouched on Atlas.
-- **Data loss window:** up to a day for photos and dumps; Atlas snapshots are daily too.
+What must be recoverable: the **database** (Atlas) and the **photos** (the `pet-adoption-prod_uploads_data` volume; the database stores only their keys). Secrets live in the password manager, not in backups.
+
+### Layers
+
+1. **Atlas snapshots:** daily, last 4 kept (Atlas → cluster → Backup). The quickest way back after a recent mistake; restore from the Atlas UI.
+2. **Nightly copies off both providers:** a database dump and a photo archive, uploaded to Backblaze B2, so losing the VM, the Oracle account or the Atlas cluster loses at most a day.
+
+### Setup (once)
+
+1. In Backblaze B2: a **private** bucket (e.g. `pet-adoption-backups`), and an application key restricted to that bucket. Add a lifecycle rule that deletes files after 30 days.
+2. On the VM: `rclone config` → a remote named `b2` of type Backblaze B2 with that key.
+3. A script, `/opt/pet-adoption/backup.sh` (`chmod 700`):
+
+   ```sh
+   #!/bin/sh
+   set -eu
+   cd /opt/pet-adoption
+   day=$(date +%F)
+   mkdir -p backups
+   # Database: mongodump from the official image (arm64), reading MONGODB_URI from the env file.
+   docker run --rm --env-file .env.production mongo:8 \
+     sh -c 'mongodump --uri "$MONGODB_URI" --archive --gzip' > "backups/db-$day.archive.gz"
+   # Photos: read-only mount of the volume.
+   docker run --rm -v pet-adoption-prod_uploads_data:/data:ro -v "$PWD/backups:/backup" alpine \
+     tar czf "/backup/uploads-$day.tar.gz" -C /data .
+   rclone copy backups/ b2:pet-adoption-backups/
+   find backups -type f -mtime +3 -delete
+   ```
+
+4. `crontab -e`: `30 3 * * * /opt/pet-adoption/backup.sh >> /var/log/pet-adoption-backup.log 2>&1`.
+5. Run it once by hand and check that both files appear in the B2 bucket with a plausible size.
+
+Notes: on Atlas Free, `mongodump` works for application databases (it can't dump `admin` or use `--oplog`, which this app doesn't need). The dump contains users' personal data and password hashes, so the bucket must stay private and the key restricted. Run the database part by hand **before every deployment**.
+
+### Restore drill (before launch, then every few months)
+
+It proves the backups are usable without touching production:
+
+1. Download the latest pair from B2: `rclone copy b2:pet-adoption-backups/db-<day>.archive.gz backups/restore/` (and the `uploads-<day>.tar.gz`).
+2. Restore the database into a **scratch database on the same cluster** (the data is small):
+
+   ```sh
+   docker run --rm --env-file .env.production -v "$PWD/backups/restore:/r" mongo:8 sh -c \
+     'uri=$(echo "$MONGODB_URI" | sed "s#/pet-adoption?#/?#"); mongorestore --uri "$uri" --archive=/r/db-<day>.archive.gz --gzip --nsFrom "pet-adoption.*" --nsTo "restore-test.*"'
+   ```
+
+   The database name is removed from the URI so it doesn't override the `--nsTo` target; the dump in `backup.sh` keeps it, which limits the dump to `pet-adoption`.
+
+   The Atlas user needs `readWrite` on `restore-test` too, for the drill only.
+3. Unpack the photos into a scratch volume: `docker volume create restore-test-uploads`, then `docker run --rm -v restore-test-uploads:/data -v "$PWD/backups/restore:/r" alpine tar xzf /r/uploads-<day>.tar.gz -C /data`.
+4. Check: document counts per collection in `restore-test` match `pet-adoption` (Atlas → Collections), and every photo key in `restore-test.pets` (`images.key`) exists as a file in the scratch volume.
+5. Clean up: drop the `restore-test` database in Atlas, remove the drill's `readWrite` grant, and `docker volume rm restore-test-uploads` (that scratch volume only). Note how long it took.
+
+### Real recovery
+
+- **A recent mistake in the data:** restore an Atlas snapshot (Atlas UI), or `mongorestore --drop` the latest dump into `pet-adoption` (stop the API first: `dc stop api`; use the URI without the database path, as in the drill).
+- **Lost photos:** `dc stop api`, unpack the archive into `pet-adoption-prod_uploads_data` as in drill step 3 (files keep their owner, uid 1000 = `node`), then `dc start api`.
+- **Lost VM or Oracle account:** a new VM (Oracle again, or Hetzner per §9), §6 steps 3–7, restore the photos, point DNS at the new IP. The database stays on Atlas.
+- **Data loss window:** up to a day.
 
 ## 9. Migration path when the free tier isn't enough
 
@@ -282,7 +336,7 @@ All rate-limit counters are in the API process's memory: correct for one instanc
 
 ### Rollback
 
-- Code: `git checkout <previous tag>` and `docker compose -f docker-compose.prod.yml up -d --build`.
+- Code: `git checkout <previous tag>` and `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`.
 - Data: there are no migrations; the startup data fixes (`backfillApplicationPetOwners`, `backfillPetImages`) are idempotent and only add data, so the previous release runs on the same database. If a release damaged data, restore the dump taken before it, or an Atlas snapshot.
 
 ## 11. Sources (checked 2026-11-17)

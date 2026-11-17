@@ -1,0 +1,112 @@
+# Production stack (docs/deployment.md): Caddy (HTTPS) in front of the web app
+# and the API on one origin; the database is MongoDB Atlas, so there is no
+# MongoDB service here. Prepared and checked locally, not yet run on a server.
+#
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# Settings come from .env.production (copy .env.production.example; never
+# commit it). Only Caddy publishes ports: the API and the web container are
+# reachable only from Caddy on the internal network, which is what makes
+# TRUST_PROXY=1 safe.
+
+name: pet-adoption-prod
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '5'
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    <<: *logging
+    depends_on:
+      - web
+      - api
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN in .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env.production}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    <<: *logging
+    # SIGTERM starts the API's graceful shutdown (close the server, then the
+    # database connection) before Docker kills the process.
+    stop_grace_period: 20s
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3333
+      # Exactly one proxy (Caddy) sets X-Forwarded-For/-Proto, and nothing
+      # else can reach this container.
+      TRUST_PROXY: '1'
+      CORS_ORIGIN: https://${SITE_DOMAIN}
+      UPLOADS_DIR: /app/uploads
+      UPLOADS_BASE_URL: https://${SITE_DOMAIN}/uploads
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI (Atlas connection string) in .env.production}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET (32+ random characters) in .env.production}
+      AUDIT_HMAC_KEY: ${AUDIT_HMAC_KEY:?Set AUDIT_HMAC_KEY (32+ random characters) in .env.production}
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - internal
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3333/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Relative: the browser calls /api on the page's own origin, so the
+        # image doesn't depend on the domain.
+        VITE_API_URL: /api
+    restart: unless-stopped
+    <<: *logging
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  internal:
+    name: pet-adoption-prod
+
+volumes:
+  # Pet photos. Back them up (docs/deployment.md, "Backups"); never remove
+  # this volume (`docker compose down -v` would).
+  uploads_data:
+    name: pet-adoption-prod_uploads_data
+  # TLS certificates and keys issued to Caddy.
+  caddy_data:
+    name: pet-adoption-prod_caddy_data
+  caddy_config:
+    name: pet-adoption-prod_caddy_config
