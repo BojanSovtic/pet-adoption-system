@@ -15,6 +15,7 @@ import { asyncHandler } from './middleware/async-handler';
 import { requestLogger } from './middleware/request-logger';
 import { errorHandler } from './middleware/error-handler';
 import { writeIpRateLimit } from './middleware/rate-limit';
+import { requireProxySecret } from './middleware/require-proxy-secret';
 import { requireTrustedOrigin } from './middleware/require-trusted-origin';
 import { serveLocalFiles } from './storage/local-file-storage';
 import { env } from './config/env';
@@ -52,14 +53,21 @@ const apiSecurityHeaders = (
 // log line, and later code runs in the request's logging context.
 app.use(requestLogger);
 
-// Uploaded pet photos (public). Before CORS and sessions: plain image
+// Second: with PROXY_SECRET set, requests that didn't come through the
+// reverse proxy are refused before any rate limit, body or session work.
+app.use(requireProxySecret(env.proxySecret));
+
+// Uploaded pet photos (public), local storage only: with Cloudinary, browsers
+// load them from Cloudinary's CDN. Before CORS and sessions: plain image
 // requests need neither. The web app shows them from another origin, so they
 // must allow cross-origin embedding.
-app.use(
-  '/uploads',
-  apiSecurityHeaders('cross-origin'),
-  serveLocalFiles(env.uploadsDir),
-);
+if (env.storageDriver === 'local') {
+  app.use(
+    '/uploads',
+    apiSecurityHeaders('cross-origin'),
+    serveLocalFiles(env.uploadsDir),
+  );
+}
 
 app.use(apiSecurityHeaders('same-origin'));
 

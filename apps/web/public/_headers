@@ -1,0 +1,26 @@
+# Cloudflare Pages response headers for the static web app. Vite copies this
+# file into the build output (dist/apps/web), where Pages reads it. Other
+# hosts ignore it (nginx serves it as a harmless static file).
+#
+# Same policy as the web part of the Caddyfile, plus Cloudinary as an image
+# source (pet photos come from its CDN in that deployment). Not applied to
+# /api/* (Pages Function responses): the API sends its own headers (helmet).
+#
+# CSP: 'unsafe-inline' styles because the toast library and React inject
+# <style> tags. zod probes for eval support; the blocked probe logs one CSP
+# warning and zod falls back. Don't add 'unsafe-eval'.
+#
+# Pages already sends X-Content-Type-Options and Referrer-Policy with these
+# values on static assets; they are repeated here so the policy doesn't depend
+# on that default. HSTS: same as the Caddyfile (one year).
+
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://res.cloudinary.com; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Vite's content-hashed files never change (as in apps/web/nginx.conf).
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
