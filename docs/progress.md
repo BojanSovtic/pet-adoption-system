@@ -1,10 +1,28 @@
 # Progress
 
-_Last updated: 2026-11-17, after the final pre-deployment review. Branch `develop` (`5334e12` plus uncommitted final-review fixes); `master` is behind `develop` (last merged through PR #1). Earlier dated entries are in the Git history of this file._
+_Last updated: 2026-11-19, after the first maintenance session (backup, restore drill, first admin). `master` = `e158a4f`, tagged `v1.1.0`. Earlier dated entries are in the Git history of this file._
 
 ## Status
 
-**Feature-complete for a first version; not deployed.** The scope is frozen: the next work is the deployment blockers in [production-readiness.md](production-readiness.md) §2 and the deployment itself ([deployment.md](deployment.md)), not new features.
+**Deployed as a demo on managed free tiers (2026-11-18):** `https://pet-adoption-26o.pages.dev`. Hosting: Cloudflare Pages (web app + a Pages Function that proxies `/api`), Render Free (the API's Docker image, Frankfurt), MongoDB Atlas Free (Frankfurt), Cloudinary Free (photos). It replaces the Oracle VM plan, which needed a card. The self-hosting setup (`docker-compose.prod.yml`, `Caddyfile`, `scripts/backup.sh`, [deployment.md](deployment.md)) stays in the repository; the managed settings are in [`.env.render.example`](../.env.render.example).
+
+- **Verified on the live site:** smoke test through the site (health, readiness, lists, error codes, forged proxy headers stripped, foreign `Origin` refused, security headers); direct calls to the API host refused (`PROXY_REQUIRED`); registration with a `Secure`/`HttpOnly`/`SameSite=Lax` session cookie that survives a reload; pet creation and a photo upload served from Cloudinary without CSP errors.
+- **First maintenance session (2026-11-19; details in the owner's local notes, `docs/learning/`, which aren't in the repository):**
+  - 2FA (authenticator app) on Atlas, Cloudflare, Render, Cloudinary, GitHub and UptimeRobot.
+  - Read-only Atlas user `pet-adoption-backup` (`read@pet-adoption`).
+  - Two manual `mongodump` archives on the owner's PC, outside the repository: one before the admin grant, one after.
+  - A restore drill of the first archive into a local `restore-drill` database passed: collections, counts, indexes, `validate`, `audit:verify`. The drill database was dropped afterwards.
+  - First admin granted with `pnpm admin:grant` (dry run first). The admin area and audit log were checked in the browser, and `/api/admin/*` returns 401 without sign-in.
+  - Two UptimeRobot monitors, every 5 minutes: Render `/api/health` and the site's `/api/ready`.
+  - The temporary Atlas IP entry was removed.
+- **Not yet done:**
+  - an off-machine copy of the backups (they exist only on the owner's PC);
+  - scheduled backups;
+  - a backup of the Cloudinary photos;
+  - on the live site: the 403 check for a signed-in non-admin (covered by tests), the photo-deletion check and the rate-limit check;
+  - a repository document for the managed deployment.
+
+The scope stays frozen for features; the next work is closing the deployment (above), then the items before real users (B5, B6).
 
 ## What exists
 
@@ -23,6 +41,8 @@ Rules are in [requirements.md](requirements.md); structure and flows in [archite
 
 Deployment and launch blockers, recommendations and decisions D1–D6 are in [production-readiness.md](production-readiness.md). Smaller known issues:
 
+- **Cold start through the proxy:** while Render Free sleeps, requests through the Pages Function get Render's immediate HTML `502` (`x-render-routing: no-deploy`) and don't wake the service. A direct request to the Render host does wake it (seen 2026-11-18 and 2026-11-19). The UptimeRobot monitor works around this by keeping the API awake, which reverses the earlier "no keep-awake pings" decision; the owner still has to confirm it. The alternative fix is in code: the Function waits and retries while Render wakes.
+
 - **Photos:** uploads are buffered in memory (5 MB each); a crash between writing a file and the database update can leave an orphaned file (no cleanup job).
 - **Rate limits** are in memory: they reset on restart, aren't shared between instances, and users behind one IP share the per-IP budgets.
 - **Accounts:** registration reveals whether an email exists (409); no email verification, "sign out other sessions" or idle timeout (fixed 7-day sessions); no `argon2.needsRehash` upgrade path.
@@ -39,6 +59,19 @@ Recorded so they aren't rediscovered; none blocks deployment.
 - **API:** `emptyToUndefined` and `MAX_PAGE` are repeated in four `*.schema.ts` files; `pet.controller.ts` queries `PetModel` directly once (`requirePetImageCapacity`).
 
 ## Next steps
+
+**Current (2026-11-19):** done in the first maintenance session: admin, first backup and restore drill, 2FA, monitoring.
+
+1. **Decide on keep-awake.** Either keep the UptimeRobot ping to Render, or remove it and make the Pages Function wake Render (a code change; see "Open issues").
+2. **Off-machine copy of the backups:** an encrypted `.7z` (AES-256, `-mhe=on`) to a personal cloud account or a USB drive kept apart from the PC.
+3. Remaining checks on the live site: photo deletion in Cloudinary, the per-IP limit, and optionally the 403 for a signed-in non-admin (with a second account).
+4. Document the managed deployment in the repository (a `docs/deployment-free.md`, including the tested backup and restore-drill procedure, which so far exists only in the local notes). Then update `architecture.md` and `production-readiness.md`, which still describe the Oracle plan.
+5. Automate backups (nightly, encrypted, off-site) plus a Cloudinary export. Then the demo polish: a cold-start hint, a demo notice, demo listings, README screenshots.
+6. Before inviting real users: B5 (a privacy notice naming the hosting providers) and a decision on B6 (password reset).
+
+Before every release, take a manual backup (M10) first.
+
+**History:** the items below are the plan from before the hosting change (Oracle VM); steps 1–2 are done (`v1.0.0`, then `v1.1.0` with the managed-hosting code), and step 3 was replaced by the managed deployment.
 
 1. Production configuration reviewed and corrected (2026-11-17). Changes: the backup is now a script, `scripts/backup.sh` (temporary files, gzip checks, upload before the monitoring ping, backups in `/var/backups/pet-adoption` outside the build context, cron log the deploy user can write). Also `nginx:1.30-alpine`, `no-new-privileges` on all services, and new deployment.md sections: updating a release with rollback (§9), firewall and Docker networking, a B2 key without delete, Atlas recovery, negative smoke checks. Checked locally: compose config, and the script with stand-in commands (deployment.md §5). Committed as `5334e12`. The final review (same day) added a missing-volume guard to the backup script, executable restore-drill checks, a monthly maintenance routine (deployment.md §9) and a corrected B2 key description. Commit these. B2–B4 stay open until the stack runs on the VM; B1 (Mongoose) is done.
 2. Merge `develop` into `master` through a pull request.

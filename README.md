@@ -11,7 +11,7 @@ A full-stack web app where people post pets that need a new home, others apply t
 
 Pet profiles include species, age, sex, breed and how the pet gets along with children, dogs and cats. The interface is available in English and Serbian. The full rules are in [docs/requirements.md](docs/requirements.md).
 
-**Status:** a learning and portfolio project, feature-complete for a first version and not deployed yet. The remaining launch blockers (production configuration, backups, a privacy notice, password reset) are in [docs/production-readiness.md](docs/production-readiness.md); the deployment plan is in [docs/deployment.md](docs/deployment.md).
+**Status:** a learning and portfolio project, feature-complete for a first version and deployed as a demo on managed free tiers (Cloudflare Pages, Render, MongoDB Atlas, Cloudinary); see [docs/progress.md](docs/progress.md). The remaining launch blockers (automated off-site backups, a privacy notice, password reset) are in [docs/production-readiness.md](docs/production-readiness.md). [docs/deployment.md](docs/deployment.md) describes the alternative self-hosted setup.
 
 ## Screenshots
 

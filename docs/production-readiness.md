@@ -2,6 +2,13 @@
 
 _Re-assessed 2026-11-16 against `develop` (`2e496d7` plus the audit's cleanup); updated 2026-11-17 for the hosting decision and the Mongoose upgrade. The earlier batch-by-batch hardening log is in the Git history of this file._
 
+> **2026-11-18, hosting changed:** the site is deployed on managed free tiers (Cloudflare Pages + Render Free + Atlas Free + Cloudinary), not the Oracle VM described below; see [progress.md](progress.md) "Status". For that setup:
+> - **B2 and B4:** verified on the live site, through the smoke test, the cookie flags and a photo upload; the rate-limit check is still pending.
+> - **B3:** partly done (2026-11-19). A manual `mongodump`, taken with a read-only user, exists on the owner's PC, and a restore drill of it passed. Still open: an off-machine copy, scheduled backups and a backup of the photos in Cloudinary. Atlas Free snapshots are a paid add-on, so they're excluded.
+> - **B5 and B6:** unchanged.
+>
+> This document hasn't been reworked for the new hosting yet.
+
 The application itself is in good shape for a small first release: the security controls below are implemented and tested. What is missing is mostly **operational**: a production configuration, backups, and two pieces of legal/account basics. The recommended hosting is free: an Oracle Cloud Always Free VM with MongoDB Atlas Free; how and why is in [deployment.md](deployment.md).
 
 ## 1. In place (verified in code and tests)

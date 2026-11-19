@@ -1,6 +1,8 @@
 # Deployment
 
-The app is **not deployed yet**. This is the plan for the first deployment and the reference for production configuration. What still blocks a launch is in [production-readiness.md](production-readiness.md).
+> **2026-11-18:** the app is deployed, but not as described here. It runs on managed free tiers (Cloudflare Pages with a `/api` Function, Render Free, MongoDB Atlas Free, Cloudinary), because the Oracle VM below needs a card. The managed settings are in [`.env.render.example`](../.env.render.example), and the status is in [progress.md](progress.md). This document remains the reference for the **self-hosting** option (one VM with Docker Compose and Caddy).
+
+This is the plan for the self-hosted deployment and the reference for its production configuration. What still blocks a launch is in [production-readiness.md](production-readiness.md).
 
 ## 1. Hosting decision
 
@@ -281,7 +283,7 @@ What must be recoverable: the **database** (Atlas) and the **photos** (the `pet-
 
 ### Layers
 
-1. **Atlas snapshots:** daily, last 4 kept (Atlas → cluster → Backup). The quickest way back after a recent mistake; restore from the Atlas UI.
+1. **Atlas snapshots:** daily, last 4 kept (Atlas → cluster → Backup). The quickest way back after a recent mistake; restore from the Atlas UI. **Not on Atlas Free:** there, snapshots are a paid add-on (checked 2026-11-18). Without it, layer 2 is the only one.
 2. **Nightly copies off both providers:** a database dump and a photo archive, uploaded to Backblaze B2, so losing the VM, the Oracle account or the Atlas cluster loses at most a day.
 
 ### Where the files are
