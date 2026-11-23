@@ -41,7 +41,7 @@ Rules are in [requirements.md](requirements.md); structure and flows in [archite
 
 Deployment and launch blockers, recommendations and decisions D1–D6 are in [production-readiness.md](production-readiness.md). Smaller known issues:
 
-- **Cold start through the proxy:** while Render Free sleeps, requests through the Pages Function get Render's immediate HTML `502` (`x-render-routing: no-deploy`) and don't wake the service. A direct request to the Render host does wake it (seen 2026-11-18 and 2026-11-19). The UptimeRobot monitor works around this by keeping the API awake, which reverses the earlier "no keep-awake pings" decision; the owner still has to confirm it. The alternative fix is in code: the Function waits and retries while Render wakes.
+- **Cold start through the proxy:** while Render Free sleeps, requests through the Pages Function get Render's immediate HTML `502` (`x-render-routing: no-deploy`) and don't wake the service. A direct request to the Render host does wake it (seen 2026-11-18 and 2026-11-19). **Decided 2026-11-19: keep-awake.** The UptimeRobot monitor on Render `/api/health` (every 5 minutes, under Render's 15-minute idle limit) keeps the API awake. This replaces the earlier "no keep-awake pings" decision. A retry in the Function was rejected for now: proxied requests don't wake Render, so retrying alone wouldn't help, and the cause is unknown. Request bodies are also streamed (up to 25 MB), so a POST can't be replayed without buffering it. Cost: one always-on service uses about 720–744 of the workspace's 750 free instance hours a month, so it must stay the only free Render service (check Render's usage page). If the hours run out, the service is suspended until the month ends. Revisit if a second free service is added or the monitor is removed.
 
 - **Photos:** uploads are buffered in memory (5 MB each); a crash between writing a file and the database update can leave an orphaned file (no cleanup job).
 - **Rate limits** are in memory: they reset on restart, aren't shared between instances, and users behind one IP share the per-IP budgets.
@@ -62,7 +62,7 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 **Current (2026-11-19):** done in the first maintenance session: admin, first backup and restore drill, 2FA, monitoring.
 
-1. **Decide on keep-awake.** Either keep the UptimeRobot ping to Render, or remove it and make the Pages Function wake Render (a code change; see "Open issues").
+1. ~~Decide on keep-awake~~: decided 2026-11-19, keep the UptimeRobot ping (see "Open issues"). Check Render's free-hour usage once at the end of November.
 2. **Off-machine copy of the backups:** an encrypted `.7z` (AES-256, `-mhe=on`) to a personal cloud account or a USB drive kept apart from the PC.
 3. Remaining checks on the live site: photo deletion in Cloudinary, the per-IP limit, and optionally the 403 for a signed-in non-admin (with a second account).
 4. Document the managed deployment in the repository (a `docs/deployment-free.md`, including the tested backup and restore-drill procedure, which so far exists only in the local notes). Then update `architecture.md` and `production-readiness.md`, which still describe the Oracle plan.

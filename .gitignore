@@ -68,6 +68,7 @@ pnpm-debug.log*
 
 # Personal learning notes
 docs/learning/
+docs/learning_backup/
 
 # Misc
 .sass-cache/

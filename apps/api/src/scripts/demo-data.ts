@@ -1,6 +1,14 @@
-import type { CreatePetInput, PetSpecies } from '@pet-adoption/models';
+import type {
+  ApplicationStatus,
+  CreatePetInput,
+  PetSpecies,
+} from '@pet-adoption/models';
 
-/** The demo users and pets, shared by seed-demo and prepare-demo-images. */
+/**
+ * The demo dataset (users, pets, applications), shared by seed-demo and
+ * prepare-demo-images. The manual QA cases refer to these records by name;
+ * demo-data.spec.ts checks the facts they rely on.
+ */
 
 // `example.com` is reserved for examples, so these can't be real addresses.
 export const USERS = {
@@ -172,3 +180,36 @@ export const PETS: PetSpec[] = [
     aloneTime: 'full-day',
   },
 ];
+
+/** `autoRejected`: ends rejected because another application was accepted. */
+export type Outcome = ApplicationStatus | 'autoRejected';
+
+/** A demo application: who applies for which pet, and how it ends. */
+export type ApplicationSpec = {
+  pet: string;
+  applicant: UserKey;
+  outcome: Outcome;
+};
+
+// All applications are submitted before any decision, so the order here
+// doesn't matter; an accept auto-rejects the other applications for its pet.
+// Ana receives 11 applications: more than one page (10 per page).
+export const APPLICATIONS: ApplicationSpec[] = [
+  { pet: 'Max', applicant: 'jelena', outcome: 'pending' },
+  { pet: 'Maxi', applicant: 'jelena', outcome: 'accepted' },
+  { pet: 'Maxi', applicant: 'luka', outcome: 'autoRejected' },
+  { pet: 'Bella', applicant: 'luka', outcome: 'rejected' },
+  { pet: 'Luna', applicant: 'jelena', outcome: 'withdrawn' },
+  { pet: 'Rex', applicant: 'luka', outcome: 'pending' },
+  { pet: 'Rex', applicant: 'marko', outcome: 'pending' },
+  { pet: 'Mila', applicant: 'marko', outcome: 'pending' },
+  { pet: 'Kiki', applicant: 'jelena', outcome: 'pending' },
+  { pet: 'Toby', applicant: 'luka', outcome: 'pending' },
+  { pet: 'Nala', applicant: 'jelena', outcome: 'pending' },
+  { pet: 'Oscar', applicant: 'luka', outcome: 'accepted' },
+  { pet: 'Pip', applicant: 'jelena', outcome: 'pending' },
+];
+
+/** The message every demo application is sent with. */
+export const applicationMessage = (petName: string): string =>
+  `Hello! I would love to give ${petName} a loving home. I have experience with pets and time to care for them.`;

@@ -5,11 +5,21 @@ import type {
   MyApplication,
   Paginated,
   Pet,
+  ReceivedApplication,
   User,
 } from '@pet-adoption/models';
 
-import { resolveSeedTarget } from './demo-config';
-import { PETS, USERS, type PetSpec, type UserKey } from './demo-data';
+import { resolveDemoPassword, resolveSeedTarget } from './demo-config';
+import {
+  APPLICATIONS,
+  applicationMessage,
+  PETS,
+  USERS,
+  type ApplicationSpec,
+  type Outcome,
+  type PetSpec,
+  type UserKey,
+} from './demo-data';
 import {
   DEMO_IMAGE_DIR,
   demoImagesToUpload,
@@ -17,6 +27,11 @@ import {
   findDemoImages,
 } from './demo-images';
 import { QA_API_URL } from './qa-config';
+import {
+  findSeedPet,
+  isAllowedSeedRequest,
+  pendingApplicationsOutsideSeed,
+} from './seed-guards';
 
 /**
  * Creates the portfolio demo data through the HTTP API, so it passes the same
@@ -28,40 +43,17 @@ import { QA_API_URL } from './qa-config';
  * Photos: up to 5 per pet from apps/api/src/scripts/demo-images/, named
  * `max.jpg`, `max-2.webp` … (see demo-images.ts and pnpm demo:images).
  * They are uploaded only to pets that have no photos yet.
+ *
+ * Seed-managed data is what the demo accounts own or sent (seed-guards.ts).
+ * The seed only sends the requests it needs (never deletes or edits), finds
+ * pets among each owner's own pets, and doesn't accept an application if
+ * that would auto-reject one from an account outside the demo data.
  */
 
-/** Demo-only password for every demo account (documented in the README). */
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? 'demo-password';
-
-/** `autoRejected`: ends rejected because another application was accepted. */
-type Outcome = ApplicationStatus | 'autoRejected';
-
-type ApplicationSpec = {
-  pet: string;
-  applicant: UserKey;
-  outcome: Outcome;
-};
-
-// Order matters: an accept must come after the applications it auto-rejects.
-// Ana receives 11 applications: more than one page (10 per page).
-const APPLICATIONS: ApplicationSpec[] = [
-  { pet: 'Max', applicant: 'jelena', outcome: 'pending' },
-  { pet: 'Maxi', applicant: 'jelena', outcome: 'accepted' },
-  { pet: 'Maxi', applicant: 'luka', outcome: 'autoRejected' },
-  { pet: 'Bella', applicant: 'luka', outcome: 'rejected' },
-  { pet: 'Luna', applicant: 'jelena', outcome: 'withdrawn' },
-  { pet: 'Rex', applicant: 'luka', outcome: 'pending' },
-  { pet: 'Rex', applicant: 'marko', outcome: 'pending' },
-  { pet: 'Mila', applicant: 'marko', outcome: 'pending' },
-  { pet: 'Kiki', applicant: 'jelena', outcome: 'pending' },
-  { pet: 'Toby', applicant: 'luka', outcome: 'pending' },
-  { pet: 'Nala', applicant: 'jelena', outcome: 'pending' },
-  { pet: 'Oscar', applicant: 'luka', outcome: 'accepted' },
-  { pet: 'Pip', applicant: 'jelena', outcome: 'pending' },
-];
-
-const messageFor = (petName: string) =>
-  `Hello! I would love to give ${petName} a loving home. I have experience with pets and time to care for them.`;
+/** The demo accounts' password (dev and QA: the public one in the README). */
+const DEMO_PASSWORD = resolveDemoPassword(process.env, {
+  publicDefaultAllowed: true,
+});
 
 /** The API this run seeds; set once at the start (see resolveSeedTarget). */
 let apiUrl = '';
@@ -91,6 +83,12 @@ const call = async <T = unknown>(
     form?: FormData;
   } = {},
 ): Promise<ApiResult<T>> => {
+  const method = options.method ?? 'GET';
+
+  if (!isAllowedSeedRequest(method, apiPath)) {
+    throw new Error(`The seed never sends ${method} ${apiPath.split('?')[0]}.`);
+  }
+
   const headers: Record<string, string> = {};
   let body: string | FormData | undefined;
 
@@ -106,7 +104,7 @@ const call = async <T = unknown>(
   }
 
   const response = await fetch(`${apiUrl}${apiPath}`, {
-    method: options.method ?? 'GET',
+    method,
     headers,
     body,
   });
@@ -150,6 +148,12 @@ const rateLimitHint = () =>
 /**
  * Signs in, or registers the account if it doesn't exist yet. Signing in
  * first keeps reruns to one auth request per user (see the rate limit).
+ *
+ * An account counts as a demo account only if the seed's password signs in
+ * to it, or if the seed just registered it. Registration is open and the demo
+ * addresses are public, so an address registered with another password may
+ * belong to someone else: the seed stops then, before it creates or decides
+ * anything, and never changes that account.
  */
 const signIn = async (key: UserKey): Promise<Session> => {
   const { name, email } = USERS[key];
@@ -167,6 +171,14 @@ const signIn = async (key: UserKey): Promise<Session> => {
     return { user: loggedIn.data, cookie: sessionCookie(loggedIn.cookies) };
   }
 
+  if (
+    (loggedIn.data as { code?: string } | null)?.code === 'ACCOUNT_SUSPENDED'
+  ) {
+    throw new Error(
+      `${email} is suspended. The seed doesn't change accounts; an admin can reinstate it.`,
+    );
+  }
+
   expectStatus(loggedIn, [401], `Signing in ${email}`);
 
   const registered = await call<User & { code?: string }>('/auth/register', {
@@ -180,7 +192,9 @@ const signIn = async (key: UserKey): Promise<Session> => {
 
   if (registered.data?.code === 'EMAIL_ALREADY_REGISTERED') {
     throw new Error(
-      `${email} exists with a different password. Reset it (${resetCommand()}) or set DEMO_PASSWORD.`,
+      `${email} is already registered, but not with the seed's password, so the seed can't tell ` +
+        'whether it is a demo account. It stopped before creating any pets or applications, and left that account alone. ' +
+        `If it is yours, set DEMO_PASSWORD to its password; otherwise ${resetCommand()}.`,
     );
   }
 
@@ -190,18 +204,40 @@ const signIn = async (key: UserKey): Promise<Session> => {
   return { user, cookie: sessionCookie(registered.cookies) };
 };
 
+/** Every page of a paginated list the session can read. */
+const listAll = async <T>(apiPath: string, session: Session, what: string) => {
+  const items: T[] = [];
+
+  for (let page = 1; ; page += 1) {
+    const result = expectStatus(
+      await call<Paginated<T>>(`${apiPath}?page=${page}&pageSize=50`, {
+        session,
+      }),
+      [200],
+      what,
+    );
+    items.push(...result.items);
+
+    if (page >= result.totalPages) {
+      return items;
+    }
+  }
+};
+
+/**
+ * The owner's own pets, hidden ones included. The public list leaves hidden
+ * pets out, so looking there would create a second copy of a hidden demo pet.
+ */
+const ownPets = (owner: Session) =>
+  listAll<Pet>('/pets/mine', owner, `Listing the pets of ${owner.user.email}`);
+
 /** Finds the owner's pet by exact name, or creates it; adds its demo photos. */
-const ensurePet = async (spec: PetSpec, owner: Session): Promise<Pet> => {
-  const page = expectStatus(
-    await call<Paginated<Pet>>(
-      `/pets?search=${encodeURIComponent(spec.name)}&pageSize=50`,
-    ),
-    [200],
-    `Looking up ${spec.name}`,
-  );
-  let pet = page.items.find(
-    (item) => item.name === spec.name && item.owner === owner.user._id,
-  );
+const ensurePet = async (
+  spec: PetSpec,
+  owner: Session,
+  existing: readonly Pet[],
+): Promise<Pet> => {
+  let pet = findSeedPet(existing, spec.name, owner.user._id);
 
   if (pet) {
     console.log(`  = pet ${spec.name}`);
@@ -302,7 +338,7 @@ const ensureSubmitted = async (
       {
         method: 'POST',
         session: applicant,
-        json: { message: messageFor(spec.pet) },
+        json: { message: applicationMessage(spec.pet) },
       },
     );
 
@@ -320,18 +356,53 @@ const ensureSubmitted = async (
   }
 };
 
-/** Pass 2: accepts, rejects or withdraws a still-pending application. */
+/**
+ * Pass 2: accepts, rejects or withdraws a still-pending application. The
+ * application is the demo applicant's own (from their /applications/mine)
+ * for a demo owner's pet. Rejecting or withdrawing changes only that
+ * application; accepting also auto-rejects the pet's other pending ones, so
+ * it is skipped (and reported by the final check) if any of those comes
+ * from an account outside the demo data.
+ */
 const ensureDecided = async (
   spec: ApplicationSpec,
   pet: Pet,
   applicant: Session,
   owner: Session,
+  seedUserIds: ReadonlySet<string>,
 ): Promise<void> => {
   const label = `${spec.applicant} → ${spec.pet}`;
+
+  if (pet.owner !== owner.user._id) {
+    throw new Error(`${spec.pet} is not owned by ${owner.user.email}.`);
+  }
+
   const application = await newestApplication(applicant, pet._id);
 
   if (application?.status !== 'pending') {
     return;
+  }
+
+  if (spec.outcome === 'accepted') {
+    const outside = pendingApplicationsOutsideSeed(
+      await listAll<ReceivedApplication>(
+        '/applications/received',
+        owner,
+        `Listing the applications for ${owner.user.email}'s pets`,
+      ),
+      pet._id,
+      application._id,
+      seedUserIds,
+    );
+
+    // Only a count: the other applicants' names and emails stay out of logs.
+    if (outside.length > 0) {
+      console.warn(
+        `  ! accept ${label} skipped: it would auto-reject ${outside.length} pending application(s) ` +
+          'from accounts outside the demo data.',
+      );
+      return;
+    }
   }
 
   const action =
@@ -363,6 +434,9 @@ const ensureDecided = async (
  * commit, is answering instead of the development API.
  */
 const checkApiSupportsDemoData = async (isDev: boolean) => {
+  const fix = isDev
+    ? 'Restart "pnpm nx serve @pet-adoption/api" with the current code.'
+    : 'Rebuild it with "pnpm qa:up".';
   const species = [...new Set(PETS.map((pet) => pet.species))];
 
   for (const value of species) {
@@ -370,12 +444,18 @@ const checkApiSupportsDemoData = async (isDev: boolean) => {
 
     if (response.status === 400) {
       throw new Error(
-        `The API at ${apiUrl} rejects the species "${value}", so it runs older code than this seed. ` +
-          (isDev
-            ? 'Restart "pnpm nx serve @pet-adoption/api" with the current code.'
-            : 'Rebuild it with "pnpm qa:up".'),
+        `The API at ${apiUrl} rejects the species "${value}", so it runs older code than this seed. ${fix}`,
       );
     }
+  }
+
+  // Signed out, /pets/mine answers 401. Older code reads "mine" as a pet id.
+  const mine = await fetch(`${apiUrl}/pets/mine`);
+
+  if (mine.status !== 401) {
+    throw new Error(
+      `The API at ${apiUrl} has no /pets/mine (HTTP ${mine.status}), so it runs older code than this seed. ${fix}`,
+    );
   }
 };
 
@@ -407,10 +487,23 @@ const main = async () => {
     sessions[key] = await signIn(key);
   }
 
+  const seedUserIds = new Set(
+    Object.values(sessions).map((session) => session.user._id),
+  );
+  const existingPets = new Map<UserKey, Pet[]>();
   const pets = new Map<string, Pet>();
 
   for (const spec of PETS) {
-    pets.set(spec.name, await ensurePet(spec, sessions[spec.owner]));
+    const owner = sessions[spec.owner];
+
+    if (!existingPets.has(spec.owner)) {
+      existingPets.set(spec.owner, await ownPets(owner));
+    }
+
+    pets.set(
+      spec.name,
+      await ensurePet(spec, owner, existingPets.get(spec.owner) ?? []),
+    );
   }
 
   const ownerOf = (petName: string) =>
@@ -436,6 +529,7 @@ const main = async () => {
       petFor(spec),
       sessions[spec.applicant],
       ownerOf(spec.pet),
+      seedUserIds,
     );
   }
 
