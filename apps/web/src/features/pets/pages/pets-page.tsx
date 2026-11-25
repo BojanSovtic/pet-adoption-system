@@ -107,13 +107,17 @@ const PetsPage = () => {
       <PageHeader
         title={t('title')}
         description={t('subtitle')}
+        // Shown only to signed-in users (display only: the form route and
+        // the API still enforce sign-in). Hidden while the session loads.
         actions={
-          <Button asChild>
-            <Link to="/pets/new">
-              <Plus aria-hidden="true" />
-              {t('form.title')}
-            </Link>
-          </Button>
+          currentUser ? (
+            <Button asChild>
+              <Link to="/pets/new">
+                <Plus aria-hidden="true" />
+                {t('form.title')}
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
 

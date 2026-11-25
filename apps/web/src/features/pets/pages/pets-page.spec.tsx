@@ -128,6 +128,34 @@ describe('PetsPage', () => {
     });
   });
 
+  describe('"Add a pet" action', () => {
+    it('is hidden from a signed-out visitor', async () => {
+      renderPage();
+
+      await screen.findByText('Pet 1');
+      await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
+      expect(screen.queryByRole('link', { name: 'Add a pet' })).toBeNull();
+    });
+
+    it('is hidden while the session is still loading', async () => {
+      vi.mocked(getCurrentUser).mockReturnValue(new Promise(() => undefined));
+      renderPage();
+
+      await screen.findByText('Pet 1');
+      expect(screen.queryByRole('link', { name: 'Add a pet' })).toBeNull();
+    });
+
+    it('opens the pet form for a signed-in user', async () => {
+      vi.mocked(getCurrentUser).mockResolvedValue(owner);
+      const router = renderPage();
+
+      fireEvent.click(await screen.findByRole('link', { name: 'Add a pet' }));
+
+      expect(router.state.location.pathname).toBe('/pets/new');
+      expect(await screen.findByText('New pet')).toBeTruthy();
+    });
+  });
+
   it('requests the page described by the URL', async () => {
     renderPage('/pets?species=cat&status=pending&sort=name&page=2');
 
