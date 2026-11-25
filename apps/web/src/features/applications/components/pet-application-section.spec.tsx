@@ -187,6 +187,80 @@ describe('PetApplicationSection', () => {
     });
   });
 
+  it('shows no error on load or when an untouched field loses focus', async () => {
+    renderSection(visitor);
+    const field = await screen.findByLabelText(
+      'Why would you like to adopt Milo?',
+    );
+
+    fireEvent.focus(field);
+    fireEvent.blur(field);
+
+    expect(screen.queryByText('Please write a short message.')).toBeNull();
+    expect(field.getAttribute('aria-invalid')).toBe('false');
+    expect(field.getAttribute('aria-describedby')).toBe(
+      'application-message-hint',
+    );
+  });
+
+  it('marks the field invalid after a failed submit and clears it once corrected', async () => {
+    renderSection(visitor);
+    const field = await screen.findByLabelText(
+      'Why would you like to adopt Milo?',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send application' }));
+
+    const error = await screen.findByText('Please write a short message.');
+    expect(field.getAttribute('aria-invalid')).toBe('true');
+    expect(field.getAttribute('aria-describedby')).toBe(
+      `application-message-hint ${error.id}`,
+    );
+
+    // Only spaces is still invalid (the API trims too), so the error stays.
+    fireEvent.change(field, { target: { value: '   ' } });
+    fireEvent.blur(field);
+    expect(screen.getByText('Please write a short message.')).toBeTruthy();
+
+    // Clears while typing, without waiting for blur or another submit.
+    fireEvent.change(field, { target: { value: '   I have a garden.' } });
+    expect(screen.queryByText('Please write a short message.')).toBeNull();
+    expect(field.getAttribute('aria-invalid')).toBe('false');
+    expect(submitApplication).not.toHaveBeenCalled();
+  });
+
+  it('keeps submit enabled for an empty form and disables it only while sending', async () => {
+    let resolveSubmit: ((application: MyApplication) => void) | undefined;
+    vi.mocked(submitApplication).mockReturnValue(
+      new Promise((resolve) => {
+        resolveSubmit = resolve;
+      }),
+    );
+    renderSection(visitor);
+
+    const submit = (await screen.findByRole('button', {
+      name: 'Send application',
+    })) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+
+    fireEvent.change(
+      screen.getByLabelText('Why would you like to adopt Milo?'),
+      {
+        target: { value: 'I have a big garden.' },
+      },
+    );
+    fireEvent.click(submit);
+
+    const sending = (await screen.findByRole('button', {
+      name: 'Sending...',
+    })) as HTMLButtonElement;
+    expect(sending.disabled).toBe(true);
+    fireEvent.click(sending);
+    expect(submitApplication).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveSubmit?.(myApplication('pending')));
+  });
+
   it('shows the status and a withdraw button for a pending application', async () => {
     renderSection(visitor, [myApplication('pending')]);
 
