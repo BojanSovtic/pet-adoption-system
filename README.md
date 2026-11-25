@@ -2,303 +2,270 @@
 
 [![CI](https://github.com/BojanSovtic/pet-adoption-system/actions/workflows/ci.yml/badge.svg)](https://github.com/BojanSovtic/pet-adoption-system/actions/workflows/ci.yml)
 
-A full-stack web app where people post pets that need a new home, others apply to adopt them, and the person who posted the pet reviews the applications and accepts one.
+**Live demo:** [pet-adoption-26o.pages.dev](https://pet-adoption-26o.pages.dev) · **Source:** [github.com/BojanSovtic/pet-adoption-system](https://github.com/BojanSovtic/pet-adoption-system)
 
-- **Visitors** browse, search and filter pets without an account.
-- **Signed-in users** post pets (with up to 5 photos), apply to adopt other people's pets, and withdraw their applications.
-- **Pet owners** see who applied, with their contact details, and accept or reject applications. Accepting one adopts the pet and rejects the others.
-- **Admins** see platform statistics and all users, pets and applications, change roles, suspend and reinstate accounts, and hide or restore listings. Every admin action is recorded in an audit log. The first admin is created from the command line.
+A full-stack web application where people list pets that need a new home, other people apply to adopt them, and the person who listed the pet reviews the applications and accepts one.
 
-Pet profiles include species, age, sex, breed and how the pet gets along with children, dogs and cats. The interface is available in English and Serbian. The full rules are in [docs/requirements.md](docs/requirements.md).
+It is a portfolio and learning project built with React, Express and MongoDB in a TypeScript Nx monorepo. The focus is on doing the fundamentals properly: server-side authorization, consistent state changes under concurrency, safe file uploads, automated tests at several levels and a working deployment.
 
-**Status:** a learning and portfolio project, feature-complete for a first version and deployed as a demo on managed free tiers (Cloudflare Pages, Render, MongoDB Atlas, Cloudinary); see [docs/progress.md](docs/progress.md). The remaining launch blockers (automated off-site backups, a privacy notice, password reset) are in [docs/production-readiness.md](docs/production-readiness.md). [docs/deployment.md](docs/deployment.md) describes the alternative self-hosted setup.
+> The live demo runs on free hosting tiers. Anyone can register an account to try it. Please don't enter real personal data.
 
-## Screenshots
+## Contents
 
-<!--
-  Screenshots are not captured yet. To add them:
-  1. Start Docker QA and load the demo data (see "Docker QA environment" below).
-  2. Save PNGs in docs/screenshots/ with these names:
-       pet-list.png       the pet list with search and filters
-       pet-details.png    a pet's page with the apply form
-       applications.png   the Applications page (owner view)
-  3. Replace this comment with:
-       ![Pet list](docs/screenshots/pet-list.png)
-       ![Pet details](docs/screenshots/pet-details.png)
-       ![Applications](docs/screenshots/applications.png)
--->
+- [Features](#features)
+- [Technical highlights](#technical-highlights)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Running locally](#running-locally)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
+- [Scope and limitations](#scope-and-limitations)
 
-_Screenshots coming soon._
+## Features
+
+### Browsing (no account needed)
+
+- Paginated pet list with name search, species and status filters, and sorting by newest, oldest, name or age. The search state lives in the URL, so the Back button and shared links keep it.
+- Pet pages with a photo gallery and profile facts: species, age, sex, breed, how the pet gets along with children, dogs and cats, and how long it can be left alone.
+- English and Serbian interface, switchable from the header.
+
+### Accounts
+
+- Registration and sign-in with email and password. Sessions last 7 days.
+- An account menu with My pets, Add a pet, Applications, Messages and My profile.
+- Public member profiles (visible to signed-in users) that show only the name, join date and currently listed pets.
+
+### Listing pets
+
+- Any signed-in user can list a pet and becomes its owner. Only the owner can edit or delete it.
+- Up to 5 photos per pet (JPEG, PNG or WebP). The owner chooses which one is the main photo.
+- A **My pets** page with every pet the user owns and its adoption status.
+
+### Adoption applications
+
+- Signed-in users apply for another person's pet with a short message and can withdraw a pending application.
+- Owners see each applicant's name, email and message, and accept or reject the application.
+- Accepting one application marks the pet as adopted and automatically rejects the other pending applications.
+- Pet status (available → pending → adopted) follows the applications automatically and can't be set by hand.
+
+### Messaging
+
+- Text conversations between a pet's owner and an interested user, one per pet and person, visible only to the two participants.
+
+### Administration
+
+- An admin area for users with the `admin` role: platform statistics and lists of all users, pets and applications.
+- Admins can grant or remove the admin role, suspend and reinstate accounts, and hide or restore listings. Applications are read-only for admins, and adoption decisions stay with the pet's owner.
+- Every admin change, refused change attempt and view of personal data is recorded in a hash-chained audit log, which `pnpm audit:verify` checks for tampering.
+- The first admin is created from the command line. Registration never assigns a role.
+
+All rules, including rate limits and edge cases, are in [docs/requirements.md](docs/requirements.md).
 
 ## Technical highlights
 
-- **Consistent adoption decisions.** Submitting, accepting, rejecting and withdrawing each run in one MongoDB transaction that locks the pet first. Two simultaneous acceptances can't both succeed, and a unique index is the final guarantee. This is covered by concurrency tests.
-- **State machines shared by API and UI.** Application and pet statuses change only through explicit actions (`accept`, `reject`, `withdraw`) defined once in a shared TypeScript library. The API enforces them and the UI uses them to decide which buttons to show.
-- **Server-side sessions.** HttpOnly session cookie, Argon2id password hashing, a new session id on sign-in, and `SameSite` plus an `Origin` check against CSRF.
-- **Abuse limits.** Rate limits on sign-in and registration, per-user limits on every change (applications, new pets, photo uploads, the rest), per-admin limits, and a per-IP backstop.
-- **Authorization on the server.** Owner and applicant ids always come from the session. Owners see applicants' email addresses; nobody else can see an application. Admin role and suspension are read from the database on every request; admin changes run in a transaction with a hash-chained audit entry.
-- **Safe photo uploads.** Files are checked by content, then decoded and re-encoded with sharp: no EXIF/GPS metadata, rotation applied, pixel and size limits. The uploaded bytes are never stored.
-- **One error contract.** The API returns stable error codes (`{ code, details? }`) and never display text; the web app translates them, including field-level validation errors. Unknown API routes and oversized or malformed bodies get JSON errors too, and every response carries security headers (helmet).
-- **Server-side search and pagination.** The pet list and both application lists are paginated with stable ordering and matching indexes. The pet list keeps its state in the URL.
-- **Isolated tests.** API tests run against an in-memory MongoDB replica set, so transactions are real and no database setup is needed. Playwright E2E tests start their own API and web servers with a throwaway database.
-
-Architecture diagrams (system, request pipeline, authentication, admin, data model, adoption workflow, Docker, E2E): [docs/architecture.md](docs/architecture.md).
+- **Consistent adoption decisions.** Submitting, accepting, rejecting and withdrawing each run in a MongoDB transaction that locks the pet first, with unique indexes as the final guarantee. Concurrency tests check that two simultaneous acceptances can't both succeed.
+- **Shared state machines.** Application and pet statuses change only through explicit actions (`accept`, `reject`, `withdraw`) that are defined once in a shared TypeScript library. The API uses them to enforce the rules, and the UI uses them to decide which actions to show.
+- **Authorization on the server.** Owner and applicant ids always come from the session, never from the request body. Role and suspension are read from the database on every request.
+- **Session security.** Server-side sessions with an HttpOnly cookie, Argon2id password hashing, a new session id on sign-in, and `SameSite=Lax` cookies combined with an `Origin` check against CSRF.
+- **Abuse limits.** Rate limits on sign-in and registration, per-user limits on every write, per-admin limits and a per-IP limit on all writes.
+- **Safe photo uploads.** Files are checked by their content, not their name, and then decoded and re-encoded with sharp. This strips EXIF/GPS metadata, applies rotation and enforces pixel and size limits. The original uploaded bytes are never stored.
+- **A single error contract.** The API returns stable error codes (`{ code, details? }`) and no display text. The web app translates the codes, including field-level validation errors.
+- **Isolated tests.** API tests run against an in-memory MongoDB replica set, so transactions are real and no database setup is needed. Playwright tests start their own servers and use a throwaway database.
 
 ## Tech stack
 
-- **Frontend:** React 19, TypeScript, Vite, React Router 6, TanStack Query, Axios, Tailwind CSS 4 + shadcn/ui, react-i18next, zod
-- **Backend:** Node.js 22, Express 4, MongoDB 8 with Mongoose 9, express-session + connect-mongo, Argon2, multer + sharp, express-rate-limit, helmet
-- **Shared:** a TypeScript library with the API types, constants and state machines
-- **Tooling:** Nx monorepo with pnpm, Vitest + Testing Library + Supertest, Playwright, ESLint, Prettier, Docker Compose, GitHub Actions
+| Area                 | Technologies                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Frontend             | React 19, TypeScript, Vite, React Router 6, TanStack Query, Axios, Tailwind CSS 4 with shadcn/ui, react-i18next, zod  |
+| Backend              | Node.js 22, Express 4, express-session with connect-mongo, Argon2, multer with sharp, express-rate-limit, helmet, zod |
+| Database and storage | MongoDB 8 (replica set, for transactions) with Mongoose 9; pet photos on local disk or in Cloudinary                  |
+| Shared code          | `@pet-adoption/models`: API types, constants and state machines, with no runtime dependencies                         |
+| Testing              | Vitest, Testing Library, Supertest, mongodb-memory-server, Playwright                                                 |
+| Tooling              | Nx 23 monorepo, pnpm workspaces, esbuild (API bundle), ESLint, Prettier, Docker and Docker Compose, GitHub Actions    |
+| Hosting (live demo)  | Cloudflare Pages (web app and an `/api` proxy Function), Render (API Docker image), MongoDB Atlas, Cloudinary         |
 
-## Project structure
+## Architecture
 
 ```text
-apps/api              Express API
-apps/web              React app
-apps/web-e2e          Playwright end-to-end tests
-packages/shared/models  Types and rules shared by the API and the web app
-docs/                 Project documentation (see "Documentation" below)
+apps/api                 Express API (@pet-adoption/api)
+apps/web                 React single-page app (@pet-adoption/web)
+apps/web-e2e             Playwright end-to-end tests (@pet-adoption/web-e2e)
+packages/shared/models   Types and rules shared by the API and the web app (@pet-adoption/models)
+functions/api            Cloudflare Pages Function that forwards /api requests to the API
+docs/                    Project documentation
 ```
 
-## Running the app
+- **Web app.** A Vite-built React SPA organized into feature folders (`pets`, `applications`, `messages`, `users`, `auth`, `admin`). It talks to the API over JSON with Axios. The base URL comes from `VITE_API_URL`, and the session cookie is sent with each request. TanStack Query handles caching, retries and error handling.
+- **API.** An Express app with routes, controllers, services and Mongoose models per feature. It validates every request with zod, authenticates and authorizes it, applies rate limits, runs adoption changes in transactions, and processes and stores photos. Errors go through one error handler that returns the shared error format.
+- **Database.** MongoDB stores users, sessions, pets, applications, conversations, messages and the admin audit log. It must run as a replica set because adoption decisions use transactions.
+- **Photo storage.** Photos go through a small `FileStorage` interface. Local development and Docker QA store them on disk. The live demo stores them in Cloudinary, because the API host has no persistent disk. MongoDB keeps only the storage keys.
 
-Three environments, each for one job. They use different ports and data, so they can run at the same time.
+In the live demo, the browser loads the app from Cloudflare Pages and sends API requests to the same origin. A Pages Function forwards them to the API on Render, and the API refuses requests that don't come through the proxy. Keeping a single origin lets the `SameSite=Lax` session cookie work without cross-site cookies.
 
-|           | Local development                                         | Docker QA                                              | E2E tests                           |
-| --------- | --------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------- |
-| Use for   | Writing code (hot reload)                                 | Testing the built app by hand; showing the app         | Automated browser tests             |
-| Runs      | MongoDB in Docker, API and web app with Node.js           | Everything in Docker, built like a deployment          | Its own servers, started by the run |
-| Web / API | http://localhost:4200 / :3333                             | **http://127.0.0.1:4203** / :3336                      | localhost:4201 / :3334              |
-| Data      | Database `pet-adoption` (port 27018), `apps/api/uploads/` | Its own MongoDB server and volumes                     | In memory, thrown away              |
-| Start     | See [Local development](#local-development)               | `pnpm qa:up` (see [Docker QA](#docker-qa-environment)) | `pnpm nx e2e @pet-adoption/web-e2e` |
+```mermaid
+flowchart LR
+  browser([Browser])
+  subgraph cf[Cloudflare Pages]
+    spa[React app<br/>static build]
+    fn[Pages Function<br/>/api proxy]
+  end
+  api[Express API<br/>Render, Docker]
+  db[(MongoDB Atlas)]
+  photos[(Cloudinary)]
 
-### Local development
+  browser -- page load --> spa
+  browser -- "/api/* + session cookie" --> fn
+  fn --> api
+  api --> db
+  api -- upload / delete --> photos
+  browser -- photo URLs --> photos
+```
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running), Git, Node.js 22 and pnpm 12. Run the commands in the repository root (the `pet-adoption-system` folder).
+Detailed diagrams of the request pipeline, authentication, roles, data model, adoption workflow and test environments are in [docs/architecture.md](docs/architecture.md).
+
+## Running locally
+
+### Prerequisites
+
+- Node.js 22
+- pnpm 12 (CI uses 12.3.4)
+- Docker (Docker Desktop on Windows and macOS), which runs the development MongoDB
+- Git
+
+Run all commands from the repository root.
+
+### 1. Install and configure
 
 ```sh
 pnpm install
-cp apps/api/.env.example apps/api/.env   # then set SESSION_SECRET in it (32+ characters)
+cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-docker compose up -d                     # MongoDB only (replica set on port 27018)
-pnpm nx serve @pet-adoption/api          # API: http://localhost:3333/api
-pnpm nx dev @pet-adoption/web            # web app: http://localhost:4200 (in a second terminal)
-pnpm dev:seed                            # optional, while the API runs: demo users, pets, applications
 ```
 
-A `SESSION_SECRET` can come from a password generator, or from `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. The API refuses to start without it.
-
-- **The development database starts empty.** `pnpm dev:seed` fills it with the [demo data](#demo-data). It only adds what is missing, so it is safe to run again.
-- **Stop** the dev servers with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data; `docker compose up -d` starts it again.
-- **Your data** lives in the Docker volume `pet-adoption-system_mongodb_data` (photos in `apps/api/uploads/`). `docker compose down -v`, `docker volume prune`, `docker system prune --volumes` and Docker Desktop's _Clean / Purge data_ **delete it**. To back up the database first:
-
-  ```sh
-  docker exec pet-adoption-mongodb mongodump --db pet-adoption --archive=/tmp/pet-adoption.archive
-  docker cp pet-adoption-mongodb:/tmp/pet-adoption.archive ./pet-adoption.archive
-  ```
-
-  To restore it: `docker cp ./pet-adoption.archive pet-adoption-mongodb:/tmp/pet-adoption.archive`, then `docker exec pet-adoption-mongodb mongorestore --archive=/tmp/pet-adoption.archive`.
-
-| Problem                                                                    | What to do                                                                                                                                 |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Cannot connect to the Docker daemon`, `error during connect`              | Docker Desktop isn't running. Start it and wait until it says it's running.                                                                |
-| The API stops with `SESSION_SECRET is required`                            | `apps/api/.env` is missing or `SESSION_SECRET` is shorter than 32 characters.                                                              |
-| "Port 3333 … is already in use", or the web dev server won't start on 4200 | Something else uses the port. Find it with `netstat -ano \| findstr :3333` (Windows) / `lsof -i :3333` (macOS/Linux).                      |
-| The page shows "The server could not be reached"                           | The API isn't running. Start `pnpm nx serve @pet-adoption/api`.                                                                            |
-| The API log mentions MongoDB or a replica set                              | MongoDB isn't ready: `docker compose ps` should show it "healthy". The first start initialises the replica set, which takes a few seconds. |
-
-### Administrators
-
-Every new account is an ordinary user, and registration ignores any `role` field. Admins open the administration area (**Admin** in the account menu, `/admin`). The first admin is created from the command line by someone with access to the server's configuration:
-
-1. The person registers in the app as usual. No passwords or default accounts are stored in the repository.
-2. On the machine with the API's settings (`apps/api/.env`, or the API container's environment), from the repository root:
-
-   ```sh
-   pnpm admin:grant person@example.com         # dry run: shows the database (host/name, no credentials), the user and the change
-   pnpm admin:grant person@example.com --yes   # applies it
-   pnpm admin:revoke person@example.com --yes  # removes it again
-   ```
-
-3. The change applies to the person's next request; no new sign-in is needed. After that, admins can grant or remove admin access on the **Users** page.
-
-Safety:
-
-- Check the database line of the dry run before adding `--yes`: the command uses `MONGODB_URI` from the environment, so in a shell with production settings it changes production.
-- Nobody can change their own role, and the last admin can't be revoked (the command and the app refuse).
-- Every change, from the app or the command line, is recorded in the admin **Audit log** (also under **Recent admin activity** on the overview).
-- The command needs only `MONGODB_URI` (from the environment or `apps/api/.env`), plus `AUDIT_HMAC_KEY` if the API uses one. It doesn't need the web server's settings. For Docker QA, point it at the QA MongoDB port: `MONGODB_URI="mongodb://127.0.0.1:27019/pet-adoption-qa?directConnection=true" pnpm admin:grant …` (in PowerShell, set `$env:MONGODB_URI` first).
-
-In the app, admins can also **suspend** accounts and **hide** listings (both reversible, see [requirements](docs/requirements.md#administration)).
-
-**Audit log integrity:** entries form a hash chain. Set `AUDIT_HMAC_KEY` (32+ random characters, kept outside the database) to sign them, and check the chain with:
-
-```sh
-pnpm audit:verify   # exit code 1 if an entry was changed, removed or reordered in the database
-```
-
-This detects tampering; it doesn't prevent it. Anyone with database write access can still delete recent entries (see [deployment.md](docs/deployment.md), "Admin audit log").
-
-In production, run these commands from the API image's build stage ([deployment.md](docs/deployment.md), §6 step 9).
-
-### Demo data
-
-4 users, 14 pets (11 with photos) and 13 adoption applications in every status, including an auto-rejected and a withdrawn one. Load it with `pnpm dev:seed` (local development) or `pnpm qa:seed` (Docker QA). It goes through the normal API, so it passes the same validation and rules as real use, and it only adds what is missing.
-
-Sign in as `ana@demo.example.com` (owner with the most pets and applications), `marko@demo.example.com`, `jelena@demo.example.com` or `luka@demo.example.com`. All four use the demo-only password `demo-password`.
-
-- **Changed by hand?** The seed reports differences instead of guessing (decisions are final). In QA, start over with `pnpm qa:reset --yes` and seed again. The development database has no reset command on purpose.
-- **Photos:** up to 5 per pet from [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) (`max.jpg`, `max-2.jpg`, …). `pnpm demo:images` copies downloaded images to those names as listed in `mapping.json`. The seed adds photos only to pets that have none yet.
-- **Rate limits:** sign-in and registration allow 20 attempts per 15 minutes from one IP. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart the API.
-- **Dry run:** add `--dry-run` (for example `pnpm qa:seed --dry-run`) to list what a run would change without changing anything; only reads and sign-ins are sent.
-
-#### Demo data on the live demo
-
-`pnpm prod:seed` loads the same dataset into the live demo, through its public site. It is a **dry run** unless both confirmations below are given.
-
-**The demo password (`DEMO_PASSWORD`).** The live demo's demo accounts (Ana, Marko, Jelena, Luka) use a private password that you choose, never `demo-password`:
-
-- At least 16 characters (128 at most); a password-manager-generated one is best.
-- The first real run registers the four accounts with it. After that, it is how you sign in as them on the live site (walkthroughs, screenshots, answering visitors), and every later dry run or rerun must use the same one: the seed treats an account as a demo account only if this password signs in to it.
-- It is stored nowhere in the project (no file, no `.env`, no docs). Keep it in your password manager and set it only in the terminal session for a run. The app has no password reset, so a lost password means the demo accounts can't be signed in to or managed by the seed any more.
-- It is not your admin, Atlas or any other account's password.
-
-**Running it (PowerShell).** The prompt hides what you type or paste; the last line removes the password from the session again:
-
-```powershell
-$env:DEMO_PASSWORD = [Net.NetworkCredential]::new('', (Read-Host 'Demo password' -AsSecureString)).Password
-pnpm prod:seed                                                    # dry run: lists what would change
-Remove-Item Env:DEMO_PASSWORD -ErrorAction SilentlyContinue
-```
-
-If the seed says `Set DEMO_PASSWORD`, the variable is empty (for example, nothing was pasted); nothing was sent. Avoid `$env:DEMO_PASSWORD = Get-Clipboard`: with an empty clipboard it silently sets nothing.
-
-**What it does:** waits up to 3 minutes for the API to wake up, checks that the API supports the dataset, and retries only reads and sign-ins (and short rate-limit waits). A change without a clear answer stops the run and is never repeated; rerun it, and it only adds what is missing.
-
-**Changing the live demo** needs `--confirm-prod` and `--confirm-host=` with the live site's host name, typed exactly (errors don't repeat it):
-
-```powershell
-pnpm prod:seed --confirm-prod --confirm-host=<live site host>     # changes the live demo
-```
-
-- The run first makes a complete read-only preflight and changes nothing if it finds any problem: a duplicate pet, a decision that ended differently, or an accept that would reject a visitor's application. Only then does it add what is missing, with the same guards as dev and QA.
-- A demo address that someone else already registered can only be detected while registering: the run then stops before any pet or application (the accounts listed before it are created).
-- Take an Atlas backup first; production has no reset. A first run uses about 12 of the 20 sign-in attempts allowed per 15 minutes, so wait 15 minutes before an immediate retry.
-- Every other combination (one confirmation without the other, a wrong host, `--dry-run` with `--confirm-prod`, `--yes`) is refused before anything is sent.
-
-## Docker QA environment
-
-A separate Docker stack for manual QA and for showing the app. It runs the built images (the web app on nginx, the bundled API), as a deployment would, with **its own MongoDB server, database, network and photo storage**, so testing never touches your development data.
-
-|                                    | Docker QA                                                                                        |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Web app (open this)                | **http://127.0.0.1:4203**                                                                        |
-| API health check                   | http://127.0.0.1:3336/api/health                                                                 |
-| MongoDB, for tools such as Compass | `mongodb://127.0.0.1:27019/pet-adoption-qa?directConnection=true`                                |
-| Compose file / project             | `docker-compose.qa.yml` / `pet-adoption-qa`                                                      |
-| Containers                         | `pet-adoption-qa-mongodb`, `pet-adoption-qa-api`, `pet-adoption-qa-web`                          |
-| Database                           | `pet-adoption-qa` on its own MongoDB server                                                      |
-| Volumes                            | `pet-adoption-qa_mongodb_data`, `pet-adoption-qa_mongodb_config`, `pet-adoption-qa_uploads_data` |
-
-Use `127.0.0.1`, **not** `localhost`. The API only accepts the web app from `http://127.0.0.1:4203`. Browsers also keep cookies per host name, not per port, so this keeps your QA sign-in separate from development on `localhost`.
-
-### Setup (once)
-
-**Prerequisites:** Docker Desktop (running), Node.js 22, pnpm 12, and `pnpm install` (the `qa:*` commands are pnpm scripts).
-
-Add `QA_SESSION_SECRET` to the root `.env` (see `.env.example`). Use at least 32 random characters, different from the development `SESSION_SECRET` in `apps/api/.env`:
+In `apps/api/.env`, set **`SESSION_SECRET`** to at least 32 random characters. This is the only value you need to change, and the API refuses to start without it. You can generate one with:
 
 ```sh
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-The QA stack refuses to start without it. `.env` is not committed.
+The other defaults already match the local setup: MongoDB on port 27018, the API on 3333 and the web app on 4200. The optional settings are described in [apps/api/.env.example](apps/api/.env.example), including log level, photo storage (`STORAGE_DRIVER`, Cloudinary) and an audit-log signing key (`AUDIT_HMAC_KEY`). None of them are needed for local development.
 
-### Commands
-
-| Command               | What it does                                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm qa:up`          | Builds the images and starts the QA stack in the background (`up -d --build`). Run it again after code changes.                    |
-| `pnpm qa:ps`          | Shows the QA containers and their health; "healthy" is good.                                                                       |
-| `pnpm qa:logs`        | Follows the logs of all QA containers (Ctrl+C stops following, not the stack). `pnpm qa:logs api` (or `web`, `mongodb`) shows one. |
-| `pnpm qa:seed`        | Loads the demo data (4 users, 14 pets, 11 of them with photos, 13 applications) through the QA API. Safe to run again.             |
-| `pnpm qa:reset`       | Dry run: shows what a reset would delete. Changes nothing.                                                                         |
-| `pnpm qa:reset --yes` | Deletes all QA data: every document in `pet-adoption-qa` and every photo in the QA volume.                                         |
-| `pnpm qa:down`        | Stops the stack and removes its containers. **Data and volumes are kept.**                                                         |
-
-All of them run `docker compose -f docker-compose.qa.yml -p pet-adoption-qa`; the README's other `docker compose` commands are for the development MongoDB. `qa:up`, `qa:ps`, `qa:logs` and `qa:down` accept only the service names `mongodb`, `api` and `web` as extra arguments, so options like `-v` are refused.
-
-### A typical QA run
+### 2. Start MongoDB, the API and the web app
 
 ```sh
-pnpm qa:up        # build and start (first build: a few minutes)
-pnpm qa:ps        # wait until all three are "healthy"
-pnpm qa:seed      # demo data; accounts below
-# test in the browser at http://127.0.0.1:4203
-pnpm qa:reset     # see what a reset would delete
-pnpm qa:reset --yes && pnpm qa:seed   # start the next run from fresh demo data
-pnpm qa:down      # stop; data stays for next time
+docker compose up -d                  # MongoDB 8 as a single-node replica set on port 27018
+pnpm nx serve @pet-adoption/api       # API at http://localhost:3333/api
+pnpm nx dev @pet-adoption/web         # web app at http://localhost:4200 (second terminal)
 ```
 
-Accounts: see [Demo data](#demo-data).
+On the first start, MongoDB initializes its replica set, which takes a few seconds. `docker compose ps` shows the container as `healthy` when it is ready.
 
-### What persists, and what a reset deletes
+### 3. Load demo data (optional)
 
-- **Stopping keeps everything.** `pnpm qa:down`, restarting Docker Desktop and `pnpm qa:up` (also after rebuilding) all keep the QA data, which lives in the QA volumes.
-- **`pnpm qa:reset --yes`** empties the QA database (collections and indexes stay) and deletes the QA photos. It **doesn't delete volumes or containers**, and touches nothing outside the QA stack.
-- **Before deleting anything, it checks** that both QA containers are running, belong to the `pet-adoption-qa` project, have the QA volumes mounted, and that the API is configured for the QA database. Inside MongoDB it confirms the database name once more. If anything doesn't match, it changes nothing.
-
-### Warnings
-
-> **Never run `docker compose down -v` on the main project casually.** Without `-f docker-compose.qa.yml` it targets the main project, and `-v` deletes `pet-adoption-system_mongodb_data`. That volume holds the development database. To empty QA data, always use `pnpm qa:reset`.
-
-> **Never point the QA scripts at the development database.**
->
-> - `pnpm qa:seed` always targets `http://127.0.0.1:3336/api`, and refuses to run if `DEMO_API_URL` says otherwise.
-> - Don't edit the connection string in `docker-compose.qa.yml`. It must stay `mongodb://mongodb:27017/pet-adoption-qa`; `pnpm qa:reset` refuses anything else.
-
-### Troubleshooting
-
-| Problem                                                                | What to do                                                                                                                                                                                |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `required variable QA_SESSION_SECRET is missing a value`               | Add `QA_SESSION_SECRET` to the root `.env` (see Setup).                                                                                                                                   |
-| `port is already allocated` for 4203, 3336 or 27019                    | Something else uses the port. Find it with `netstat -ano \| findstr ":4203 :3336 :27019"` (Windows) or `lsof -i :4203` (macOS/Linux). The QA ports are fixed in `docker-compose.qa.yml`.  |
-| A container stays "starting" or "unhealthy" in `pnpm qa:ps`            | Check `pnpm qa:logs api` (or `mongodb`). On the first start MongoDB initialises its replica set, which takes a few seconds. The API waits for MongoDB, and the web app waits for the API. |
-| Signing in seems to work but you're signed out again, or requests fail | Open **http://127.0.0.1:4203**, not `localhost:4203`. If it still happens, clear the cookies for `127.0.0.1`, or use a private window.                                                    |
-| "The server could not be reached" in the web app                       | The QA API isn't healthy yet, or isn't running: `pnpm qa:ps`.                                                                                                                             |
-| `pnpm qa:seed` reports differences from the intended state             | QA data was changed by hand. Run `pnpm qa:reset --yes`, then `pnpm qa:seed`.                                                                                                              |
-| `pnpm qa:reset` refuses                                                | It names the container or setting that doesn't match. Usually the stack isn't running (`pnpm qa:up`). Don't work around it.                                                               |
-
-## Tests
+The development database starts empty. While the API is running, you can load the demo data with:
 
 ```sh
-pnpm nx run-many -t lint typecheck test build   # CI's check job (API tests use an in-memory MongoDB)
+pnpm dev:seed
+```
+
+This adds 4 users, 14 pets and 13 applications covering every status. It goes through the normal API and only adds what is missing, so it is safe to run again. You can then sign in as `ana@demo.example.com`, `marko@demo.example.com`, `jelena@demo.example.com` or `luka@demo.example.com`. All four accounts use the local demo password `demo-password`.
+
+### 4. Make yourself an admin (optional)
+
+Register in the app, then run:
+
+```sh
+pnpm admin:grant you@example.com          # dry run: shows the target database and the change
+pnpm admin:grant you@example.com --yes    # applies it
+```
+
+The command uses `MONGODB_URI` from `apps/api/.env` or the environment, so check the database shown in the dry run before you add `--yes`. After that, the **Admin** item appears in the account menu.
+
+### Stopping and data
+
+Stop the API and the web app with Ctrl+C. `docker compose stop` stops MongoDB and keeps its data. The development data lives in the Docker volume `pet-adoption-system_mongodb_data`, with photos in `apps/api/uploads/`.
+
+> `docker compose down -v` and Docker's "purge data" options delete that volume, including your development database.
+
+### Docker QA environment (optional)
+
+A separate Docker stack runs the production-style images: the web app served by nginx and the bundled API. It has its own MongoDB server, database and volumes, so it never touches your development data. It is used for manual testing.
+
+1. Copy `.env.example` to `.env` in the repository root and set `QA_SESSION_SECRET` (32+ random characters).
+2. Use the QA scripts:
+
+| Command               | What it does                                                               |
+| --------------------- | -------------------------------------------------------------------------- |
+| `pnpm qa:up`          | Builds the images and starts the stack                                     |
+| `pnpm qa:ps`          | Shows container health                                                     |
+| `pnpm qa:logs`        | Follows the logs (`pnpm qa:logs api` for one service)                      |
+| `pnpm qa:seed`        | Loads the same demo data as `dev:seed`                                     |
+| `pnpm qa:reset --yes` | Deletes all QA data (without `--yes`, it only shows what would be deleted) |
+| `pnpm qa:down`        | Stops the stack and keeps its data                                         |
+
+Open the app at **http://127.0.0.1:4203**, using `127.0.0.1` rather than `localhost`. The QA API accepts only that origin, and using a different host name keeps QA cookies separate from development. The API listens on port 3336 and MongoDB on 27019.
+
+### Ports at a glance
+
+| Environment       | Web app               | API                   | MongoDB                       |
+| ----------------- | --------------------- | --------------------- | ----------------------------- |
+| Local development | http://localhost:4200 | http://localhost:3333 | 27018 (Docker)                |
+| Docker QA         | http://127.0.0.1:4203 | http://127.0.0.1:3336 | 27019 (Docker)                |
+| E2E tests         | http://localhost:4201 | http://localhost:3334 | in memory, started by the run |
+
+Because each environment uses different ports and data, they can run at the same time.
+
+## Testing
+
+| Level             | Tools                                    | What it covers                                                                                                                                 |
+| ----------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit / component  | Vitest, Testing Library                  | Web components, hooks and form validation, with the HTTP layer replaced by a mock adapter, and the Pages proxy logic                           |
+| API / integration | Vitest, Supertest, mongodb-memory-server | HTTP endpoints against a real in-memory MongoDB replica set: authorization, validation, rate limits, transactions and concurrency, and uploads |
+| End-to-end        | Playwright                               | Key user journeys in a browser against a production build of the web app, with its own API and a throwaway database                            |
+
+```sh
+pnpm nx run-many -t lint typecheck test build   # all lint, typecheck, unit/API test and build targets
 pnpm nx test @pet-adoption/api                  # one project's tests
-pnpm nx e2e @pet-adoption/web-e2e               # Playwright E2E against a production build (CI's e2e job; starts its own servers)
+pnpm nx e2e @pet-adoption/web-e2e               # Playwright E2E (starts its own servers)
 ```
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `master` and `develop`: a production dependency audit (fails on high or critical advisories), then lint, typecheck, tests and builds. A second job runs the Playwright E2E tests against a production build of the web app and uploads traces and screenshots when a test fails. Manual QA on Docker QA follows [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md).
+None of these need a running MongoDB or `.env` files. On the first run, the API tests download a MongoDB binary.
+
+[GitHub Actions](.github/workflows/ci.yml) runs on every push and pull request to `master` and `develop`. The first job runs a production dependency audit and then lint, typecheck, tests and builds. A second job runs the E2E tests and uploads traces and screenshots when a test fails.
+
+## Deployment
+
+The [live demo](https://pet-adoption-26o.pages.dev) runs on managed free tiers:
+
+| Component             | Provider         | Role                                                                               |
+| --------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| Web app and API proxy | Cloudflare Pages | Serves the static Vite build. A Pages Function forwards `/api` requests to the API |
+| API                   | Render           | Runs the API's Docker image ([apps/api/Dockerfile](apps/api/Dockerfile))           |
+| Database              | MongoDB Atlas    | Hosted MongoDB replica set                                                         |
+| Photos                | Cloudinary       | Stores the re-encoded pet photos and serves them to browsers                       |
+
+The settings these services need are documented, without real values, in [.env.render.example](.env.render.example).
+
+The repository also contains a self-hosted alternative that was prepared and tested locally but not used for the demo: the same Docker images behind Caddy on a single VM ([docker-compose.prod.yml](docker-compose.prod.yml), [Caddyfile](Caddyfile)). It is described in [docs/deployment.md](docs/deployment.md).
 
 ## Documentation
 
-| Document                                                                                     | What it covers                                                                                               |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [docs/requirements.md](docs/requirements.md)                                                 | Roles, workflows, business rules, rate limits, known limitations                                             |
-| [docs/architecture.md](docs/architecture.md)                                                 | Mermaid diagrams of the system, request pipeline, auth, admin, data model, adoption workflow, Docker and E2E |
-| [docs/production-readiness.md](docs/production-readiness.md)                                 | Verified security controls, launch blockers, recommendations and open decisions                              |
-| [docs/deployment.md](docs/deployment.md)                                                     | Deployment plan and production reference (topology, env vars, proxy, backups, smoke test, rollback)          |
-| [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)                                   | How to run manual QA: suites and choosing cases                                                              |
-| [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv)                               | The manual test-case catalog                                                                                 |
-| [docs/design-system.md](docs/design-system.md), [docs/ux-benchmark.md](docs/ux-benchmark.md) | UI tokens and components; the UX research (historical)                                                       |
-| [docs/progress.md](docs/progress.md)                                                         | Current status, open issues and next steps                                                                   |
+| Document                                                     | Contents                                                                         |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| [docs/requirements.md](docs/requirements.md)                 | Roles, workflows, business rules, rate limits and known limitations              |
+| [docs/architecture.md](docs/architecture.md)                 | Mermaid diagrams of the system, request pipeline, auth, data model and workflows |
+| [docs/design-system.md](docs/design-system.md)               | UI tokens, components and form conventions                                       |
+| [docs/production-readiness.md](docs/production-readiness.md) | Security controls in place and the gaps before real users                        |
+| [docs/deployment.md](docs/deployment.md)                     | The self-hosted deployment plan and production configuration reference           |
 
-## Known limitations
+## Scope and limitations
 
-- **Not deployed yet.** There is no production configuration, monitoring or backup yet; see [docs/production-readiness.md](docs/production-readiness.md) and [docs/deployment.md](docs/deployment.md).
-- No email verification, password reset or account deletion; no privacy notice yet.
-- Messaging between owners and interested users is basic: text only, no notifications, unread counts or live updates.
-- Users can't report listings or accounts to admins yet.
-- Rate limits are kept in memory and photos on local disk, which suits a single API instance only.
+This is a portfolio project, not a service for real adoptions. It has no organization behind it and no legal or privacy framework, and it is hosted on free tiers. Some features a real service would need are out of scope for now:
 
-More detail: [docs/requirements.md](docs/requirements.md#known-limitations).
+- No email verification, password reset or account deletion.
+- Messaging is basic: text only, with no notifications, unread counts or live updates.
+- Users can't report listings or accounts. Admins act on what they find themselves.
+- Rate limits are kept in memory, which suits a single API instance.
+
+The full list is in [docs/requirements.md](docs/requirements.md#known-limitations).
