@@ -6,10 +6,14 @@
 
 # Local data, secrets and tooling
 apps/api/uploads
-# Production backups live outside the repository (/var/backups/pet-adoption);
-# these only catch a dump or archive left here by mistake.
-backups
+# Backups are kept outside the repository (deployment.md §8). These only keep
+# a dump or archive left here by mistake out of the build context, which
+# `COPY . .` would otherwise send to the builder: mongodump's default `dump/`
+# folder, archives and their encrypted copies.
+**/backups
+dump
 **/*.archive.gz
+**/*.archive.gz.7z
 **/uploads-*.tar.gz
 **/.env
 **/.env.*

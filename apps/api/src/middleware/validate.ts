@@ -25,6 +25,14 @@ export const parseInput = <T extends z.ZodType>(
   return result.data;
 };
 
+/**
+ * For `z.preprocess`: an empty string counts as "not set", so `?species=` or
+ * an empty optional field falls back to the default instead of failing an
+ * enum or number check.
+ */
+export const emptyToUndefined = (value: unknown): unknown =>
+  value === '' ? undefined : value;
+
 export const validateBody = (schema: z.ZodType) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {

@@ -6,11 +6,9 @@ import type {
 import type { Pet, PetListQuery, PetStatus } from './pet.model.js';
 import type { User, UserRole } from './user.model.js';
 
-/**
- * Types of the administration API (`/api/admin`, admins only). Responses
- * contain only what the admin pages show: no password hashes, sessions or
- * application messages.
- */
+// Types of the administration API (`/api/admin`, admins only). Responses
+// contain only what the admin pages show: no password hashes, sessions,
+// application messages or conversations.
 
 /** A user's identity as shown next to pets and applications. */
 export type UserSummary = Pick<User, '_id' | 'name' | 'email'>;

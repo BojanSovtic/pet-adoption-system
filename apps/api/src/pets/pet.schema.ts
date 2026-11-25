@@ -19,6 +19,8 @@ import {
   type UpdatePetInput,
 } from '@pet-adoption/models';
 
+import { emptyToUndefined } from '../middleware/validate';
+
 const compatibilityValue = z
   .enum(PET_COMPATIBILITY_VALUES)
   .default(DEFAULT_PET_PROFILE.compatibility.children);
@@ -53,9 +55,6 @@ export const createPetSchema = z.object({
 // PUT replaces all client-editable fields, so it validates the full shape.
 export const updatePetSchema =
   createPetSchema satisfies z.ZodType<UpdatePetInput>;
-
-// Query strings: an empty value (e.g. "?species=") means "not set".
-const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
 
 /** Caps how deep offset pagination can skip (keeps `skip` cheap). */
 const MAX_PAGE = 10_000;

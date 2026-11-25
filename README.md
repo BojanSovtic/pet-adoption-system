@@ -234,6 +234,22 @@ None of these need a running MongoDB or `.env` files. On the first run, the API 
 
 [GitHub Actions](.github/workflows/ci.yml) runs on every push and pull request to `master` and `develop`. The first job runs a production dependency audit and then lint, typecheck, tests and builds. A second job runs the E2E tests and uploads traces and screenshots when a test fails.
 
+### Manual testing
+
+Manual tests run on the [Docker QA environment](#docker-qa-environment-optional) with its seeded demo data. The cases, with preconditions, steps and expected results, are in [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv) (filterable in Excel). In the cases, "Owner" is `ana@`, "Adopter" `jelena@`, "Adopter 2" `luka@`, "Another user" `marko@` (all `@demo.example.com`) and "Visitor" is signed out. For several users at once, use a normal window, a private window and a second browser.
+
+| When                                                                    | Run                                                                                                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| After a change users will notice                                        | The `Smoke` cases, plus the cases whose `Run When Changed` has the changed area's tag and whose `Automation Coverage` is "Partially covered" or "Manual only" |
+| After changing Dockerfiles, Compose files, `nginx.conf` or env handling | The `Docker` cases                                                                                                                                            |
+| Before a release or a merge to `master`, and about once a month         | `pnpm qa:reset --yes` and `pnpm qa:seed`, then `Smoke`, `Release` and `Docker`                                                                                |
+
+- **Tags** are feature areas (`auth`, `pets`, `pet-list`, `uploads`, `applications`, `messaging`, `profiles`, `admin`, `i18n`). Less obvious ones: `http` (web API client, query client, API error handler and validation), `routing` (router, app shell), `docker` (images, Compose, nginx, env, QA scripts) and `demo-scripts` (`apps/api/src/scripts`).
+- **Seed data:** some cases change seeded data for good (their preconditions say so); reset QA to repeat them. Run AUTH-010 last: it triggers the sign-in limit (`pnpm qa:down` and `pnpm qa:up` reset the counters and keep the data).
+- **Failures:** fix them, or record them under open issues in [docs/progress.md](docs/progress.md); afterwards rerun the failed cases and the smoke cases.
+- **New features:** add cases for new user-visible behaviour with a new ID, and update cases whose steps or texts changed. Never reuse or renumber IDs.
+- **Not covered by hand:** HTTP 500 responses, two decisions at the same instant, the write rate limits and 7-day session expiry. The API tests cover the first three.
+
 ## Deployment
 
 The [live demo](https://pet-adoption-26o.pages.dev) runs on managed free tiers:

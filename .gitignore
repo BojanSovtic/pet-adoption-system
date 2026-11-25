@@ -18,10 +18,12 @@ out-tsc/
 # User-uploaded files (local file storage)
 apps/api/uploads/
 
-# Database dumps and photo archives (production backups belong in
-# /var/backups/pet-adoption on the server, never in the repository)
+# Database dumps and photo archives. Backups are kept outside the repository
+# (deployment.md §8); these catch one left here by mistake.
 backups/
+/dump/
 *.archive.gz
+*.archive.gz.7z
 uploads-*.tar.gz
 
 # Test / coverage output

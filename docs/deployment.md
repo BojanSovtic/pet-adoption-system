@@ -296,7 +296,7 @@ What must be recoverable: the **database** (Atlas) and the **photos** (the `pet-
 | `/var/backups/pet-adoption/restore-drill/` | Downloads for the restore drill and for real recovery | no |
 | `/var/backups/pet-adoption/backup.log` | The cron log | no |
 
-Backups are kept **outside `/opt/pet-adoption`** on purpose. That directory is the Docker build context: `dc build` sends its contents to the builder, so a dump inside it could end up in an image layer or the build cache. (`.dockerignore` and `.gitignore` also exclude `backups/`, `*.archive.gz` and `uploads-*.tar.gz` as a safety net.)
+Backups are kept **outside `/opt/pet-adoption`** on purpose. That directory is the Docker build context: `dc build` sends its contents to the builder, so a dump inside it could end up in an image layer or the build cache. (`.dockerignore` and `.gitignore` also exclude `backups/`, mongodump's default `dump/`, `*.archive.gz` (and encrypted `*.archive.gz.7z` copies) and `uploads-*.tar.gz` as a safety net.)
 
 ### What the script does
 

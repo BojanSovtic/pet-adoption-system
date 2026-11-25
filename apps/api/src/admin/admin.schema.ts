@@ -16,10 +16,8 @@ import {
   type UpdateUserRoleInput,
 } from '@pet-adoption/models';
 
+import { emptyToUndefined } from '../middleware/validate';
 import { petListQuerySchema } from '../pets/pet.schema';
-
-// Query strings: an empty value (e.g. "?role=") means "not set".
-const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
 
 /** Caps how deep offset pagination can skip (keeps `skip` cheap). */
 const MAX_PAGE = 10_000;

@@ -8,14 +8,13 @@ import {
   type SendMessageInput,
 } from '@pet-adoption/models';
 
+import { emptyToUndefined } from '../middleware/validate';
+
 // Only the text comes from the client. Sender, conversation, pet and time are
 // set by the server; unknown fields (e.g. `sender`) are stripped.
 export const sendMessageSchema = z.object({
   body: z.string().trim().min(1).max(CONVERSATION_MESSAGE_MAX_LENGTH),
 }) satisfies z.ZodType<SendMessageInput>;
-
-// Query strings: an empty value (e.g. "?page=") means "not set".
-const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
 
 const objectIdString = z.string().regex(/^[0-9a-f]{24}$/i);
 

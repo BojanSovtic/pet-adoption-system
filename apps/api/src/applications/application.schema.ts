@@ -8,14 +8,13 @@ import {
   type MyApplicationListQuery,
 } from '@pet-adoption/models';
 
+import { emptyToUndefined } from '../middleware/validate';
+
 // Only the message comes from the client. Pet, applicant and status are set
 // by the server; unknown fields are stripped.
 export const createApplicationSchema = z.object({
   message: z.string().trim().min(1).max(APPLICATION_MESSAGE_MAX_LENGTH),
 }) satisfies z.ZodType<CreateApplicationInput>;
-
-// Query strings: an empty value (e.g. "?page=") means "not set".
-const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
 
 /** Caps how deep offset pagination can skip (keeps `skip` cheap). */
 const MAX_PAGE = 10_000;

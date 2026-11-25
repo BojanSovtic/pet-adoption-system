@@ -113,6 +113,15 @@ Details and primitives in [docs/design-system.md](docs/design-system.md).
 
 `docs/learning/` (gitignored) holds the owner's personal learning notes. Touch it only when the owner explicitly asks for learning notes or a learning session, and then follow [docs/learning/CONVENTIONS.md](docs/learning/CONVENTIONS.md). During normal development, never create, update or delete anything there.
 
+## Documentation upkeep
+
+Part of every feature or behaviour change, not a separate task:
+
+- Identify the source-of-truth documents the change affects: `docs/requirements.md` (behaviour, rules), `docs/architecture.md` (structure, flows), `README.md` (features, setup, commands), `docs/deployment.md` and `.env*.example` (configuration, operations), `docs/manual-qa-test-cases.csv` (user-visible behaviour, see README "Manual testing"), `docs/progress.md` (status) and this file (conventions).
+- Update only those. Each fact lives in one document; elsewhere, link to it instead of repeating it.
+- Check every edit against the implemented code; don't describe planned behaviour as implemented.
+- In the report, list the documents updated, or say that none needed changes.
+
 ## Architecture documentation
 
 - Keep `docs/architecture.md` concise and focused on major system flows and relationships.

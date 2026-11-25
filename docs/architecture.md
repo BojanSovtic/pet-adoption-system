@@ -210,8 +210,8 @@ sequenceDiagram
     C-->>UI: 401 UNAUTHENTICATED → getCurrentUser returns null
   else session found
     C->>DB: users.findById(userId)
-    alt user deleted
-      C->>DB: destroy session
+    alt user deleted or suspended
+      C->>DB: endUserSession: delete session document
       C-->>UI: 401 UNAUTHENTICATED (cookie cleared)
     else user exists
       C-->>UI: 200 public User incl. role (toPublicUser: no passwordHash; missing role → user)
@@ -221,13 +221,13 @@ sequenceDiagram
   UI->>C: POST /api/auth/logout
   C->>DB: endUserSession: delete session document
   C-->>UI: 204 + cleared sid cookie
-  UI->>UI: setQueryData(['auth','me'], null)
+  UI->>UI: setCurrentUser(null): remove per-user caches, ['auth','me'] = null
 ```
 
 - **Session fixation:** `startUserSession` always regenerates the session id. Tests confirm the pre-login cookie stops working.
 - **CSRF:** `SameSite=Lax` plus `requireTrustedOrigin`, with no CSRF tokens. Requests without an `Origin` header (non-browser clients) are allowed.
 - **Authentication vs authorization.**
-  - `requireAuth` (`auth/require-auth.ts`) only answers "who is signed in?". It also rejects sessions whose user was deleted.
+  - `requireAuth` (`auth/require-auth.ts`) only answers "who is signed in?". It also rejects sessions whose user was deleted or suspended (§3c).
   - Ownership ("may this user change this pet?") lives in the pet service queries.
   - The admin role is checked by `requireAdmin` (§3c). Browsing pets stays public.
 - **Separate from the sign-in method:** `startUserSession` and `endUserSession` take only a user id. A future OAuth/OIDC callback would find or create a user and call the same function.
@@ -384,7 +384,7 @@ erDiagram
   - **Lists:** `GET /api/conversations` is paginated (default 10, at most 50) by latest activity (`lastMessage.createdAt`, `_id`), with an optional `pet` filter (used by the pet page); indexes `{ adopter | petOwner, lastMessage.createdAt: -1, _id: -1 }`. `GET /api/conversations/:id/messages?before=<id>` returns 30 messages, oldest first, plus `hasOlder` (index `{ conversation, _id: -1 }`).
   - **Deleting a pet** deletes its conversations and messages in the same transaction (`deleteOwnedPet`).
 - **Pet profile facts** (`sex`, `breed`, `compatibility`, `aloneTime`) are optional in the API input. Pets stored before they existed lack them; `withProfileDefaults` fills `unknown`/empty in every response, so no migration is needed.
-- **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are backfilled or removed (see progress.md).
+- **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are removed. Only early development data can be affected; `owner` has been required since 2026-10-20, before the first deployment.
 - **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.
 - **Pet list index:** `{ createdAt: -1, _id: -1 }` serves the default "newest" order (and "oldest", read backwards) without an in-memory sort. Name search (a case-insensitive "contains" match) and species/status filters are not indexed: a contains-regex can't use an index efficiently, and the filters have only three values each.
 - **`petOwner` is a copy of the pet's owner,** set when the application is submitted, so `GET /applications/received` can filter, sort and page one collection instead of first loading all of the owner's pet ids. Pets never change owner, so the copy can't go stale. Applications created before the field existed are filled in at API startup (`backfillApplicationPetOwners`).
