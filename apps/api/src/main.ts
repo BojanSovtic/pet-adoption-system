@@ -1,10 +1,8 @@
 import { app } from './app';
-import { backfillApplicationPetOwners } from './applications/application.service';
-import { connectDatabase, disconnectDatabase } from './config/database';
-import { backfillPetImages } from './pets/pet.service';
-import { env } from './config/env';
+import { connectDatabase, disconnectDatabase } from './core/config/database';
+import { env } from './core/config/env';
 import { listen } from './listen';
-import { logger, serializeError } from './logging/logger';
+import { logger, serializeError } from './core/logging/logger';
 
 // Errors nothing caught. Logged as JSON, then the process exits as Node would
 // by default, so a supervisor (Docker, the platform) restarts it.
@@ -24,22 +22,6 @@ const bootstrap = async () => {
   });
 
   await connectDatabase(env.mongodbUri);
-
-  // One-time data fix for applications created before `petOwner` existed.
-  const backfilled = await backfillApplicationPetOwners();
-
-  if (backfilled > 0) {
-    logger.info('backfilled petOwner on applications', { count: backfilled });
-  }
-
-  // One-time data fix for pets saved with a single `imageKey`.
-  const convertedPets = await backfillPetImages();
-
-  if (convertedPets > 0) {
-    logger.info('moved single pet photos into images', {
-      count: convertedPets,
-    });
-  }
 
   // Rejects (e.g. port in use) into the startup error handler below.
   const server = await listen(app, env.port, env.host);

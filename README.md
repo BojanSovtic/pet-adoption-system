@@ -243,11 +243,13 @@ Manual tests run on the [Docker QA environment](#docker-qa-environment-optional)
 | After a change users will notice                                        | The `Smoke` cases, plus the cases whose `Run When Changed` has the changed area's tag and whose `Automation Coverage` is "Partially covered" or "Manual only" |
 | After changing Dockerfiles, Compose files, `nginx.conf` or env handling | The `Docker` cases                                                                                                                                            |
 | Before a release or a merge to `master`, and about once a month         | `pnpm qa:reset --yes` and `pnpm qa:seed`, then `Smoke`, `Release` and `Docker`                                                                                |
+| When a full run isn't practical                                         | `Smoke` plus the `Release` cases of one area, a different area each time                                                                                      |
+| After deploying the live demo                                           | The smoke test in [docs/deployment.md](docs/deployment.md#smoke-test)                                                                                         |
 
 - **Tags** are feature areas (`auth`, `pets`, `pet-list`, `uploads`, `applications`, `messaging`, `profiles`, `admin`, `i18n`). Less obvious ones: `http` (web API client, query client, API error handler and validation), `routing` (router, app shell), `docker` (images, Compose, nginx, env, QA scripts) and `demo-scripts` (`apps/api/src/scripts`).
 - **Seed data:** some cases change seeded data for good (their preconditions say so); reset QA to repeat them. Run AUTH-010 last: it triggers the sign-in limit (`pnpm qa:down` and `pnpm qa:up` reset the counters and keep the data).
 - **Failures:** fix them, or record them under open issues in [docs/progress.md](docs/progress.md); afterwards rerun the failed cases and the smoke cases.
-- **New features:** add cases for new user-visible behaviour with a new ID, and update cases whose steps or texts changed. Never reuse or renumber IDs.
+- **New features:** add cases for new user-visible behaviour with a new ID, update cases whose steps or texts changed, and update `Automation Coverage` when a case gets automated tests. Never reuse or renumber IDs.
 - **Not covered by hand:** HTTP 500 responses, two decisions at the same instant, the write rate limits and 7-day session expiry. The API tests cover the first three.
 
 ## Deployment
@@ -261,19 +263,19 @@ The [live demo](https://pet-adoption-26o.pages.dev) runs on managed free tiers:
 | Database              | MongoDB Atlas    | Hosted MongoDB replica set                                                         |
 | Photos                | Cloudinary       | Stores the re-encoded pet photos and serves them to browsers                       |
 
-The settings these services need are documented, without real values, in [.env.render.example](.env.render.example).
+The settings these services need are documented, without real values, in [.env.render.example](.env.render.example). Releases, the smoke test, rollback and backups are in [docs/deployment.md](docs/deployment.md#live-demo-managed-hosting).
 
 The repository also contains a self-hosted alternative that was prepared and tested locally but not used for the demo: the same Docker images behind Caddy on a single VM ([docker-compose.prod.yml](docker-compose.prod.yml), [Caddyfile](Caddyfile)). It is described in [docs/deployment.md](docs/deployment.md).
 
 ## Documentation
 
-| Document                                                     | Contents                                                                         |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| [docs/requirements.md](docs/requirements.md)                 | Roles, workflows, business rules, rate limits and known limitations              |
-| [docs/architecture.md](docs/architecture.md)                 | Mermaid diagrams of the system, request pipeline, auth, data model and workflows |
-| [docs/design-system.md](docs/design-system.md)               | UI tokens, components and form conventions                                       |
-| [docs/production-readiness.md](docs/production-readiness.md) | Security controls in place and the gaps before real users                        |
-| [docs/deployment.md](docs/deployment.md)                     | The self-hosted deployment plan and production configuration reference           |
+| Document                                                     | Contents                                                                                                        |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| [docs/requirements.md](docs/requirements.md)                 | Roles, workflows, business rules, rate limits and known limitations                                             |
+| [docs/architecture.md](docs/architecture.md)                 | Mermaid diagrams of the system, request pipeline, auth, data model and workflows; how the API code is organised |
+| [docs/design-system.md](docs/design-system.md)               | UI tokens, components and form conventions                                                                      |
+| [docs/production-readiness.md](docs/production-readiness.md) | Security controls in place and the gaps before real users                                                       |
+| [docs/deployment.md](docs/deployment.md)                     | Operating the live demo, and the self-hosted deployment plan and configuration reference                        |
 
 ## Scope and limitations
 

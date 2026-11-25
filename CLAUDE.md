@@ -2,16 +2,16 @@
 
 Learning/portfolio project: users browse and post pets for adoption, apply to adopt pets posted by others, and owners review the applications. The owner is experienced with Vue + TypeScript and is learning React, Express and MongoDB here.
 
-**Before continuing development, read [docs/progress.md](docs/progress.md)** for current status, open issues and next steps. Update it when a task is completed.
+**Current phase:** the first functional demo is deployed (2026-11-18). The project is now in a maintenance, learning and incremental-development phase. Features can be added, but understanding the code, maintainability, tests and consistent architecture come first. Avoid large feature expansions without a clear reason, and don't add features or polish the owner hasn't asked for.
 
-**Scope is frozen for the first deployment.** Work on the blockers in [docs/production-readiness.md](docs/production-readiness.md) §2 and the deployment; don't add features or polish unless the owner asks.
+**Before continuing development, read [docs/progress.md](docs/progress.md)** for the current state, known issues and next steps. Update it when a task is completed.
 
 Read the other docs only when the task needs them:
 
-- [docs/requirements.md](docs/requirements.md): user roles, workflows and business rules. Consult it when working on business logic, user-facing behavior, authorization, or tests of those. Update it when behavior changes.
-- [docs/architecture.md](docs/architecture.md): Mermaid diagrams of the current architecture (system, request pipeline, auth, data model, adoption workflow, Docker, E2E). Consult it when architectural context is relevant; update the affected diagram when the structure changes.
-- [docs/production-readiness.md](docs/production-readiness.md): verified security controls, deployment blockers, recommendations and open decisions.
-- [docs/deployment.md](docs/deployment.md): the deployment plan and production configuration (topology, env vars, proxy, backups, smoke test, rollback). Consult it for deployment or production-config work.
+- [docs/requirements.md](docs/requirements.md): what the app does (roles, workflows, business rules, limits). Consult it for business logic, user-facing behaviour, authorization, or tests of those.
+- [docs/architecture.md](docs/architecture.md): how it works (system, request pipeline, API code organisation in §2c, auth, data model, adoption workflow, environments). Consult it when architectural context is relevant.
+- [docs/deployment.md](docs/deployment.md): the live demo's managed hosting ("Live demo" section) and the self-hosted reference configuration. Consult it for deployment or production-config work.
+- [docs/production-readiness.md](docs/production-readiness.md): verified security controls, open blockers before real users, open decisions.
 
 ## Testing policy (risk-based)
 
@@ -28,36 +28,46 @@ Before running anything expensive, look at what changed and pick the checks that
 - Don't rerun the full E2E suite for routine, unrelated changes. When skipping it, say why in one line.
 - Rerun a check only after a failure or a further code change.
 - Risk-based means choosing the right tests, not avoiding them: never skip a check a change actually needs.
-- API tests hash passwords with cheap Argon2 parameters (`enableTestPasswordHashing` in `src/test/setup.ts`; refused outside Vitest and in production). Production parameters are pinned in `auth/password.ts` and checked in `password.spec.ts`; E2E uses them too.
+- New user-visible behaviour also gets cases in `docs/manual-qa-test-cases.csv` (README "Manual testing").
 
 ## Architecture
 
-Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Third-party dependencies are declared in the root `package.json`; app `package.json` files declare workspace dependencies. Exception: the API's runtime dependencies (everything its bundle `require`s) are also listed in `apps/api/package.json`, with the same version ranges as the root, because the Nx `prune` target (used by the Docker image) builds the production install from it. Add and upgrade API runtime packages in both places. CI fails on high or critical advisories in production dependencies (`pnpm audit --prod --audit-level high`).
+Nx 23 + pnpm monorepo, package scope `@pet-adoption`. Structure and flows are in [docs/architecture.md](docs/architecture.md); the rules below are the ones that are easy to break.
 
-- `apps/api` (`@pet-adoption/api`): Express 4 + Mongoose 9, bundled with esbuild (shared lib is bundled inline). Layering: `*.routes.ts` → `validateBody(zodSchema)` → `asyncHandler` → `*.controller.ts` → `*.service.ts` → `*.model.ts`. All errors flow to `middleware/error-handler.ts`: throw/forward `AppError` subclasses (`errors/app-error.ts`, incl. `ValidationError`); the handler responds `ApiErrorResponse` and logs only unexpected 500s. Log with `logger` (`logging/logger.ts`, JSON lines, `LOG_LEVEL`), never `console`, and pass only explicit safe fields (ids, counts, `err: serializeError(error)`): never bodies, headers, query strings, emails, names or whole request/user objects. `requestLogger` (first middleware) sets `X-Request-Id`, and the request id is added to log lines automatically; tests capture logs with `test/log-capture.ts` (tests run with `LOG_LEVEL=silent`). Env is validated at startup in `config/env.ts` (reads `apps/api/.env`). `app.ts` is separate from `main.ts` so supertest can use `app` directly.
-- `apps/web` (`@pet-adoption/web`): React 19, React Router 6 (`createBrowserRouter`), TanStack Query, Tailwind 4 + shadcn/ui (`components/ui`), react-i18next (`en`, `sr`; namespaces `common`, `pets`, `auth`, `applications`, `admin`, `messages`, `profile`; the header selector saves the language in `localStorage`, read in `i18n/config.ts`; store translation keys in state and translate on render so a language change applies), sonner toasts, zod for form validation. Feature folders: `src/features/<feature>/{api,components,hooks,pages,utils}`; shared UI in `src/components` (`ui/` = primitives), shared helpers in `src/lib`, app wiring (router, query client, shell) in `src/app`. `@/*` aliases `src/*`. Error handling responsibilities:
-  - `src/lib/api-client.ts` (transport): the Axios instance `http` (`baseURL` = `VITE_API_URL`, `withCredentials: true`). Its response interceptor turns every failure into `ApiError { status, code, details }` (no response → `NETWORK_ERROR`, status 0; cancellations pass through). API functions call `http.get/post/...` and return `data`. No UI, retries or translation here. Tests replace the transport with `http.defaults.adapter` (`lib/testing/mock-http-adapter.ts`).
-  - `src/app/query-client.ts` (policy): retry only network/5xx; global toast for mutation errors and background refetch errors, opt out with `meta: { skipGlobalErrorToast: true }` (typed via `Register`).
-  - `src/lib/get-error-message.ts`: `getErrorMessage` (code → `common:errors.*`) and `getFieldErrors` (validation `details` → `common:validation.*`).
-  - Features: inline error/not-found states and mapping field errors to inputs.
-- `packages/shared/models` (`@pet-adoption/models`): types and constants shared by API and web (`Pet`, `CreatePetInput`, `PET_SPECIES`, length limits, `ApiErrorResponse`). Plain TypeScript, no runtime dependencies; zod schemas stay in each app (`satisfies z.ZodType<...>` keeps API schemas in sync). Linked via pnpm workspaces (`workspace:*` in each app's `package.json`).
-- Authentication (API): server-side sessions (`express-session` + `connect-mongo`, `sessions` collection, reusing Mongoose's client), HttpOnly `sid` cookie (`SameSite=Lax`, `Secure` in production), Argon2id passwords (`argon2`). Layers kept separate so other sign-in methods (OAuth/OIDC) can be added later:
-  - `users/` = identity (`UserModel`, `toPublicUser`; `passwordHash` is `select: false` and optional).
-  - `auth/auth.service.ts` = the password method; `auth/session.ts` = `startUserSession(req, userId)` (regenerates the id) / `endUserSession` — independent of the sign-in method.
-  - CSRF: `SameSite=Lax` + `middleware/require-trusted-origin.ts` (unsafe methods with a foreign `Origin` → 403 `UNTRUSTED_ORIGIN`). CORS uses `credentials: true`; the web `http` client sends cookies (`withCredentials: true`).
-  - Rate limiting (`middleware/rate-limit.ts`, all values there): per-IP limit on `/login` + `/register`, per-IP+email limit on failed logins; per-user write limits (`USER_WRITE_LIMITS`: applications, new pets, photo uploads, messages, other changes; burst + daily window) right after `requireAuth`, keyed by `res.locals.auth.userId`; a per-IP limit on all writes outside `/api/auth` (`WRITES_PER_IP`, mounted in `app.ts`) → 429 `RATE_LIMITED`. New write routes need a per-user limiter. Tests reset counters in `test/setup.ts`; tests that hash many passwords need a longer timeout.
-  - Authorization: `auth/require-auth.ts` (`requireAuth` → 401, before validation; `getAuthenticatedUserId(req)` in handlers). Ownership lives in services as owner-scoped queries (`{ _id, owner }`); non-owner → 403 `NOT_PET_OWNER`. Owner ids always come from the session, never the body. API tests sign in with `createSignedInAgent()` (`test/auth-test-helpers.ts`).
-  - Roles (`USER_ROLES`: `user` | `admin`; no shelter role, ownership is per pet): `User.role` (missing = `user`). `requireAuth` reads `role` + `suspendedAt` from MongoDB on every request (never from the session or client; suspended → session ended, 403 `ACCOUNT_SUSPENDED`) and passes them in `res.locals.auth`; `requireAdmin` (same file) is mounted on the whole `/api/admin` router, followed by per-admin rate limits (`adminReadRateLimit`/`adminWriteRateLimit`, keyed by user id). Role and suspension changes go only through `admin/user-role.service.ts` (`changeUserRole`, `suspendUser`, `reinstateUser`: guard document first, actor must be an active admin, no own account, never the last admin, admins can't be suspended); listing moderation through `admin/pet-moderation.service.ts` (`hidePet`/`restorePet`: lockPet first; `Pet.hiddenAt` is never in owner input; public list/details exclude hidden pets except for owner/admins; applying to a hidden pet → 404; a suspended applicant's application can be rejected but not accepted → 409 `APPLICANT_SUSPENDED`). Every admin change runs through `runAudited` (`admin/admin-audit.service.ts`: change + audit entry in one transaction; refused AppErrors recorded as `denied`); list views of personal data are recorded (`*.viewed`, no search text). The audit log is a hash chain (HMAC with optional `AUDIT_HMAC_KEY`), append-only in the app (model hooks), checked by `pnpm audit:verify`; tamper-evident, not tamper-proof. CLI tools (`admin:grant|revoke`, `audit:verify`) load only `config/env-file.ts` (`MONGODB_URI`, `AUDIT_HMAC_KEY`), never `config/env.ts`. Registration never sets a role. Applications stay read-only for admins; no bypass of ownership or the adoption state machine. Tests make admins with `UserModel.updateOne(... { role: 'admin' })`; E2E runs the real `admin:grant` against the E2E DB (fixed port 27031, `web-e2e/src/support/admin.ts`).
-- Authentication (web): current user = TanStack query `['auth', 'me']` (`useCurrentUser`; `getCurrentUser` maps 401 to `null`). Login/register/logout set that cache entry; `query-client.ts` sets it to `null` on any `UNAUTHENTICATED` error. Pages that need sign-in redirect to `/login` with `state.from`; ownership UI uses `isPetOwner` (display only, the API decides).
-- File uploads: files go through the `FileStorage` interface (`apps/api/src/storage/`), selected by `STORAGE_DRIVER` (`config/storage-config.ts`): `local` (default; dev, QA, E2E: disk under `UPLOADS_DIR`, served at `/uploads`) or `cloudinary` (hosted demo: signed REST calls, photos served from Cloudinary's CDN, `/uploads` not mounted). Keep both implementations behind the interface; MongoDB stores only keys (`Pet.images[].key`, at most `PET_IMAGE_MAX_COUNT` = 5, enforced inside the update query; the first photo is the main one, and `POST /pets/:id/images/:imageId/main` moves a photo to the front in one pipeline update); the API returns `images: [{ _id, url }]` plus `imageUrl` (the first photo, for cards and older clients). Old single `imageKey` records are converted at startup (`backfillPetImages`). Validate uploads by content (magic bytes), not filename/MIME, then re-encode them with `sharp` (`processPetImage` in `pets/pet-image.ts`: no metadata, EXIF rotation applied, pixel and size limits; the uploaded bytes are never stored); check auth and ownership before parsing the body; write the new file before the DB update and delete replaced files after it (`deleteStoredFileQuietly`). API tests use a temporary uploads dir (`listStoredFiles` in `test/upload-test-helpers.ts`).
-- Admin area (web, `features/admin`): `/admin` routes under `AdminLayout` (guard: loading → `/login` redirect → "Admins only" → section nav); the Admin link in the header's account menu (`features/auth/components/user-menu.tsx`, a disclosure: My pets, Add a pet, Applications, Messages, My profile, Sign out) shows only for `role === 'admin'` (display only). `ADMIN_REQUIRED` responses refetch `['auth','me']`; `setCurrentUser` also removes `adminQueryKeys.all`.
-- Query keys: use factories (`petQueryKeys`, `applicationQueryKeys`, `conversationQueryKeys`, `userQueryKeys`, `adminQueryKeys`) and put every request parameter in the key. List endpoints (pets, `/applications/mine`, `/applications/received`) are paginated (`Paginated<T>`, shared `components/pagination.tsx`); query strings are validated with zod via `parseInput` (`middleware/validate.ts`). The pet list keeps its state in the URL (`useSearchParams`).
-- Adoption applications (`apps/api/src/applications/`): state machines for applications and pets live in the shared lib (`adoption-application.model.ts`). Status changes only via explicit actions (`/applications/:id/accept|reject|withdraw`), never by setting a status. Every application or pet-status write runs in `withTransaction` (`config/database.ts`) and starts with `lockPet` (the first write serializes concurrent transactions on that pet); pet status changes go through `transitionPetStatus`. Unique partial indexes back the rules. Applications store `petOwner` (copy of `pet.owner`, set on submit) so owner queries never load the owner's pet ids; owner-side queries filter by `petOwner`. Web: per-user caches are cleared via `setCurrentUser` on every identity change.
-- Messaging and profiles (`apps/api/src/conversations/`, `users/user.routes.ts`; web `features/messages`, `features/users`): one `Conversation` per `{ pet, adopter }` with `petOwner` copied from the pet, messages in their own collection (`_id` is the paging cursor). Every conversation query is scoped by the participant filter (`adopter` or `petOwner` = session user), so non-participants get 404 `CONVERSATION_NOT_FOUND`; the sender always comes from the session and views expose `fromMe`, never sender ids or emails. Starting one runs in a transaction with `lockPet` and the application rules; `deleteOwnedPet` deletes a pet's conversations and messages. Public profiles (`GET /api/users/:id[/pets]`, signed-in only) return only `{ _id, name, memberSince }` and listed pets (not hidden, not adopted); `/api/users` has no write routes.
-- MongoDB must be a **replica set** (transactions); the API refuses to start otherwise. Dev: `docker-compose.yml` (single-node `rs0`, host port 27018, `?directConnection=true`). API tests start an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`; first run downloads the MongoDB binary) — no local MongoDB needed. Test DB is dropped/re-indexed once per file, documents cleared after each test, spec files run sequentially (`fileParallelism: false`).
-- Environments: local development, Docker QA and E2E (README, "Running locally"), plus the hosted demo (`docs/architecture.md` §6, "Hosted demo"). Docker: `docker compose up -d` starts only MongoDB for local development. The built images (`apps/api/Dockerfile`: Nx `prune` → bundle + production deps, non-root; `apps/web/Dockerfile`: Vite build served by nginx, `VITE_API_URL` is a build arg and must be browser-reachable) run only in Docker QA and in production: `docker-compose.prod.yml` + `Caddyfile` + `.env.production` (from `.env.production.example`), the same images behind Caddy on an Oracle Cloud Always Free VM with MongoDB Atlas Free; prepared and checked locally, not used (`docs/deployment.md`). The live demo runs on managed free tiers instead: Cloudflare Pages + Pages Function proxy, Render Free, Atlas Free and Cloudinary (`.env.render.example`, `docs/progress.md`). Its manual backup and restore drill are in `docs/learning/archive/managed-ops-runbook.md` (local notes, gitignored); `scripts/backup.sh` doesn't apply there. The local dev database is also named `pet-adoption`, so a restore of a production dump must map namespaces (`--nsFrom 'pet-adoption.*' --nsTo '<other>.*'`). The production compose file derives `CORS_ORIGIN`, `UPLOADS_BASE_URL` and the Caddy site from `SITE_DOMAIN` and sets `TRUST_PROXY=1`; keep it in sync with `config/env.ts`. Production backups: `scripts/backup.sh` (POSIX `sh`, run from cron on the VM; files under `/var/backups/pet-adoption`, never inside the repository, which is the Docker build context). Keep its paths in sync with deployment.md §8 and §9. `.env.production` is read by both Compose and `docker run --env-file`, so it holds plain `NAME=value` lines only. The root `.env` (from `.env.example`) holds only `QA_SESSION_SECRET`. Manual QA runs on the separate `docker-compose.qa.yml` stack (own MongoDB server, database `pet-adoption-qa`, volumes; 127.0.0.1:4203/3336) via `pnpm qa:*` only; its names are checked by `apps/api/src/scripts/qa-config.ts`, so change both together. Seed demo data with `pnpm dev:seed` or `pnpm qa:seed`. The live demo: `pnpm prod:seed` is a dry run; changing it needs `--confirm-prod --confirm-host=<host>` and the owner's explicit go-ahead (never run that yourself). The public README deliberately doesn't document it: for its behaviour read `apps/api/src/scripts/seed-demo.ts` and `demo-config.ts`; background and owner steps are in the owner's local notes (`docs/learning/production-demo-seed-strategy.md`, gitignored). `DEMO_PASSWORD` is the owner's own secret (the demo accounts' login on the live site): never ask for it, print it or write it to a file. Never run `docker compose down -v` on the main project (it holds the dev database).
+**Dependencies.** Third-party dependencies are declared in the root `package.json`; app `package.json` files declare workspace dependencies. Exception: the API's runtime dependencies (everything its bundle `require`s) are also listed in `apps/api/package.json`, with the same version ranges, because the Nx `prune` target (used by the Docker image) builds the production install from it. Add and upgrade them in both places. CI fails on high or critical advisories in production dependencies (`pnpm audit --prod --audit-level high`).
 
-`README.md` describes setup (Docker and local development).
+**API** (`apps/api`: Express 4, Mongoose 9, bundled with esbuild; the shared lib is bundled inline):
+
+- **Where code goes** (architecture.md §2c): `src/features/<area>/` with `<entity>.<role>.ts` files (routes → `validateBody(zodSchema)` → `asyncHandler(controller)` → service → model); infrastructure without business rules in `src/core/` (`config`, `errors`, `logging`, `middleware`, `storage`); command-line tools in `src/scripts/{admin,demo,qa}/`. Features stay flat (no per-layer folders), and production code in `core/` never imports a feature.
+- **Errors:** throw or forward `AppError` subclasses (`core/errors/app-error.ts`); `core/middleware/error-handler.ts` responds `{ code, details? }` and logs only unexpected 500s.
+- **Logging:** `logger` (`core/logging/logger.ts`), never `console`. Pass only explicit safe fields (ids, counts, `err: serializeError(error)`): never bodies, headers, query strings, emails, names or whole request/user objects.
+- **Input:** bodies with `validateBody`, query strings with `parseInput` (`core/middleware/validate.ts`); API schemas `satisfies` the shared types. Env is validated at startup in `core/config/env.ts`; CLI tools (`admin:grant|revoke`, `audit:verify`) load only `core/config/env-file.ts`.
+- **Sessions and authorization:** server-side sessions (`features/auth/session.ts`, new id on sign-in; independent of the sign-in method). `requireAuth` (`features/auth/require-auth.ts`) runs before validation and reads `role` and `suspendedAt` from MongoDB on every request; `requireAdmin` guards the whole `/api/admin` router. User and owner ids come only from the session, never the body; ownership is enforced by owner-scoped service queries (`{ _id, owner }`). CSRF protection is `SameSite=Lax` plus `requireTrustedOrigin`.
+- **Rate limits:** all values in `core/middleware/rate-limit.ts`. Every new write route needs a per-user limiter right after `requireAuth`.
+- **Adoption workflow:** statuses change only through explicit actions and the shared state machines (`adoption-application.model.ts`). Every application or pet-status write runs in `withTransaction` (`core/config/database.ts`) and starts with `lockPet`; pet status changes go through `transitionPetStatus`. Conversation queries are always scoped to the participants (others get 404).
+- **Admin:** role and suspension changes only through `features/admin/user-role.service.ts`, listing moderation through `pet-moderation.service.ts`, and every admin change through `runAudited` (change and audit entry in one transaction). Applications stay read-only for admins; nothing bypasses ownership or the state machines. Only `pnpm admin:grant` creates the first admin; registration never sets a role.
+- **Photos:** always through the `FileStorage` interface (`core/storage/`, `local` or `cloudinary` by `STORAGE_DRIVER`); MongoDB stores only keys. Check auth and ownership before parsing the body, validate by content (magic bytes), re-encode with `processPetImage` (`features/pets/pet-image.ts`), write the new file before the DB update and delete replaced files after it.
+- **MongoDB must be a replica set** (transactions); the API refuses to start otherwise.
+- **Tests:** an in-memory replica set (`src/test/global-setup.ts`; the first run downloads MongoDB); spec files run sequentially and documents are cleared after each test. Sign in with `createSignedInAgent()` (`test/auth-test-helpers.ts`), make admins with `UserModel.updateOne(... { role: 'admin' })`, capture logs with `test/log-capture.ts`, list uploaded files with `listStoredFiles` (`test/upload-test-helpers.ts`, a temporary uploads dir). Tests that hash many passwords need a longer timeout. `test/setup.ts` resets rate-limit counters and enables cheap Argon2 parameters (refused outside Vitest and in production); production parameters are pinned in `features/auth/password.ts` and used by E2E.
+
+**Web** (`apps/web`: React 19, React Router 6 `createBrowserRouter`, TanStack Query, Tailwind 4 + shadcn/ui, react-i18next, sonner, zod):
+
+- Feature folders `src/features/<feature>/{api,components,hooks,pages,utils}`; shared UI in `src/components` (`ui/` = primitives), shared helpers in `src/lib`, app wiring (router, query client, shell) in `src/app`. `@/*` aliases `src/*`.
+- **Errors:** `lib/api-client.ts` (transport only) turns every failure into `ApiError { status, code, details }`; `app/query-client.ts` holds the policy (retry only network/5xx; global toast for mutation and background-refetch errors, opt out with `meta: { skipGlobalErrorToast: true }`); `lib/get-error-message.ts` maps codes to `common:errors.*` and validation details to `common:validation.*`; pages show inline and field errors.
+- **Current user** = query `['auth', 'me']` (`useCurrentUser`). Every identity change goes through `setCurrentUser`, which clears per-user caches. Ownership and admin UI are display only; the API decides.
+- **Query keys** come from the factories (`petQueryKeys`, `applicationQueryKeys`, `conversationQueryKeys`, `userQueryKeys`, `adminQueryKeys`) and include every request parameter.
+- **i18n:** namespaces `common`, `pets`, `auth`, `applications`, `admin`, `messages`, `profile`. Store translation keys in state and translate on render, so a language change applies.
+- Tests replace the transport with `http.defaults.adapter` (`lib/testing/mock-http-adapter.ts`).
+
+**Shared library** (`packages/shared/models`, `@pet-adoption/models`): types, constants and state machines used by both apps. Plain TypeScript, no runtime dependencies; zod schemas stay in the apps.
+
+**Environments and operations** (README "Running locally", architecture.md §6, deployment.md):
+
+- **Local development:** `docker compose up -d` starts only MongoDB (single-node `rs0`, host port 27018). **Never run `docker compose down -v` on the main project:** it deletes the dev database.
+- **Docker QA:** `docker-compose.qa.yml` through `pnpm qa:*` only; its names are checked by `src/scripts/qa/qa-config.ts`, so change both together. The root `.env` (from `.env.example`) holds only `QA_SESSION_SECRET`. `VITE_API_URL` is a build argument of the web image and must be reachable from the browser.
+- **Live demo:** Cloudflare Pages + a Pages Function proxy, Render Free, Atlas Free and Cloudinary (deployment.md "Live demo", `.env.render.example`). The owner's private procedures are in `docs/learning/archive/managed-ops-runbook.md` (gitignored).
+- **Self-hosted reference** (prepared, not used): `docker-compose.prod.yml`, `Caddyfile`, `.env.production` (plain `NAME=value` lines only) and `scripts/backup.sh` (POSIX `sh`; backups outside the repository, which is the Docker build context). Keep the compose file in sync with `core/config/env.ts` and the script's paths with deployment.md §8 and §9.
+- **Production data:** never run seed, reset, migration, backfill or other write commands against production yourself. `pnpm prod:seed` is a dry run; a real run needs `--confirm-prod --confirm-host=<host>` and the owner's explicit go-ahead. The public README deliberately doesn't document it: read `src/scripts/demo/seed-demo.ts` and `demo-config.ts`, and the owner's notes in `docs/learning/production-demo-seed-strategy.md` (gitignored). `DEMO_PASSWORD` is the owner's secret (the demo accounts' login on the live site): never ask for it, print it or write it to a file. The local dev database is also named `pet-adoption`, so restoring a production dump needs `--nsFrom 'pet-adoption.*' --nsTo '<other>.*'`.
 
 ## Commands
 
@@ -66,7 +76,7 @@ Run tasks through Nx with pnpm:
 ```sh
 pnpm nx run-many -t lint typecheck test   # full check (CI also runs build: .github/workflows/ci.yml)
 pnpm nx test @pet-adoption/api            # uses an in-memory replica set
-pnpm nx test @pet-adoption/api -- src/pets/pet.controller.spec.ts   # one spec (run from the repo root)
+pnpm nx test @pet-adoption/api -- src/features/pets/pet.controller.spec.ts   # one spec (run from the repo root)
 pnpm nx e2e @pet-adoption/web-e2e         # Playwright; starts its own API (:3334, in-memory DB) and a production build of the web (:4201, dist/e2e/web); failure traces in apps/web-e2e/test-results
 pnpm nx serve @pet-adoption/api           # http://localhost:3333/api
 pnpm nx dev @pet-adoption/web             # http://localhost:4200
@@ -86,7 +96,7 @@ Environment note observed on the owner's machine: the Nx daemon may hang (use `N
 - File names in kebab-case (`pet-card.tsx`, `pet.controller.ts`). Tests sit next to code as `*.spec.ts`.
 - Comments explain only what the code can't: business rules, security decisions, concurrency, workarounds and why an obvious alternative is wrong. Don't add comments that restate the code, and don't reference ticket or batch ids (`P0-4`) that go stale.
 - API error responses are `{ code, details? }` with stable codes (e.g. `PET_NOT_FOUND`, `VALIDATION_FAILED`); the API sends no display text, the web translates codes. New codes need `common:errors.*` translations in `en` and `sr`.
-- Run Prettier only on files you changed (repo-wide runs rewrite line endings of untouched files).
+- Run Prettier only on files you changed, with `--end-of-line auto` (working copies use Windows line endings), and only if the file was already formatted (`prettier --check` first): several Markdown docs aren't, and formatting them rewrites untouched lines.
 - User-facing text goes through i18n, in both `en` and `sr`.
 
 ### UI conventions (web)
@@ -105,31 +115,25 @@ Details and primitives in [docs/design-system.md](docs/design-system.md).
 - Do not reintroduce removed Nx-generated placeholder apps/libs. Do not restructure the monorepo without a concrete reason.
 - Work in small, coherent steps; explain important decisions and trade-offs briefly (relate to Vue when useful), without lengthy tutorials.
 - Inspect only the files relevant to the task; do not repeat investigations already recorded in `docs/progress.md`.
+- Reuse existing architecture, utilities, types and patterns instead of creating duplicates.
 - Run the checks the testing policy above calls for, and fix regressions you introduce.
 - Never make unrelated refactors, and never overwrite or discard existing changes without asking first.
 - Treat authentication, authorization, input validation and database access as security-sensitive. Never trust client-supplied user IDs or ownership claims; enforce permissions on the server and test unauthorized access.
+- If blocked, explain the specific issue and ask for the missing information instead of repeatedly investigating.
+
+## Documentation upkeep
+
+Part of every code or behaviour change, not a separate task:
+
+- Identify the source-of-truth documents the change affects: `docs/requirements.md` (behaviour, rules), `docs/architecture.md` (structure, flows), `README.md` (features, setup, commands, testing), `docs/deployment.md` and `.env*.example` (configuration, operations), `docs/manual-qa-test-cases.csv` (user-visible behaviour), `docs/progress.md` (status) and this file (conventions, invariants).
+- Update only those, with small targeted edits. Each fact lives in one document; elsewhere, link to it. Routine fixes, styling and internal refactors that don't change structure need no architecture update.
+- Check every edit against the implemented code; don't describe planned behaviour as implemented.
+- Tracked docs are public: use placeholders for hosts, account names, personal paths and secrets.
+- In the report, list the documents updated, or say that none needed changes.
 
 ## Learning notes
 
 `docs/learning/` (gitignored) holds the owner's personal learning notes. Touch it only when the owner explicitly asks for learning notes or a learning session, and then follow [docs/learning/CONVENTIONS.md](docs/learning/CONVENTIONS.md). During normal development, never create, update or delete anything there.
-
-## Documentation upkeep
-
-Part of every feature or behaviour change, not a separate task:
-
-- Identify the source-of-truth documents the change affects: `docs/requirements.md` (behaviour, rules), `docs/architecture.md` (structure, flows), `README.md` (features, setup, commands), `docs/deployment.md` and `.env*.example` (configuration, operations), `docs/manual-qa-test-cases.csv` (user-visible behaviour, see README "Manual testing"), `docs/progress.md` (status) and this file (conventions).
-- Update only those. Each fact lives in one document; elsewhere, link to it instead of repeating it.
-- Check every edit against the implemented code; don't describe planned behaviour as implemented.
-- In the report, list the documents updated, or say that none needed changes.
-
-## Architecture documentation
-
-- Keep `docs/architecture.md` concise and focused on major system flows and relationships.
-- Update only the diagram or section affected by a meaningful architectural change.
-- Prefer small, targeted edits over regenerating the entire document.
-- Do not update diagrams for routine bug fixes, styling changes, or internal refactors that do not change the architecture.
-- Verify diagrams against the actual code and distinguish implemented features from planned ones.
-- Avoid rereading the entire repository solely to make a minor documentation update when the relevant code is already known.
 
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
@@ -158,12 +162,8 @@ Part of every feature or behaviour change, not a separate task:
 ## Efficient AI-assisted development
 
 - Keep responses concise and focused on the current task.
-- Inspect only the files relevant to the task. Avoid rereading the entire repository unless necessary.
-- Read `docs/progress.md` before starting and update it after meaningful milestones. Read `docs/requirements.md` and `docs/architecture.md` only when relevant (see the top of this file).
-- Reuse existing architecture, utilities, types and patterns instead of creating duplicates.
 - Avoid unnecessary refactoring, speculative improvements and new dependencies.
 - Explain important decisions and unfamiliar concepts briefly, especially React, Express, TypeScript and backend architecture.
 - Don't repeat explanations or summarize every file inspected.
 - Report changed files, checks performed, their results and any remaining concerns concisely.
-- If blocked, explain the specific issue and ask for the missing information instead of repeatedly investigating.
 - Never skip necessary validation, security checks or tests just to reduce usage.

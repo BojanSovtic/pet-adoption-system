@@ -7,9 +7,9 @@ _Re-assessed 2026-11-16 against `develop` (`2e496d7` plus the audit's cleanup); 
 > - **B3:** partly done (2026-11-19). A manual `mongodump`, taken with a read-only user, exists on the owner's PC, and a restore drill of it passed. Still open: an off-machine copy, scheduled backups and a backup of the photos in Cloudinary. Atlas Free snapshots are a paid add-on, so they're excluded.
 > - **B5 and B6:** unchanged.
 >
-> This document hasn't been reworked for the new hosting yet.
+> B2 to B4 and the recommendations in §3 were written for the self-hosted VM. For the managed demo, the configuration, releases, smoke test, rollback and backups are in [deployment.md](deployment.md) "Live demo".
 
-The application itself is in good shape for a small first release: the security controls below are implemented and tested. What is missing is mostly **operational**: a production configuration, backups, and two pieces of legal/account basics. The recommended hosting is free: an Oracle Cloud Always Free VM with MongoDB Atlas Free; how and why is in [deployment.md](deployment.md).
+The application itself is in good shape for a small first release: the security controls below are implemented and tested. What is missing is mostly **operational**: scheduled, off-site backups, and two pieces of legal/account basics. The live demo runs on managed free tiers; the self-hosted alternative and why it was planned are in [deployment.md](deployment.md).
 
 ## 1. In place (verified in code and tests)
 
@@ -17,7 +17,7 @@ The application itself is in good shape for a small first release: the security 
 | ---- | ---- | -------- |
 | Sessions | Server-side sessions in MongoDB (7-day TTL); `sid` cookie `HttpOnly`, `SameSite=Lax`, `Secure` in production; new id on sign-in; destroyed on sign-out | Tested (`auth.controller.spec.ts`); `Secure` only in code until a deployment |
 | CSRF | `SameSite=Lax` plus an `Origin` check on unsafe methods | Tested (`UNTRUSTED_ORIGIN`) |
-| Passwords | Argon2id, 64 MiB, 3 passes, pinned in `auth/password.ts`; dummy hash for unknown emails (timing) | Tested (`password.spec.ts`) |
+| Passwords | Argon2id, 64 MiB, 3 passes, pinned in `features/auth/password.ts`; dummy hash for unknown emails (timing) | Tested (`password.spec.ts`) |
 | Abuse limits | Per-IP sign-in/registration, per-IP+email failed logins, per-user write limits (burst + daily), per-admin limits, per-IP write backstop | Tested (`RATE_LIMITED`); memory only, one instance |
 | Authorization | Owner and sender ids from the session; owner-scoped queries; strangers get 404 for applications and conversations; role and suspension read from the database on every request | Tested |
 | Data integrity | Application/pet changes in transactions that lock the pet first; unique partial indexes (one active application per user and pet, one accepted per pet); unique email | Tested, including concurrent acceptances |
@@ -53,11 +53,11 @@ The application itself is in good shape for a small first release: the security 
 Not blockers, but cheap and worth doing early:
 
 - **Web security headers and compression** at the proxy (HSTS, CSP, `Referrer-Policy`, `nosniff`, gzip): configured in the [`Caddyfile`](../Caddyfile); check the headers and the browser console on the first deployment. Expected: one CSP warning from zod's `eval` probe (harmless; `z.config({ jitless: true })` at startup would remove it, a one-line code change).
-- **Uptime monitoring** on `/api/ready` with email alerts, and a dead man's switch for the nightly backup (an external check pinged by `scripts/backup.sh`; [deployment.md](deployment.md) §8).
+- **Uptime monitoring** on `/api/ready` with email alerts, and a dead man's switch for the nightly backup (an external check pinged by `scripts/backup.sh`; [deployment.md](deployment.md) §8). Managed demo: the uptime part is done (two UptimeRobot monitors since 2026-11-19); the backup ping waits for scheduled backups.
 - **A monthly maintenance routine** (OS and Docker updates with reboots, `dc build --pull` for base-image fixes, disk, B2 size, account emails; [deployment.md](deployment.md) §9). Nothing applies these automatically.
 - **B2 Object Lock** on the backup bucket: the VM's key can't delete, but it can hide files, which the lifecycle rule removes after 7 days ([deployment.md](deployment.md) §8).
 - **HSTS for a year from the first HTTPS response** (`Caddyfile`): intended, but it can't be withdrawn quickly; optionally start with a short `max-age` until the smoke test passes ([deployment.md](deployment.md) §4).
-- **Require `UPLOADS_BASE_URL` in production** in `config/env.ts`, like `TRUST_PROXY`. The production compose file always sets it from `SITE_DOMAIN`, so this only protects other setups; low priority now.
+- **Require `UPLOADS_BASE_URL` in production** in `core/config/env.ts`, like `TRUST_PROXY`. The production compose file always sets it from `SITE_DOMAIN`, so this only protects other setups; low priority now.
 - **Shutdown timeout:** `server.close()` waits for idle keep-alive connections; Docker kills the process after 10 s anyway, but closing idle connections (`server.closeIdleConnections()`) makes restarts clean.
 - **Account deletion process.** There is no deletion yet, and deleting a user directly in the database would leave pets, applications and conversations pointing at a missing user. Until it exists, the privacy notice must say how deletion requests are handled.
 - **Decide D5 and D6** (below) and document the result in `requirements.md`.
@@ -77,7 +77,7 @@ Not blockers, but cheap and worth doing early:
 
 ## 5. Decisions needed
 
-- **D1, hosting:** recommended 2026-11-17: Oracle Cloud Always Free VM (existing Docker stack + Caddy) with MongoDB Atlas Free and a free DuckDNS name; fallback a Hetzner CX23 at about €6/month ([deployment.md](deployment.md) §1). Still yours to confirm: the Oracle signup (credit card for verification), the home region, and whether to buy a domain instead of DuckDNS.
+- **D1, hosting:** **Decided 2026-11-18: managed free tiers** (Cloudflare Pages, Render Free, Atlas Free, Cloudinary), because the Oracle VM needs a card. The earlier recommendation (2026-11-17): Oracle Cloud Always Free VM (existing Docker stack + Caddy) with MongoDB Atlas Free and a free DuckDNS name; fallback a Hetzner CX23 at about €6/month ([deployment.md](deployment.md) §1). Still yours to confirm: the Oracle signup (credit card for verification), the home region, and whether to buy a domain instead of DuckDNS.
 - **D2, email provider** (e.g. Postmark, SES, Resend), for password reset and notifications.
 - **D3, error tracking** or logs only (logs only is fine to start).
 - **D4, legal:** the operator identity and contact for the privacy notice; how long applications, messages and suspended accounts are kept.

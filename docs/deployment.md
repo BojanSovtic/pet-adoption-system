@@ -1,8 +1,67 @@
 # Deployment
 
-> **2026-11-18:** the app is deployed, but not as described here. It runs on managed free tiers (Cloudflare Pages with a `/api` Function, Render Free, MongoDB Atlas Free, Cloudinary), because the Oracle VM below needs a card. The managed settings are in [`.env.render.example`](../.env.render.example), and the status is in [progress.md](progress.md). This document remains the reference for the **self-hosting** option (one VM with Docker Compose and Caddy).
+Two deployment paths share the same API image:
 
-This is the plan for the self-hosted deployment and the reference for its production configuration. What still blocks a launch is in [production-readiness.md](production-readiness.md).
+- **Live demo (managed free tiers, in use since 2026-11-18):** the next section. Topology and proxy: [architecture.md](architecture.md) §6 "Hosted demo". Every setting, without real values: [`.env.render.example`](../.env.render.example).
+- **Self-hosted reference (one VM with Docker Compose and Caddy):** §1 to §12. Prepared and verified locally, not used, because the Oracle VM needs a card.
+
+What still blocks real users is in [production-readiness.md](production-readiness.md); the current status is in [progress.md](progress.md).
+
+## Live demo (managed hosting)
+
+Cloudflare Pages serves the web app and forwards `/api` through a Pages Function to the API on Render Free (Docker, `apps/api/Dockerfile`, health check `/api/health`); data is in MongoDB Atlas Free, photos in Cloudinary. Secrets exist only in the providers' dashboards and a password manager.
+
+### Releasing
+
+1. Merge into `develop` through a pull request (CI: production dependency audit, lint, typecheck, tests, builds, E2E), then `develop` into `master` the same way.
+2. Take a manual database backup (below).
+3. Tag the release on `origin/master` (`git tag -a vX.Y.Z`, then push the tag); never move a pushed tag.
+4. Deploy the API: Render has auto-deploy off, so start a manual deploy of `master`. Pages builds the web app from its production branch on every push (expected `master`; confirm in the Pages settings).
+5. Run the smoke test, then check that both dashboards show the tagged commit.
+
+The two deploys aren't atomic: for a while the new web app can talk to the old API, or the reverse. Keep API changes backwards compatible for one release (add fields as optional, remove them later), and deploy the API first when the web app needs a new endpoint.
+
+### Smoke test
+
+```sh
+SITE=https://<pages-site>
+curl -s -o /dev/null -w "%{http_code}\n" $SITE/api/health      # 200
+curl -s $SITE/api/ready                                         # {"status":"ok"}
+curl -s "$SITE/api/pets?page=1"                                 # 200, JSON list
+curl -s -o /dev/null -w "%{http_code}\n" $SITE/api/auth/me      # 401 (signed out)
+curl -s $SITE/api/nope                                          # 404 ROUTE_NOT_FOUND
+curl -s -X POST -H "Origin: https://evil.example" $SITE/api/auth/logout   # 403 UNTRUSTED_ORIGIN
+API=https://<render-service-host>
+curl -s $API/api/ready                                          # 403 PROXY_REQUIRED (no proxy secret)
+```
+
+Then in the browser: sign in (the `sid` cookie is `Secure`, `HttpOnly`, `SameSite=Lax`), upload and delete a photo, and check the console for CSP errors. The `logout` request is a safe target for the foreign-`Origin` check: the check refuses it before any route runs.
+
+### Rollback
+
+- **Web:** Pages keeps earlier deployments; roll back from the dashboard.
+- **API:** redeploy an earlier Render deploy, or revert on `master` and deploy.
+- **Data:** a code rollback doesn't undo data changes, which is why releases avoid destructive schema changes and a backup comes first.
+
+### Backups and restore
+
+- **Database:** a manual `mongodump` with a **read-only** Atlas user, without the `sessions` collection (live session ids would let anyone with the dump sign in as those users), from a machine with Docker (the `mongo:8` image has the tools). Atlas Free has no `--oplog`, so take it at a quiet time.
+
+  ```sh
+  mongodump --uri="mongodb+srv://<cluster-host>/" --username=<read-only-user> --password="$MONGO_PW" \
+    --db=pet-adoption --excludeCollection=sessions --archive=db-<UTC time>.archive.gz --gzip
+  ```
+
+  Pass the password through an environment variable, never on the command line. Atlas accepts the connection only from an IP on its access list; remove a temporary entry afterwards. Keep the archive outside the repository, and store copies encrypted off the machine.
+- **Restore drill:** restore into a **separate** database, never over production. The local dev database is also named `pet-adoption`, so map the namespace (`mongorestore --archive=<file> --gzip --nsInclude='pet-adoption.*' --nsFrom='pet-adoption.*' --nsTo='restore-drill.*'`, first with `--dryRun`). Then compare collection names and counts with the dump, check indexes and that `pets.owner` points to restored users, run `pnpm audit:verify` against it (with `AUDIT_HMAC_KEY` for signed entries), and drop the drill database.
+- **Photos** are only in Cloudinary; the dump contains their keys, not the files.
+- **Status:** see production-readiness.md B3. In short: a tested manual backup exists, but there is no scheduled run, no off-site copy yet and no photo export.
+
+`scripts/backup.sh` (§8) belongs to the self-hosted path and doesn't apply here.
+
+## Self-hosted reference
+
+The rest of this document is the plan for the self-hosted deployment and the reference for its production configuration.
 
 ## 1. Hosting decision
 
@@ -131,7 +190,7 @@ Never run `down -v`: it deletes the photo volume. `docker compose ... config` pr
 
 ### API environment as the compose file sets it
 
-Validated at startup (`apps/api/src/config/env.ts`); the API refuses to start on a missing or invalid value.
+Validated at startup (`apps/api/src/core/config/env.ts`); the API refuses to start on a missing or invalid value.
 
 | Variable | Value | Secret | Why |
 | --- | --- | --- | --- |
@@ -228,7 +287,7 @@ These are manual steps: accounts, payment details and DNS are yours to set up. C
    docker run --rm --env-file .env.production pet-adoption-tools pnpm admin:grant you@example.com --yes
    ```
 
-   The same image runs `pnpm audit:verify`. **Never** run `pnpm dev:seed` or `qa:seed` against production: the demo password is public. Demo data for the live demo goes only through `pnpm prod:seed`, with a private `DEMO_PASSWORD`; it is a dry run unless explicitly confirmed (see the header of [`seed-demo.ts`](../apps/api/src/scripts/seed-demo.ts) and [`demo-config.ts`](../apps/api/src/scripts/demo-config.ts)).
+   The same image runs `pnpm audit:verify`. **Never** run `pnpm dev:seed` or `qa:seed` against production: the demo password is public. Demo data for the live demo goes only through `pnpm prod:seed`, with a private `DEMO_PASSWORD`; it is a dry run unless explicitly confirmed (see the header of [`seed-demo.ts`](../apps/api/src/scripts/demo/seed-demo.ts) and [`demo-config.ts`](../apps/api/src/scripts/demo/demo-config.ts)).
 
    When the admin exists, remove the image: `docker image rm pet-adoption-tools` (and `docker builder prune -f` for its build cache, if disk space matters). It holds the whole source tree and the development dependencies, which the running site doesn't need. It contains no secrets (`.env.production` is excluded from the build and only passed at run time). Rebuild it with the same `docker build` command when you need the CLI again.
 10. **Smoke test** (§7), including the checks from outside the VM.
@@ -487,7 +546,7 @@ For every release after the first: a new tag (`v1.1.0`) on `master`, with CI gre
    ```
 
    The build cache usually makes this faster than the first build (as long as it hasn't been pruned; see step 8).
-7. **Database compatibility and rollback.** The project has **no migration system**. Data changes happen in two ways: Mongoose models gain fields, and startup data fixes (`backfillApplicationPetOwners`, `backfillPetImages`) run at every start. Those fixes are idempotent and only add data.
+7. **Database compatibility and rollback.** The project has **no migration system**. Data changes happen when Mongoose models gain fields; new fields have defaults or are filled in when read (like the pet profile facts), so older documents stay valid. There are no startup data fixes.
    - If a release only adds fields or data, the previous release still runs on the same database: rolling back the code (step 6) is enough.
    - If a release renames, removes or reshapes stored data (step 1's diff shows it), the previous release may not understand what the new one wrote. Then rolling back means the code **and** restoring the dump from step 2 (§8, "Real recovery", with `--drop`), which loses everything written since the update. Know which case you're in before updating.
    - When writing such a release, prefer two steps: first add the new shape while still reading the old one, then remove the old one in a later release.
@@ -529,7 +588,7 @@ The session cookie is `HttpOnly`, `SameSite=Lax`, 7 days, `Secure` with `NODE_EN
 
 ### `TRUST_PROXY`
 
-Express's `trust proxy` (`apps/api/src/config/trust-proxy.ts`), validated at startup and required in production. It decides the client IP (per-IP rate limits) and whether the request was HTTPS (`Secure` cookies).
+Express's `trust proxy` (`apps/api/src/core/config/trust-proxy.ts`), validated at startup and required in production. It decides the client IP (per-IP rate limits) and whether the request was HTTPS (`Secure` cookies).
 
 - `false`: no proxy (local development, Docker QA).
 - A hop count `1`–`10`: trust that many proxies. Safe only if clients **cannot reach the API except through them**.
@@ -544,14 +603,14 @@ Each trusted proxy must set `X-Forwarded-Proto` and set or append `X-Forwarded-F
 
 ### Logs
 
-- One JSON object per line on stdout (`apps/api/src/logging/logger.ts`); read with `docker compose logs api`. No central log storage, alerting or error tracking yet.
+- One JSON object per line on stdout (`apps/api/src/core/logging/logger.ts`); read with `docker compose logs api`. No central log storage, alerting or error tracking yet.
 - Logged: startup and shutdown, one `request completed` line per request (request id, method, path without query string, status, duration, `userId` when signed in), `unexpected error` with the stack for every 500, database connection changes, failed photo deletions.
 - Never logged: bodies, query strings, headers and cookies, emails, names, client IPs. Error messages are scrubbed of URL credentials (such as the Atlas password) and duplicate-key values.
 - Every response has an `X-Request-Id` header; search the logs for it to find a failure.
 
 ### Photos
 
-Stored under `UPLOADS_DIR` (a persistent volume). Every upload is decoded and re-encoded with sharp (no metadata, rotation applied, ≤ 2000 px); the uploaded bytes are never stored. Start production with an empty uploads volume; never copy development or QA uploads into it. Limits: 5 MB per file, 5 files per request, 5 photos per pet, at most 2 images processed at once. A host without persistent disk needs an object-storage implementation of `FileStorage` (`apps/api/src/storage/`) and the provider's SDK as a new dependency.
+Stored under `UPLOADS_DIR` (a persistent volume). Every upload is decoded and re-encoded with sharp (no metadata, rotation applied, ≤ 2000 px); the uploaded bytes are never stored. Start production with an empty uploads volume; never copy development or QA uploads into it. Limits: 5 MB per file, 5 files per request, 5 photos per pet, at most 2 images processed at once. A host without persistent disk needs an object-storage implementation of `FileStorage` (`apps/api/src/core/storage/`) and the provider's SDK as a new dependency.
 
 ### Rate limits and several instances
 

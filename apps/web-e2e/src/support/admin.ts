@@ -16,7 +16,7 @@ export const grantAdmin = (email: string): void => {
     [
       'exec',
       'tsx',
-      'apps/api/src/scripts/admin-role.ts',
+      'apps/api/src/scripts/admin/admin-role.ts',
       'grant',
       email,
       '--yes',

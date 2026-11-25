@@ -5,7 +5,7 @@ import request from 'supertest';
 import { afterEach, inject, vi } from 'vitest';
 
 import { app } from './app';
-import { isDatabaseReady } from './config/database';
+import { isDatabaseReady } from './core/config/database';
 import { captureLogs } from './test/log-capture';
 
 let logs: ReturnType<typeof captureLogs> | undefined;

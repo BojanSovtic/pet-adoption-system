@@ -2,8 +2,8 @@ import { rm } from 'node:fs/promises';
 import { afterAll, afterEach, beforeAll, inject } from 'vitest';
 import mongoose from 'mongoose';
 
-import { enableTestPasswordHashing } from '../auth/password';
-import { resetRateLimits } from '../middleware/rate-limit';
+import { enableTestPasswordHashing } from '../features/auth/password';
+import { resetRateLimits } from '../core/middleware/rate-limit';
 
 // Runs before the test file imports the app, so `env` picks it up.
 process.env.UPLOADS_DIR = inject('uploadsDir');

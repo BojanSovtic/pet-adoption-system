@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-25, after the confirmed production mode of the demo seed (not run). `master` = `e158a4f`, tagged `v1.1.0`. Earlier dated entries are in the Git history of this file._
+_Last updated: 2026-11-25, after the API reorganisation into `features/` and `core/` (architecture.md §2c) and the removal of the startup backfills. `master` = `e158a4f`, tagged `v1.1.0`. Earlier dated entries are in the Git history of this file._
 
 ## Status
 
@@ -9,7 +9,7 @@ _Last updated: 2026-11-25, after the confirmed production mode of the demo seed 
 - **Verified on the live site:** smoke test through the site (health, readiness, lists, error codes, forged proxy headers stripped, foreign `Origin` refused, security headers); direct calls to the API host refused (`PROXY_REQUIRED`); registration with a `Secure`/`HttpOnly`/`SameSite=Lax` session cookie that survives a reload; pet creation and a photo upload served from Cloudinary without CSP errors.
 - **First maintenance session (2026-11-19; details in the owner's local notes, `docs/learning/`, which aren't in the repository):**
   - 2FA (authenticator app) on Atlas, Cloudflare, Render, Cloudinary, GitHub and UptimeRobot.
-  - Read-only Atlas user `pet-adoption-backup` (`read@pet-adoption`).
+  - A read-only Atlas database user for backups.
   - Two manual `mongodump` archives on the owner's PC, outside the repository: one before the admin grant, one after.
   - A restore drill of the first archive into a local `restore-drill` database passed: collections, counts, indexes, `validate`, `audit:verify`. The drill database was dropped afterwards.
   - First admin granted with `pnpm admin:grant` (dry run first). The admin area and audit log were checked in the browser, and `/api/admin/*` returns 401 without sign-in.
@@ -19,10 +19,9 @@ _Last updated: 2026-11-25, after the confirmed production mode of the demo seed 
   - an off-machine copy of the backups (they exist only on the owner's PC);
   - scheduled backups;
   - a backup of the Cloudinary photos;
-  - on the live site: the 403 check for a signed-in non-admin (covered by tests), the photo-deletion check and the rate-limit check;
-  - a repository document for the managed deployment.
+  - on the live site: the 403 check for a signed-in non-admin (covered by tests), the photo-deletion check and the rate-limit check.
 
-The scope stays frozen for features; the next work is closing the deployment (above), then the items before real users (B5, B6).
+**Phase:** the first demo is deployed, and the project is now in maintenance, learning and incremental development. Features can be added, but understanding, maintainability, tests and consistent architecture come first; large feature expansions need a clear reason. Open operational work is listed under "Next steps"; the items before real users are B5 and B6 in production-readiness.md.
 
 ## What exists
 
@@ -56,34 +55,26 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 - **Nx:** module boundaries aren't enforced (`depConstraints` allow `*` → `*`; `web` and `web-e2e` have no tags). With one shared library the risk is small; add `scope:web` / `type:app` tags and real constraints when a second library appears. Leftover generated config: the `nx-release-publish` target on the API, `@nx/react/router-plugin` in `nx.json` (the web app is a Vite SPA, not React Router framework mode), and dev dependencies that may be unused (`@babel/*`, `@swc/*`, `ts-node`). Check each before removing.
 - **Web:** `features/auth/utils/set-current-user.ts` imports every feature's query keys, so `auth` and the other features import each other. It works; if it grows, move identity-change cache clearing into `app/` or give per-user keys a common prefix. API modules are one file per endpoint in `pets` and one file per feature elsewhere; leave as is unless a feature is reworked. The largest page, `pet-form-page.tsx` (~590 lines), is the first candidate for extracting a hook if it changes again.
-- **API:** `emptyToUndefined` and `MAX_PAGE` are repeated in four `*.schema.ts` files; `pet.controller.ts` queries `PetModel` directly once (`requirePetImageCapacity`).
+- **API:** organised into `features/`, `core/` and `scripts/` (architecture.md §2c). `MAX_PAGE` and the `page`/`pageSize` fields are repeated in four `*.schema.ts` files; kept on purpose, because the defaults and limits differ per list and each schema reads on its own. `pet.controller.ts` queries `PetModel` directly once (`requirePetImageCapacity`). The admin application list is `listAllApplications` in `application.service.ts`, while the other admin lists are in `admin.service.ts`.
 
 ## Next steps
 
-**Current (2026-11-25): demo data for the live site.** The seed (`apps/api/src/scripts/seed-demo.ts`) can now target the live demo: `pnpm prod:seed` is a dry run; changing it needs `--confirm-prod --confirm-host=<host>`, a private `DEMO_PASSWORD`, and runs a read-only preflight first (README, "Demo data on the live demo"). Verified on QA with a copy pointed at QA (confirmed run, rerun, duplicate pet, visitor application, taken address) and by a production dry run (35 planned changes, no problems, nothing changed). **Production has not been seeded.** Before the real run:
+**Current (2026-11-25): demo data for the live site.** The seed (`apps/api/src/scripts/demo/seed-demo.ts`) can now target the live demo: `pnpm prod:seed` is a dry run; changing it needs `--confirm-prod --confirm-host=<host>`, a private `DEMO_PASSWORD`, and runs a read-only preflight first (`seed-demo.ts`; the public README deliberately doesn't document it). Verified on QA with a copy pointed at QA (confirmed run, rerun, duplicate pet, visitor application, taken address) and by a production dry run (35 planned changes, no problems, nothing changed). **Production has not been seeded.** Before the real run:
 
 1. Replace the demo photos: the current ones (about 500 px, from a Kaggle cats-and-dogs set of unknown licence) are not suitable for the public site.
 2. The owner reviews the implementation, takes a fresh Atlas backup and inspects the production data, including why the smoke-test listing "Rex" changed from available (2026-11-23) to adopted (2026-11-25).
-3. The owner chooses the production `DEMO_PASSWORD` (16 to 128 characters, kept only in a password manager; it becomes the demo accounts' login and must stay the same for reruns) and sets it through the hidden prompt in README "Demo data on the live demo". Then a dry run, the confirmed run only on the owner's explicit instruction, and a check of the result on the site.
+3. The owner chooses the production `DEMO_PASSWORD` (16 to 128 characters, kept only in a password manager; it becomes the demo accounts' login and must stay the same for reruns) and enters it at the seed's hidden prompt (see `seed-demo.ts`). Then a dry run, the confirmed run only on the owner's explicit instruction, and a check of the result on the site.
 
 **Earlier (2026-11-19):** done in the first maintenance session: admin, first backup and restore drill, 2FA, monitoring.
 
 1. ~~Decide on keep-awake~~: decided 2026-11-19, keep the UptimeRobot ping (see "Open issues"). Check Render's free-hour usage once at the end of November.
 2. **Off-machine copy of the backups:** an encrypted `.7z` (AES-256, `-mhe=on`) to a personal cloud account or a USB drive kept apart from the PC.
 3. Remaining checks on the live site: photo deletion in Cloudinary, the per-IP limit, and optionally the 403 for a signed-in non-admin (with a second account).
-4. Document the managed deployment in the repository (a `docs/deployment-free.md`, including the tested backup and restore-drill procedure, which so far exists only in the local notes). Then update `architecture.md` and `production-readiness.md`, which still describe the Oracle plan.
+4. ~~Document the managed deployment in the repository~~: done 2026-11-25 as deployment.md "Live demo" (releases, smoke test, rollback, backup and restore drill); production-readiness.md now points to it.
 5. Automate backups (nightly, encrypted, off-site) plus a Cloudinary export. Then the demo polish: a cold-start hint, a demo notice, demo listings, README screenshots.
 6. Before inviting real users: B5 (a privacy notice naming the hosting providers) and a decision on B6 (password reset).
 
 Before every release, take a manual backup (M10) first.
-
-**History:** the items below are the plan from before the hosting change (Oracle VM); steps 1–2 are done (`v1.0.0`, then `v1.1.0` with the managed-hosting code), and step 3 was replaced by the managed deployment.
-
-1. Production configuration reviewed and corrected (2026-11-17). Changes: the backup is now a script, `scripts/backup.sh` (temporary files, gzip checks, upload before the monitoring ping, backups in `/var/backups/pet-adoption` outside the build context, cron log the deploy user can write). Also `nginx:1.30-alpine`, `no-new-privileges` on all services, and new deployment.md sections: updating a release with rollback (§9), firewall and Docker networking, a B2 key without delete, Atlas recovery, negative smoke checks. Checked locally: compose config, and the script with stand-in commands (deployment.md §5). Committed as `5334e12`. The final review (same day) added a missing-volume guard to the backup script, executable restore-drill checks, a monthly maintenance routine (deployment.md §9) and a corrected B2 key description. Commit these. B2–B4 stay open until the stack runs on the VM; B1 (Mongoose) is done.
-2. Merge `develop` into `master` through a pull request.
-3. Deploy following [deployment.md](deployment.md) §6 (Oracle Cloud Always Free VM + MongoDB Atlas Free), then the smoke test and a restore drill.
-4. Before inviting users: B5 (privacy notice) and a decision on B6 (password reset).
-5. Add README screenshots (instructions in the README).
 
 ## Developer notes
 

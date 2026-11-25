@@ -13,16 +13,16 @@ import {
 } from 'vitest';
 
 import { app } from './app';
-import { env } from './config/env';
-import { PetModel } from './pets/pet.model';
+import { env } from './core/config/env';
+import { PetModel } from './features/pets/pet.model';
 import { createSignedInAgent } from './test/auth-test-helpers';
 import { createTestImage } from './test/image-fixtures';
 import { listStoredFiles } from './test/upload-test-helpers';
 
 // The real app with STORAGE_DRIVER=cloudinary. `fetch` is replaced by an
 // in-memory stand-in for Cloudinary's API: no request leaves the machine.
-vi.mock('./config/env', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./config/env')>();
+vi.mock('./core/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./core/config/env')>();
 
   return {
     env: {

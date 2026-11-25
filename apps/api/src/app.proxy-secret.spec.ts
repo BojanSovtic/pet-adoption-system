@@ -3,11 +3,11 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { app } from './app';
-import { env } from './config/env';
+import { env } from './core/config/env';
 import {
   PROXY_CLIENT_IP_HEADER,
   PROXY_SECRET_HEADER,
-} from './middleware/require-proxy-secret';
+} from './core/middleware/require-proxy-secret';
 
 const { SECRET } = vi.hoisted(() => ({
   SECRET: 'proxy-secret-for-tests-0123456789abcdef',
@@ -17,8 +17,8 @@ const { SECRET } = vi.hoisted(() => ({
 // carry the proxy secret are served. (Each spec file has its own module
 // registry, so other files keep the unconfigured env.) vi.mock is hoisted
 // above the imports.
-vi.mock('./config/env', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./config/env')>();
+vi.mock('./core/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./core/config/env')>();
 
   return { env: { ...actual.env, proxySecret: SECRET } };
 });

@@ -2,7 +2,7 @@
 # and volumes, so manual QA never touches development or demo data.
 # Use the pnpm qa:* scripts (see README, "Docker QA environment"); they always
 # pass `-f docker-compose.qa.yml`. The names below are checked by
-# apps/api/src/scripts/qa-config.ts; change both together.
+# apps/api/src/scripts/qa/qa-config.ts; change both together.
 #
 # Browser: http://127.0.0.1:4203 (not localhost: the session cookie and the
 # API's allowed origin are bound to 127.0.0.1).

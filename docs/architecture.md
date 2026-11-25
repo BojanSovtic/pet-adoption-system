@@ -37,10 +37,10 @@ flowchart LR
 
 - **Two separate apps.** Locally, the frontend calls the API directly at `VITE_API_URL` (read at build time); there is no Vite or nginx proxy. Section 6 shows how they run in Docker QA, in E2E tests and in the hosted demo, where `VITE_API_URL=/api` goes through a proxy on the same origin. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
-- **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
-- **Admins are created outside the API.** `pnpm admin:grant <email>` connects to the database directly and uses the same `changeUserRole` service as the admin area (§3c, §5b). No HTTP route can create the first admin. The command-line tools load only `config/env-file.ts` (`MONGODB_URI`, optional `AUDIT_HMAC_KEY`), not the web server's `config/env.ts`, so they don't need `SESSION_SECRET` or `CORS_ORIGIN`.
+- **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`features/auth/session.ts`).
+- **Admins are created outside the API.** `pnpm admin:grant <email>` connects to the database directly and uses the same `changeUserRole` service as the admin area (§3c, §5b). No HTTP route can create the first admin. The command-line tools load only `core/config/env-file.ts` (`MONGODB_URI`, optional `AUDIT_HMAC_KEY`), not the web server's `core/config/env.ts`, so they don't need `SESSION_SECRET` or `CORS_ORIGIN`.
 - **Photos are files, not database data.** A pet stores up to 5 storage keys in `images`; the API returns `images: [{ _id, url }]` and `imageUrl` (the first photo) built by the storage.
-  - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`). `STORAGE_DRIVER` (`config/storage-config.ts`) picks the implementation at startup:
+  - **Storage:** `core/storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`). `STORAGE_DRIVER` (`core/config/storage-config.ts`) picks the implementation at startup:
     - `local` (the default; development, Docker QA, E2E): files on disk under `UPLOADS_DIR`, served by the API at `/uploads` with `nosniff` and long-term caching.
     - `cloudinary` (the hosted demo, whose disk is wiped on restart): signed uploads and deletes through Cloudinary's REST API (`cloudinary-file-storage.ts`, no SDK); `publicUrl` points to Cloudinary's CDN, so browsers load photos from there and the API doesn't mount `/uploads`. The three `CLOUDINARY_*` values are checked at startup, and the API secret never leaves the server.
   - **Upload:** `POST /api/pets/:id/images` checks sign-in, the per-user upload rate limit, ownership and free photo slots first, then parses multipart with `multer` (in memory, at most 5 files of 5 MB in the field "images"). Each file must be JPEG, PNG or WebP by its bytes; `processPetImage` (sharp) then checks the header (≤ 40 MP, not animated), decodes it and re-encodes it in the same format without metadata (EXIF/GPS, XMP, ICC), with EXIF rotation applied and at most 2000 px. At most 2 images are processed at once per process. Only the re-encoded files are stored, under random names (written as a hidden temp file, then renamed): all of them or none.
@@ -48,7 +48,6 @@ flowchart LR
   - **New files are written first;** files are deleted only after the database no longer points to them. A failed database write removes the new files. Keys are never reused, so a file belongs to exactly one photo.
   - **Deleting:** `DELETE /api/pets/:id/images/:imageId` removes one photo. Deleting the pet removes all its photos too, after the transaction.
   - **Kept for existing clients:** `PUT /api/pets/:id/image` replaces all photos with one; `DELETE /api/pets/:id/image` removes all.
-  - **Old records:** pets saved with a single `imageKey` are converted at startup (`backfillPetImages`).
 - **A replica set is required.** Adoption decisions use transactions, which a standalone MongoDB rejects, so `connectDatabase` refuses to start without one.
   - **Development:** `docker-compose.yml` runs a single-node replica set.
   - **Tests:** an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`).
@@ -137,7 +136,7 @@ flowchart TB
   cors & origin & ipwrite & json & rate & auth & userrate & admin & validate & controller & notfound -. "next(error)" .-> handler["errorHandler<br/>→ { code, details? }<br/>logs only 500s (with stack and request id)"]
 ```
 
-- **Logging and request ids.** `requestLogger` runs first. It gives every request a server-generated UUID (returned as `X-Request-Id`; a client-sent one is ignored) and runs the rest of the request in an `AsyncLocalStorage` context, so any log line written while handling it (error handler, storage, audit, readiness) carries the same `requestId`. The logger (`logging/logger.ts`) writes one JSON object per line to stdout, with explicitly chosen fields only.
+- **Logging and request ids.** `requestLogger` runs first. It gives every request a server-generated UUID (returned as `X-Request-Id`; a client-sent one is ignored) and runs the rest of the request in an `AsyncLocalStorage` context, so any log line written while handling it (error handler, storage, audit, readiness) carries the same `requestId`. The logger (`core/logging/logger.ts`) writes one JSON object per line to stdout, with explicitly chosen fields only.
 
 - **Controllers stay thin.** They read params and session, call a service, and map "not found" to `NotFoundError`. Services hold the database access.
 - **Errors leave through one place.** Every error, including rate-limit, validation and origin errors, reaches `errorHandler`. Response bodies are always `{ code, details? }`; the web translates `code`.
@@ -145,7 +144,7 @@ flowchart TB
   - Body validation runs only on routes with a JSON body (`POST /pets`, `PUT /pets/:id`, `POST /pets/:petId/applications`, `POST /pets/:petId/conversations`, `POST /conversations/:id/messages`, `POST /auth/register`, `POST /auth/login`, `PUT /admin/users/:id/role`).
   - `requireAuth` runs on pet create, update, delete and photo routes, on every application and conversation route and on the profile routes, *before* validation, so anonymous requests get 401 whatever the body.
   - `requireAdmin` is mounted on the whole `/api/admin` router (`router.use`), so it also runs for admin paths that match no route: access is denied by default. The admin rate limits run right after it (§5b).
-  - Rate limiting runs on `register`/`login` (per IP and per IP+email), on every admin request (per admin account), on every other change after `requireAuth` (per user, five kinds with a burst and a daily window), and on all changes outside `/api/auth` per IP before the body is read. Values: `USER_WRITE_LIMITS` / `WRITES_PER_IP` in `middleware/rate-limit.ts`.
+  - Rate limiting runs on `register`/`login` (per IP and per IP+email), on every admin request (per admin account), on every other change after `requireAuth` (per user, five kinds with a burst and a daily window), and on all changes outside `/api/auth` per IP before the body is read. Values: `USER_WRITE_LIMITS` / `WRITES_PER_IP` in `core/middleware/rate-limit.ts`.
   - Photo uploads (`POST /pets/:id/images`, `PUT /pets/:id/image`) check the upload rate limit, then ownership (and free slots), before `multer` reads the multipart body. At most 2 images are processed at once per API process. The controller then runs `processPetImage` (magic bytes → `sharp` header check, ≤ 40 MP → re-encode without metadata, EXIF rotation applied, ≤ 2000 px) before anything is stored; the uploaded bytes are never saved.
 - **Ownership is enforced in the query itself:** `findOneAndUpdate` / `findOneAndDelete` with `{ _id, owner: userId }`. When nothing matches, a second `exists` check decides between 403 `NOT_PET_OWNER` and 404 `PET_NOT_FOUND`. Pets are public, so this reveals nothing private.
 - **`GET /api/pets` is paginated.** The query string is validated by `petListQuerySchema` (through `parseInput`), giving the same `VALIDATION_FAILED` errors as bodies.
@@ -154,6 +153,40 @@ flowchart TB
   - **Response:** `{ items, page, pageSize, totalItems, totalPages }`.
 - **`GET /api/pets/mine`** (signed in) returns the session user's pets, every status and hidden ones included, newest first, paged like the profile list (`ownerPetsQuerySchema`: `page`, `pageSize`; any other parameter, such as `owner`, is ignored). It shares `listPetsByOwner` with `GET /api/users/:id/pets` (scope `all` vs. `listed`). The route is registered before `/:id`. Web: `petQueryKeys.minePage(query)` = `['pets', 'list', 'mine', query]`, under `lists()` so the delete button's list update covers it; removed on identity changes.
 - **The application lists are paginated the same way** (`page`, `pageSize` default 10, at most 50; newest first with `_id` as tie-breaker). `/applications/mine` is scoped to the session user as applicant; `/applications/received` to the session user as `petOwner`. `/mine` also takes `pet=<id>`, which the pet page uses to fetch only that pet's newest application.
+
+### 2c. API code organisation
+
+```text
+apps/api/src/
+  main.ts  app.ts  listen.ts   process start, middleware order and router mounting, listening
+  features/                    one folder per API area; each router is mounted in app.ts
+    admin/                     /api/admin: stats, users, listings, applications, audit log
+    applications/              adoption applications (state machine use, transactions)
+    auth/                      password sign-in, sessions, requireAuth / requireAdmin, Argon2
+    conversations/             conversations and messages
+    pets/                      listings and photos (pet-image.ts: upload processing; pet-view.ts: response shape)
+    users/                     identity (UserModel, toPublicUser) and public profiles
+  core/                        infrastructure with no business rules
+    config/ errors/ logging/ middleware/ storage/
+  scripts/                     command-line tools run with tsx, not part of the bundle
+    admin/                     admin:grant / admin:revoke, audit:verify
+    demo/                      dev:seed / qa:seed / prod:seed, demo photos
+    qa/                        the Docker QA stack (qa:up, qa:reset, ...)
+  test/                        shared test setup and helpers
+```
+
+- **Files are `<entity>.<role>.ts`** (`pet.routes.ts`, `pet.controller.ts`, `pet.schema.ts`, `pet.service.ts`, `pet.model.ts`), with specs next to them. A feature has only the roles it needs: `users` has no input schema of its own, and `auth` has no model (it uses `users`). Feature-specific helpers get a descriptive name in that feature (`pet-image.ts`, `user-role.service.ts`).
+- **Roles:**
+  - *routes*: the path and the middleware order (auth, rate limit, `validateBody`) before `asyncHandler(controller)`;
+  - *controller*: reads params, query (`parseInput`) and the session user, calls a service, picks the status code;
+  - *service*: database access, business rules and transactions;
+  - *model*: the Mongoose schema and indexes;
+  - *schema*: zod input validation, checked against the shared types with `satisfies`.
+  - One known exception: `pet.controller.ts` queries `PetModel` directly in `requirePetImageCapacity`.
+- **Features stay flat.** A subfolder is worth it only for a sub-area with several files of its own, never one per layer. The admin audit log is two files (`admin-audit.model.ts`, `admin-audit.service.ts`), so it stays in `admin/`.
+- **Dependencies point one way.** Features may use each other where the domain needs it (admin works on users and pets; applications and conversations lock pets with `lockPet`). Production code in `core/` imports no feature; some core specs create pets or applications to test against real data. Scripts may use both. Types shared with the web app belong in `packages/shared/models`.
+- **`core/middleware/rate-limit.ts`** names one limiter per kind of write, but imports nothing from the features: all limits stay in one file so they can be reviewed together.
+- **Where a new file goes:** used by one feature → that feature; a technical concern without business rules that several features use → `core/`; run by hand → `scripts/<group>/`; a type both apps need → the shared library.
 
 ## 3. Authentication flow
 
@@ -227,7 +260,7 @@ sequenceDiagram
 - **Session fixation:** `startUserSession` always regenerates the session id. Tests confirm the pre-login cookie stops working.
 - **CSRF:** `SameSite=Lax` plus `requireTrustedOrigin`, with no CSRF tokens. Requests without an `Origin` header (non-browser clients) are allowed.
 - **Authentication vs authorization.**
-  - `requireAuth` (`auth/require-auth.ts`) only answers "who is signed in?". It also rejects sessions whose user was deleted or suspended (§3c).
+  - `requireAuth` (`features/auth/require-auth.ts`) only answers "who is signed in?". It also rejects sessions whose user was deleted or suspended (§3c).
   - Ownership ("may this user change this pet?") lives in the pet service queries.
   - The admin role is checked by `requireAdmin` (§3c). Browsing pets stays public.
 - **Separate from the sign-in method:** `startUserSession` and `endUserSession` take only a user id. A future OAuth/OIDC callback would find or create a user and call the same function.
@@ -267,7 +300,7 @@ flowchart LR
 - **Two roles:** `user` and `admin` (`USER_ROLES` in the shared library). There is no "shelter" role: anyone signed in can post pets, and owning a pet is a relation to that pet (`pet.owner`), not a role. Admins get no shortcut around ownership or the adoption state machine; on someone else's pet they get the same 403/404 as any user.
 - **Where the role comes from:** the `role` field on the user document (default `user`; missing on older users, which counts as `user`). The session stores only `userId`. `requireAuth` reads the user's `role` and `suspendedAt` from MongoDB on **every** request (one query; `requireAdmin` reuses it), so promotion, demotion and suspension take effect on the user's next request without signing in again, and nothing the client sends (body, URL, headers, the cached `/auth/me`) can grant access.
 - **Suspended accounts:** `requireAuth` ends the session and answers 403 `ACCOUNT_SUSPENDED`; `/auth/me` ends it and answers 401 (the web shows the user as signed out); sign-in answers 403 `ACCOUNT_SUSPENDED` only after a correct password. Browsing stays public. Admins can't be suspended, so an active admin always remains.
-- **Who can change a role or suspension:** only `changeUserRole`, `suspendUser` and `reinstateUser` (`admin/user-role.service.ts`), called by the admin endpoints (acting admin from the session) and, for roles, by the `admin:grant` / `admin:revoke` command (no actor; an operator with database access). Registration ignores any `role` field: `registerSchema` strips unknown keys and `createUser` writes only email, name and password hash.
+- **Who can change a role or suspension:** only `changeUserRole`, `suspendUser` and `reinstateUser` (`features/admin/user-role.service.ts`), called by the admin endpoints (acting admin from the session) and, for roles, by the `admin:grant` / `admin:revoke` command (no actor; an operator with database access). Registration ignores any `role` field: `registerSchema` strips unknown keys and `createUser` writes only email, name and password hash.
 - **The web** shows the Admin link and the `/admin` pages only when `/auth/me` says `role: 'admin'` (usability only). An `ADMIN_REQUIRED` response refetches `/auth/me`, so a demoted admin's UI updates; `ACCOUNT_SUSPENDED` signs the user out in the web; all admin query data is removed on every identity change (`setCurrentUser`).
 
 ## 4. Data model
@@ -372,12 +405,12 @@ erDiagram
   PET ||--o{ ADMIN_AUDIT : "is moderated (targetPet)"
 ```
 
-- **Mongoose models:** `USER`, `PET`, `ADOPTION_APPLICATION`, `CONVERSATION`, `MESSAGE`, `ADMIN_AUDIT`, `AUDIT_CHAIN_HEAD` and `ROLE_CHANGE_GUARD` (`users/`, `pets/`, `applications/`, `conversations/`, `admin/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
+- **Mongoose models:** `USER`, `PET`, `ADOPTION_APPLICATION`, `CONVERSATION`, `MESSAGE`, `ADMIN_AUDIT`, `AUDIT_CHAIN_HEAD` and `ROLE_CHANGE_GUARD` (`features/users/`, `features/pets/`, `features/applications/`, `features/conversations/`, `features/admin/`). `SESSION` is the `sessions` collection, managed by `connect-mongo`; it has no Mongoose model.
 - **Admin audit log:** written in the same transaction as each change, so a change never exists without its record; refused attempts and list views get their own entry. No update or delete path exists in the app (model hooks refuse them). See §5b for the hash chain and its limits.
 - **Hidden pets** (`hiddenAt` set) are left out of `GET /api/pets` and return 404 from `GET /api/pets/:id` except to their owner and admins. The API returns only a `hidden` flag, never who hid it.
 - **`owner`, `applicant`, `adopter` and message `sender` come only from the session.** Pets expose the owner as an id only. Applicant name and email are returned only to the owner of the pet.
 - **Public profiles** (`GET /api/users/:id`, `GET /api/users/:id/pets`, signed-in users only): `findPublicProfile` reads only `name` and `createdAt` from the database and returns `{ _id, name, memberSince }`, so no private field can leak by accident. The pets list is the owner's pets with `hiddenAt: null` and status not `adopted`. There is no write route under `/api/users` (404 `ROUTE_NOT_FOUND`). The id is the same one pets already expose as `owner`.
-- **Conversations** (`conversations/`): one per `{ pet, adopter }` (unique index), so contacting the owner again continues it.
+- **Conversations** (`features/conversations/`): one per `{ pet, adopter }` (unique index), so contacting the owner again continues it.
   - **Access:** every query is scoped by `{ $or: [{ adopter: me }, { petOwner: me }] }`, so a foreign or guessed id finds nothing (404 `CONVERSATION_NOT_FOUND`, the same as a missing one). Message pages are scoped by conversation too, so a cursor from another conversation reveals nothing.
   - **Views:** `role` (`owner` | `adopter`), the other participant's `{ _id, name }`, a pet summary, and messages as `{ _id, body, fromMe, createdAt }`: no emails and no sender ids.
   - **Writes:** starting (`POST /api/pets/:petId/conversations`) runs in a transaction that starts with `lockPet` and applies the application rules (hidden/missing pet → 404, own pet → 403 `CANNOT_MESSAGE_OWN_PET`, adopted pet → 409 `PET_NOT_AVAILABLE` for a new conversation); replying first updates the participant-scoped conversation (access check and lock in one write), then inserts the message, in one transaction. Both pass the per-user `messageSend` rate limit.
@@ -387,7 +420,7 @@ erDiagram
 - **Pets created before ownership** have no `owner`. They stay visible, but nobody can edit, delete or apply for them until they are removed. Only early development data can be affected; `owner` has been required since 2026-10-20, before the first deployment.
 - **Statuses are server-managed** and stripped from request bodies; they change only through the state machines below.
 - **Pet list index:** `{ createdAt: -1, _id: -1 }` serves the default "newest" order (and "oldest", read backwards) without an in-memory sort. Name search (a case-insensitive "contains" match) and species/status filters are not indexed: a contains-regex can't use an index efficiently, and the filters have only three values each.
-- **`petOwner` is a copy of the pet's owner,** set when the application is submitted, so `GET /applications/received` can filter, sort and page one collection instead of first loading all of the owner's pet ids. Pets never change owner, so the copy can't go stale. Applications created before the field existed are filled in at API startup (`backfillApplicationPetOwners`).
+- **`petOwner` is a copy of the pet's owner,** set when the application is submitted, so `GET /applications/received` can filter, sort and page one collection instead of first loading all of the owner's pet ids. Pets never change owner, so the copy can't go stale.
 - **Application list indexes:** `{ applicant, createdAt: -1, _id: -1 }` and `{ petOwner, createdAt: -1, _id: -1 }` match the newest-first order of the two paginated lists.
 - **Unique partial indexes on applications:**
   - `{ pet, applicant }` for statuses `pending`, `accepted` and `rejected`: one application per user and pet; a withdrawn one can be replaced.
@@ -497,7 +530,7 @@ sequenceDiagram
   Op->>CLI: admin:grant <email> (dry run), then --yes
   CLI->>S: changeUserRole { target, role: admin, source: cli } (no actor)
 
-  Note over A,API: Later: Users / Pets pages (inline confirmation, optional reason)
+  Note over A,API: Later: Users / Pets pages (confirmation dialog, optional reason)
   A->>API: role / suspend / reinstate / hide / restore + sid cookie
   API->>API: requireAdmin (role + suspension read now) → rate limit (30 changes / 15 min / admin) → validateBody
   API->>S: { target from URL, actor from session, source: admin-ui }
@@ -516,7 +549,7 @@ sequenceDiagram
 
 - **Why the guard document:** each transaction alone would see another admin, so two admins demoting each other at the same moment could otherwise leave none; likewise a promotion and a suspension of the same user could otherwise both succeed. Every role or suspension change writes the same document first; MongoDB lets one transaction hold it, the other retries and then sees the result (both tested).
 - **Effect on sessions:** nothing to revoke. The next request of the affected user is authorized against the current role and suspension (tested: a demoted admin gets 403, a suspended user's open session gets 403 `ACCOUNT_SUSPENDED` and is ended).
-- **Rate limits** (`middleware/rate-limit.ts`): per admin account, keyed by the user id from the session (spoofed `X-Forwarded-For` headers don't matter): 300 reads and 30 changes per 15 minutes, 429 `RATE_LIMITED`. Counters are in process memory, like the sign-in limits: they reset on restart and are not shared between several API instances.
+- **Rate limits** (`core/middleware/rate-limit.ts`): per admin account, keyed by the user id from the session (spoofed `X-Forwarded-For` headers don't matter): 300 reads and 30 changes per 15 minutes, 429 `RATE_LIMITED`. Counters are in process memory, like the sign-in limits: they reset on restart and are not shared between several API instances.
 
 **The audit chain** (`admin-audit.service.ts`):
 - **Appending:** every entry gets the next `seq`, the previous entry's hash as `prevHash`, and `hash` = HMAC-SHA256 (with `AUDIT_HMAC_KEY`) or SHA-256 (without a key) over its content. The single `AUDIT_CHAIN_HEAD` document is updated in the same transaction, which serializes concurrent appends.
@@ -557,7 +590,7 @@ flowchart LR
 
 - **One origin.** The browser sends API requests to `/api` on the Pages site, so the `SameSite=Lax` session cookie stays first-party and the API's `Origin` check compares against the Pages origin (`CORS_ORIGIN`). Platform domains such as `pages.dev` and `onrender.com` are on the Public Suffix List, so calling the Render host directly from the browser would make the cookie cross-site (deployment.md, §11 "Same-site cookies").
 - **The proxy** (`proxyApiRequest`) forwards method, path, query, headers and a streamed body to `API_ORIGIN` and returns the API's response unchanged (including `Set-Cookie`; redirects are not followed). It removes client-supplied forwarding and client-IP headers, adds the `PROXY_SECRET` and the client IP Cloudflare saw (`CF-Connecting-IP`), and fails closed (500) if its bindings are missing or malformed. Both bindings exist only in the Pages project settings.
-- **The API checks the secret first** (`middleware/require-proxy-secret.ts`, mounted right after the request logger): with `PROXY_SECRET` set, every request without the matching `X-Proxy-Secret` gets 403 `PROXY_REQUIRED`, except `GET`/`HEAD /api/health` for Render's health check. Only with a valid secret does the forwarded client IP replace `req.ip` for the per-IP rate limits. `TRUST_PROXY=1` still decides HTTPS detection for the `Secure` cookie. Without `PROXY_SECRET` (development, QA, E2E) the check is off.
+- **The API checks the secret first** (`core/middleware/require-proxy-secret.ts`, mounted right after the request logger): with `PROXY_SECRET` set, every request without the matching `X-Proxy-Secret` gets 403 `PROXY_REQUIRED`, except `GET`/`HEAD /api/health` for Render's health check. Only with a valid secret does the forwarded client IP replace `req.ip` for the per-IP rate limits. `TRUST_PROXY=1` still decides HTTPS detection for the `Secure` cookie. Without `PROXY_SECRET` (development, QA, E2E) the check is off.
 - **Photos** use `STORAGE_DRIVER=cloudinary` (§1): the API uploads re-encoded files to Cloudinary and stores only the keys; browsers load the photos from Cloudinary's CDN, not through the proxy.
 - **Database:** MongoDB Atlas, which is a replica set, so transactions work as locally.
 
@@ -600,7 +633,7 @@ flowchart LR
 - **Bound to `127.0.0.1`:** all three ports. The API's CORS origin is `http://127.0.0.1:4203`, so the QA session cookie (on `127.0.0.1`) never collides with the other environments' cookies on `localhost`.
 - **Scripts:** `pnpm qa:up|ps|logs|down` always pass the QA file and project and refuse options such as `-v`.
   - **`pnpm qa:seed`** seeds exactly `http://127.0.0.1:3336/api`.
-  - **`pnpm qa:reset`** checks the containers' project, volumes and database before emptying the QA data; it never deletes volumes. See `apps/api/src/scripts/qa-config.ts`.
+  - **`pnpm qa:reset`** checks the containers' project, volumes and database before emptying the QA data; it never deletes volumes. See `apps/api/src/scripts/qa/qa-config.ts`.
 
 ### E2E tests
 

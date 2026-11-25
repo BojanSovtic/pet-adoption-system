@@ -1,4 +1,4 @@
-import { configureLogger, type LogLevel } from '../logging/logger';
+import { configureLogger, type LogLevel } from '../core/logging/logger';
 
 export type CapturedLogEntry = Record<string, unknown> & {
   level: string;
