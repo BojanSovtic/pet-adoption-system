@@ -152,7 +152,40 @@ Sign in as `ana@demo.example.com` (owner with the most pets and applications), `
 - **Photos:** up to 5 per pet from [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) (`max.jpg`, `max-2.jpg`, …). `pnpm demo:images` copies downloaded images to those names as listed in `mapping.json`. The seed adds photos only to pets that have none yet.
 - **Rate limits:** sign-in and registration allow 20 attempts per 15 minutes from one IP. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart the API.
 - **Dry run:** add `--dry-run` (for example `pnpm qa:seed --dry-run`) to list what a run would change without changing anything; only reads and sign-ins are sent.
-- **Live demo:** `pnpm prod:seed:dry-run` checks the live site the same way (dry run only; nothing can be written there yet). It needs a private `DEMO_PASSWORD` (at least 16 characters, never `demo-password`), waits up to 3 minutes for the API to wake up, and retries only reads and sign-ins. The demo password above never works on the live site.
+
+#### Demo data on the live demo
+
+`pnpm prod:seed` loads the same dataset into the live demo, through its public site. It is a **dry run** unless both confirmations below are given.
+
+**The demo password (`DEMO_PASSWORD`).** The live demo's demo accounts (Ana, Marko, Jelena, Luka) use a private password that you choose, never `demo-password`:
+
+- At least 16 characters (128 at most); a password-manager-generated one is best.
+- The first real run registers the four accounts with it. After that, it is how you sign in as them on the live site (walkthroughs, screenshots, answering visitors), and every later dry run or rerun must use the same one: the seed treats an account as a demo account only if this password signs in to it.
+- It is stored nowhere in the project (no file, no `.env`, no docs). Keep it in your password manager and set it only in the terminal session for a run. The app has no password reset, so a lost password means the demo accounts can't be signed in to or managed by the seed any more.
+- It is not your admin, Atlas or any other account's password.
+
+**Running it (PowerShell).** The prompt hides what you type or paste; the last line removes the password from the session again:
+
+```powershell
+$env:DEMO_PASSWORD = [Net.NetworkCredential]::new('', (Read-Host 'Demo password' -AsSecureString)).Password
+pnpm prod:seed                                                    # dry run: lists what would change
+Remove-Item Env:DEMO_PASSWORD -ErrorAction SilentlyContinue
+```
+
+If the seed says `Set DEMO_PASSWORD`, the variable is empty (for example, nothing was pasted); nothing was sent. Avoid `$env:DEMO_PASSWORD = Get-Clipboard`: with an empty clipboard it silently sets nothing.
+
+**What it does:** waits up to 3 minutes for the API to wake up, checks that the API supports the dataset, and retries only reads and sign-ins (and short rate-limit waits). A change without a clear answer stops the run and is never repeated; rerun it, and it only adds what is missing.
+
+**Changing the live demo** needs `--confirm-prod` and `--confirm-host=` with the live site's host name, typed exactly (errors don't repeat it):
+
+```powershell
+pnpm prod:seed --confirm-prod --confirm-host=<live site host>     # changes the live demo
+```
+
+- The run first makes a complete read-only preflight and changes nothing if it finds any problem: a duplicate pet, a decision that ended differently, or an accept that would reject a visitor's application. Only then does it add what is missing, with the same guards as dev and QA.
+- A demo address that someone else already registered can only be detected while registering: the run then stops before any pet or application (the accounts listed before it are created).
+- Take an Atlas backup first; production has no reset. A first run uses about 12 of the 20 sign-in attempts allowed per 15 minutes, so wait 15 minutes before an immediate retry.
+- Every other combination (one confirmation without the other, a wrong host, `--dry-run` with `--confirm-prod`, `--yes`) is refused before anything is sent.
 
 ## Docker QA environment
 
@@ -249,16 +282,16 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and
 
 ## Documentation
 
-| Document                                                                                                     | What it covers                                                                                               |
-| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| [docs/requirements.md](docs/requirements.md)                                                                 | Roles, workflows, business rules, rate limits, known limitations                                             |
-| [docs/architecture.md](docs/architecture.md)                                                                 | Mermaid diagrams of the system, request pipeline, auth, admin, data model, adoption workflow, Docker and E2E |
-| [docs/production-readiness.md](docs/production-readiness.md)                                                 | Verified security controls, launch blockers, recommendations and open decisions                              |
-| [docs/deployment.md](docs/deployment.md)                                                                     | Deployment plan and production reference (topology, env vars, proxy, backups, smoke test, rollback)          |
-| [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)                                                   | How to run manual QA: suites and choosing cases                                                              |
-| [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv)                                               | The manual test-case catalog                                                                                 |
-| [docs/design-system.md](docs/design-system.md), [docs/ux-benchmark.md](docs/ux-benchmark.md)                 | UI tokens and components; the UX research (historical)                                                       |
-| [docs/progress.md](docs/progress.md)                                                                         | Current status, open issues and next steps                                                                   |
+| Document                                                                                     | What it covers                                                                                               |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [docs/requirements.md](docs/requirements.md)                                                 | Roles, workflows, business rules, rate limits, known limitations                                             |
+| [docs/architecture.md](docs/architecture.md)                                                 | Mermaid diagrams of the system, request pipeline, auth, admin, data model, adoption workflow, Docker and E2E |
+| [docs/production-readiness.md](docs/production-readiness.md)                                 | Verified security controls, launch blockers, recommendations and open decisions                              |
+| [docs/deployment.md](docs/deployment.md)                                                     | Deployment plan and production reference (topology, env vars, proxy, backups, smoke test, rollback)          |
+| [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)                                   | How to run manual QA: suites and choosing cases                                                              |
+| [docs/manual-qa-test-cases.csv](docs/manual-qa-test-cases.csv)                               | The manual test-case catalog                                                                                 |
+| [docs/design-system.md](docs/design-system.md), [docs/ux-benchmark.md](docs/ux-benchmark.md) | UI tokens and components; the UX research (historical)                                                       |
+| [docs/progress.md](docs/progress.md)                                                         | Current status, open issues and next steps                                                                   |
 
 ## Known limitations
 

@@ -14,7 +14,8 @@
     "qa:down": "tsx apps/api/src/scripts/qa-compose.ts down",
     "qa:seed": "tsx apps/api/src/scripts/seed-demo.ts --qa",
     "qa:reset": "tsx apps/api/src/scripts/reset-qa.ts",
-    "prod:seed:dry-run": "tsx apps/api/src/scripts/seed-demo.ts --prod --dry-run"
+    "prod:seed:dry-run": "tsx apps/api/src/scripts/seed-demo.ts --prod --dry-run",
+    "prod:seed": "tsx apps/api/src/scripts/seed-demo.ts --prod"
   },
   "private": true,
   "dependencies": {

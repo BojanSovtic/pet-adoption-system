@@ -228,7 +228,7 @@ These are manual steps: accounts, payment details and DNS are yours to set up. C
    docker run --rm --env-file .env.production pet-adoption-tools pnpm admin:grant you@example.com --yes
    ```
 
-   The same image runs `pnpm audit:verify`. **Never** run `pnpm dev:seed` or `qa:seed` against production: the demo password is public.
+   The same image runs `pnpm audit:verify`. **Never** run `pnpm dev:seed` or `qa:seed` against production: the demo password is public. Demo data for the live demo goes only through `pnpm prod:seed`, with a private `DEMO_PASSWORD` (README, "Demo data on the live demo").
 
    When the admin exists, remove the image: `docker image rm pet-adoption-tools` (and `docker builder prune -f` for its build cache, if disk space matters). It holds the whole source tree and the development dependencies, which the running site doesn't need. It contains no secrets (`.env.production` is excluded from the build and only passed at run time). Rebuild it with the same `docker build` command when you need the CLI again.
 10. **Smoke test** (§7), including the checks from outside the VM.

@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-19, after the first maintenance session (backup, restore drill, first admin). `master` = `e158a4f`, tagged `v1.1.0`. Earlier dated entries are in the Git history of this file._
+_Last updated: 2026-11-25, after the confirmed production mode of the demo seed (not run). `master` = `e158a4f`, tagged `v1.1.0`. Earlier dated entries are in the Git history of this file._
 
 ## Status
 
@@ -60,7 +60,13 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 ## Next steps
 
-**Current (2026-11-19):** done in the first maintenance session: admin, first backup and restore drill, 2FA, monitoring.
+**Current (2026-11-25): demo data for the live site.** The seed (`apps/api/src/scripts/seed-demo.ts`) can now target the live demo: `pnpm prod:seed` is a dry run; changing it needs `--confirm-prod --confirm-host=<host>`, a private `DEMO_PASSWORD`, and runs a read-only preflight first (README, "Demo data on the live demo"). Verified on QA with a copy pointed at QA (confirmed run, rerun, duplicate pet, visitor application, taken address) and by a production dry run (35 planned changes, no problems, nothing changed). **Production has not been seeded.** Before the real run:
+
+1. Replace the demo photos: the current ones (about 500 px, from a Kaggle cats-and-dogs set of unknown licence) are not suitable for the public site.
+2. The owner reviews the implementation, takes a fresh Atlas backup and inspects the production data, including why the smoke-test listing "Rex" changed from available (2026-11-23) to adopted (2026-11-25).
+3. The owner chooses the production `DEMO_PASSWORD` (16 to 128 characters, kept only in a password manager; it becomes the demo accounts' login and must stay the same for reruns) and sets it through the hidden prompt in README "Demo data on the live demo". Then a dry run, the confirmed run only on the owner's explicit instruction, and a check of the result on the site.
+
+**Earlier (2026-11-19):** done in the first maintenance session: admin, first backup and restore drill, 2FA, monitoring.
 
 1. ~~Decide on keep-awake~~: decided 2026-11-19, keep the UptimeRobot ping (see "Open issues"). Check Render's free-hour usage once at the end of November.
 2. **Off-machine copy of the backups:** an encrypted `.7z` (AES-256, `-mhe=on`) to a personal cloud account or a USB drive kept apart from the PC.

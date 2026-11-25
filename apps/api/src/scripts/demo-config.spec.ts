@@ -135,14 +135,14 @@ describe('resolveSeedTarget', () => {
     });
   });
 
-  describe('pnpm prod:seed:dry-run (--prod)', () => {
+  describe('pnpm prod:seed (--prod)', () => {
     it('always targets exactly the live demo through its site, over HTTPS', () => {
       expect(PROD_API_URL).toBe('https://pet-adoption-26o.pages.dev/api');
       expect(resolveSeedTarget(['--prod'], {}, QA_API_URL)).toEqual({
         name: 'prod',
         apiUrl: PROD_API_URL,
         publicPasswordAllowed: false,
-        writesAllowed: false,
+        confirmHost: 'pet-adoption-26o.pages.dev',
         startupTimeoutMs: 180_000,
       });
     });
@@ -181,7 +181,7 @@ describe('resolveSeedTarget', () => {
 
       expect(target.apiUrl).toMatch(/^http:\/\/(localhost|127\.0\.0\.1):/);
       expect(target.startupTimeoutMs).toBe(0);
-      expect(target.writesAllowed).toBe(true);
+      expect(target.confirmHost).toBeNull();
     }
   });
 });
@@ -189,10 +189,10 @@ describe('resolveSeedTarget', () => {
 describe('resolveSeedRun', () => {
   const privatePassword = { DEMO_PASSWORD: 'a-long-private-pass-1234' };
 
-  it('refuses a production run that could write', () => {
-    expect(() =>
-      resolveSeedRun(['--prod'], privatePassword, QA_API_URL),
-    ).toThrow('only supports dry runs');
+  it('makes a production run without confirmations a dry run', () => {
+    expect(resolveSeedRun(['--prod'], privatePassword, QA_API_URL).dryRun).toBe(
+      true,
+    );
   });
 
   it('allows a production dry run with a private password', () => {
@@ -242,5 +242,136 @@ describe('resolveSeedRun', () => {
     expect(resolveSeedRun(['--qa', '--dry-run'], {}, QA_API_URL).dryRun).toBe(
       true,
     );
+  });
+
+  describe('production write confirmation', () => {
+    const HOST = 'pet-adoption-26o.pages.dev';
+    const confirmed = ['--prod', '--confirm-prod', `--confirm-host=${HOST}`];
+
+    it('changes data only with --confirm-prod and the exact host', () => {
+      const run = resolveSeedRun(confirmed, privatePassword, QA_API_URL);
+
+      expect(run.dryRun).toBe(false);
+      expect(run.target.apiUrl).toBe(PROD_API_URL);
+      expect(new URL(run.target.apiUrl).host).toBe(HOST);
+    });
+
+    it.each([
+      ['no host confirmation', ['--prod', '--confirm-prod']],
+      [
+        'two host confirmations',
+        [
+          '--prod',
+          '--confirm-prod',
+          `--confirm-host=${HOST}`,
+          `--confirm-host=${HOST}`,
+        ],
+      ],
+    ])('refuses %s', (_, argv) => {
+      expect(() => resolveSeedRun(argv, privatePassword, QA_API_URL)).toThrow(
+        'exactly one --confirm-host=',
+      );
+    });
+
+    it.each([
+      '',
+      'pet-adoption-26o.pages.dev.evil.com',
+      'PET-ADOPTION-26O.PAGES.DEV',
+      'https://pet-adoption-26o.pages.dev',
+      'pet-adoption-26o.pages.dev ',
+      '127.0.0.1:3336',
+    ])('refuses a host that is not exactly the live site (%j)', (host) => {
+      const error = (() => {
+        try {
+          resolveSeedRun(
+            ['--prod', '--confirm-prod', `--confirm-host=${host}`],
+            privatePassword,
+            QA_API_URL,
+          );
+        } catch (caught) {
+          return caught as Error;
+        }
+
+        return undefined;
+      })();
+
+      expect(error?.message).toContain("doesn't name the live site's host");
+      // The expected host has to be typed on purpose, not copied from here.
+      expect(error?.message).not.toContain(HOST);
+    });
+
+    it('refuses a host confirmation without --confirm-prod', () => {
+      expect(() =>
+        resolveSeedRun(
+          ['--prod', `--confirm-host=${HOST}`],
+          privatePassword,
+          QA_API_URL,
+        ),
+      ).toThrow('needs --confirm-prod too');
+    });
+
+    it('refuses --dry-run together with --confirm-prod', () => {
+      expect(() =>
+        resolveSeedRun(
+          [...confirmed, '--dry-run'],
+          privatePassword,
+          QA_API_URL,
+        ),
+      ).toThrow('contradict');
+    });
+
+    it.each(['--dev', '--qa'])('refuses the confirmations for %s', (flag) => {
+      expect(() =>
+        resolveSeedRun(
+          [flag, '--confirm-prod', `--confirm-host=${HOST}`],
+          {},
+          QA_API_URL,
+        ),
+      ).toThrow('only for --prod');
+      expect(() =>
+        resolveSeedRun([flag, '--confirm-prod'], {}, QA_API_URL),
+      ).toThrow('only for --prod');
+    });
+
+    it.each(['--yes', '--force', '--confirm', '--confirm-host'])(
+      'has no shortcut option (%s)',
+      (option) => {
+        expect(() =>
+          resolveSeedRun(['--prod', option], privatePassword, QA_API_URL),
+        ).toThrow('Unknown option');
+      },
+    );
+
+    it('still requires a private password for a confirmed run, without showing it', () => {
+      for (const env of [{}, { DEMO_PASSWORD: PUBLIC_DEMO_PASSWORD }]) {
+        expect(() => resolveSeedRun(confirmed, env, QA_API_URL)).toThrow(
+          /DEMO_PASSWORD/,
+        );
+      }
+
+      const short = 'short-secret-1';
+      const error = (() => {
+        try {
+          resolveSeedRun(confirmed, { DEMO_PASSWORD: short }, QA_API_URL);
+        } catch (caught) {
+          return caught as Error;
+        }
+
+        return undefined;
+      })();
+
+      expect(error?.message).toContain('16 to 128 characters');
+      expect(error?.message).not.toContain(short);
+    });
+
+    it('keeps the fixed production URL for a confirmed run', () => {
+      expect(() =>
+        resolveSeedRun(
+          confirmed,
+          { ...privatePassword, DEMO_API_URL: QA_API_URL },
+          QA_API_URL,
+        ),
+      ).toThrow('Unset DEMO_API_URL');
+    });
   });
 });

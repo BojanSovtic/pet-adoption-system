@@ -41,7 +41,8 @@ import { sendWithRetry, waitUntilReady } from './seed-retry';
  * run again: each step first checks what already exists. It never deletes
  * anything (QA has pnpm qa:reset; development data is never reset by script).
  * Targets: pnpm dev:seed (--dev), pnpm qa:seed (--qa) or
- * pnpm prod:seed:dry-run (--prod --dry-run), see demo-config.ts.
+ * pnpm prod:seed (--prod: a dry run unless both production confirmations are
+ * given; then a read-only preflight runs first), see demo-config.ts.
  *
  * Photos: up to 5 per pet from apps/api/src/scripts/demo-images/, named
  * `max.jpg`, `max-2.webp` … (see demo-images.ts and pnpm demo:images).
@@ -254,7 +255,9 @@ const signIn = async (key: UserKey): Promise<Session | null> => {
     throw new Error(
       `${email} is already registered, but not with the seed's password, so the seed can't tell ` +
         'whether it is a demo account. It stopped before creating any pets or applications, and left that account alone. ' +
-        `If it is yours, set DEMO_PASSWORD to its password; otherwise ${resetCommand()}.`,
+        (target.name === 'prod'
+          ? 'If it is yours, set DEMO_PASSWORD to its password; otherwise an admin should review that account, and the dataset needs another address for this user.'
+          : `If it is yours, set DEMO_PASSWORD to its password; otherwise ${resetCommand()}.`),
     );
   }
 
@@ -570,35 +573,16 @@ const START_HINTS: Record<SeedTarget['name'], string> = {
   prod: 'It may still be waking up (Render Free) or down; check the site and try again later.',
 };
 
-const main = async () => {
-  ({
-    target,
-    dryRun,
-    password: demoPassword,
-  } = resolveSeedRun(process.argv, process.env, QA_API_URL));
-
-  console.log(
-    `${dryRun ? 'Dry run (nothing is changed)' : 'Seeding demo data'} through ${target.apiUrl} (${LABELS[target.name]})`,
-  );
-
-  try {
-    const checks = await waitUntilReady(
-      async () => (await probe('/ready')).status === 200,
-      {
-        timeoutMs: target.startupTimeoutMs,
-        intervalMs: READY_CHECK_INTERVAL_MS,
-      },
-    );
-    console.log(`  API ready (${checks} check(s))`);
-  } catch (error) {
-    throw new Error(
-      `The API at ${target.apiUrl} is not reachable or not ready. ${START_HINTS[target.name]} ` +
-        `(${error instanceof Error ? error.message : error})`,
-    );
-  }
-
-  await checkApiSupportsDemoData();
-  console.log('  API supports the demo data and /pets/mine');
+/**
+ * One pass over the dataset: accounts, pets, applications, then the final
+ * check. In a dry run it only reads and lists changes; otherwise it makes
+ * them. Returns the applications whose state differs from the dataset
+ * (a dry run leaves out what the planned changes would still settle).
+ */
+const seedPass = async (): Promise<string[]> => {
+  planned.length = 0;
+  conflicts.length = 0;
+  plannedSubmissions.clear();
 
   const sessions = {} as Record<UserKey, Session | null>;
 
@@ -683,6 +667,68 @@ const main = async () => {
       );
     }
   }
+
+  return mismatches;
+};
+
+const main = async () => {
+  ({
+    target,
+    dryRun,
+    password: demoPassword,
+  } = resolveSeedRun(process.argv, process.env, QA_API_URL));
+
+  console.log(
+    dryRun
+      ? `Dry run (nothing is changed) through ${target.apiUrl} (${LABELS[target.name]})`
+      : target.confirmHost
+        ? `CONFIRMED RUN: changing data on ${target.apiUrl} (${LABELS[target.name]}), after a read-only preflight`
+        : `Seeding demo data through ${target.apiUrl} (${LABELS[target.name]})`,
+  );
+
+  try {
+    const checks = await waitUntilReady(
+      async () => (await probe('/ready')).status === 200,
+      {
+        timeoutMs: target.startupTimeoutMs,
+        intervalMs: READY_CHECK_INTERVAL_MS,
+      },
+    );
+    console.log(`  API ready (${checks} check(s))`);
+  } catch (error) {
+    throw new Error(
+      `The API at ${target.apiUrl} is not reachable or not ready. ${START_HINTS[target.name]} ` +
+        `(${error instanceof Error ? error.message : error})`,
+    );
+  }
+
+  await checkApiSupportsDemoData();
+  console.log('  API supports the demo data and /pets/mine');
+
+  // A confirmed production run first makes the whole pass as a dry run and
+  // changes nothing unless that is clean: conflicts there (a duplicate pet,
+  // an accept a visitor's application blocks, a decision that ended
+  // differently) are for a person to resolve, not the seed.
+  if (target.confirmHost && !dryRun) {
+    console.log('\nPreflight (read-only):');
+    dryRun = true;
+    const preflightMismatches = await seedPass();
+    dryRun = false;
+    const problems = [...conflicts, ...preflightMismatches];
+
+    if (problems.length > 0) {
+      throw new Error(
+        `The preflight found ${problems.length} problem(s), so nothing was changed:\n  ${problems.join('\n  ')}\n` +
+          'Resolve them by hand, run pnpm prod:seed (dry run) until it reports none, then confirm again.',
+      );
+    }
+
+    console.log(
+      `Preflight clean: ${planned.length} change(s) to make.\n\nSeeding:`,
+    );
+  }
+
+  const mismatches = await seedPass();
 
   if (dryRun) {
     const problems = [...conflicts, ...mismatches];
