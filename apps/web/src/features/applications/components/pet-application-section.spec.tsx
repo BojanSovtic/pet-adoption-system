@@ -1,6 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import {
+  createMemoryRouter,
+  Link,
+  RouterProvider,
+  useParams,
+} from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_PET_PROFILE,
@@ -234,5 +245,174 @@ describe('PetApplicationSection', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(
       'You have already applied for this pet.',
     );
+  });
+});
+
+describe('PetApplicationSection draft across navigation', () => {
+  const otherPet: Pet = { ...pet, _id: 'pet-2', name: 'Luna' };
+  const pets = [pet, otherPet];
+  const miloLabel = 'Why would you like to adopt Milo?';
+
+  // Mirrors the pet details page: the keyed section next to the owner link.
+  const PetRoute = () => {
+    const { id } = useParams();
+    const shown = pets.find((candidate) => candidate._id === id) ?? pet;
+
+    return (
+      <>
+        <PetApplicationSection key={shown._id} pet={shown} />
+        <Link to={`/users/${owner._id}`}>Owner profile</Link>
+      </>
+    );
+  };
+
+  const renderWithProfile = () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(visitor);
+    vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+
+    const router = createMemoryRouter(
+      [
+        { path: '/pets/:id', element: <PetRoute /> },
+        { path: '/users/:id', element: <h1>Owner page</h1> },
+      ],
+      { initialEntries: [`/pets/${pet._id}`] },
+    );
+
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: { retry: false },
+              mutations: { retry: false },
+            },
+          })
+        }
+      >
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    return router;
+  };
+
+  // A real click moves focus off the field first; fireEvent.click does not.
+  const typeAndLeave = async (label: string, value: string) => {
+    const field = await screen.findByLabelText(label);
+    fireEvent.change(field, { target: { value } });
+    fireEvent.blur(field);
+    fireEvent.click(screen.getByRole('link', { name: 'Owner profile' }));
+    await screen.findByRole('heading', { name: 'Owner page' });
+  };
+
+  const goBack = async (router: ReturnType<typeof renderWithProfile>) => {
+    await act(() => router.navigate(-1));
+  };
+
+  const fieldValue = async (label: string) =>
+    ((await screen.findByLabelText(label)) as HTMLTextAreaElement).value;
+
+  beforeEach(() => {
+    vi.mocked(submitApplication).mockReset();
+  });
+
+  it('restores the message after visiting the owner profile and going back', async () => {
+    const router = renderWithProfile();
+
+    await typeAndLeave(miloLabel, 'I have a big garden.');
+    await goBack(router);
+
+    expect(await fieldValue(miloLabel)).toBe('I have a big garden.');
+  });
+
+  it('lets the restored message be edited and submitted', async () => {
+    vi.mocked(submitApplication).mockResolvedValue(myApplication('pending'));
+    const router = renderWithProfile();
+
+    await typeAndLeave(miloLabel, 'I have a big garden.');
+    await goBack(router);
+
+    fireEvent.change(await screen.findByLabelText(miloLabel), {
+      target: { value: 'I have a big garden and time.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send application' }));
+
+    await waitFor(() => {
+      expect(submitApplication).toHaveBeenCalledWith('pet-1', {
+        message: 'I have a big garden and time.',
+      });
+    });
+  });
+
+  it("does not show one pet's message on another pet", async () => {
+    const router = renderWithProfile();
+
+    await typeAndLeave(miloLabel, 'I have a big garden.');
+    await act(() => router.navigate(`/pets/${otherPet._id}`));
+
+    expect(await fieldValue('Why would you like to adopt Luna?')).toBe('');
+
+    // A fresh visit to the same pet is a new history entry, so it starts empty.
+    await act(() => router.navigate(`/pets/${pet._id}`));
+    expect(await fieldValue(miloLabel)).toBe('');
+  });
+
+  it('forgets the message once it is sent', async () => {
+    vi.mocked(submitApplication).mockResolvedValue(myApplication('pending'));
+    const router = renderWithProfile();
+
+    await typeAndLeave(miloLabel, 'I have a big garden.');
+    await goBack(router);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Send application' }),
+    );
+    // The mock still reports no application, so the form shows again.
+    await waitFor(async () => {
+      expect(submitApplication).toHaveBeenCalled();
+      expect(await fieldValue(miloLabel)).toBe('');
+    });
+    fireEvent.click(screen.getByRole('link', { name: 'Owner profile' }));
+    await screen.findByRole('heading', { name: 'Owner page' });
+    await goBack(router);
+
+    expect(await fieldValue(miloLabel)).toBe('');
+  });
+
+  it('keeps the message when sending fails', async () => {
+    const { ApiError } = await import('../../../lib/api-client');
+    vi.mocked(submitApplication).mockRejectedValue(
+      new ApiError(0, 'NETWORK_ERROR'),
+    );
+    const router = renderWithProfile();
+
+    await typeAndLeave(miloLabel, 'I have a big garden.');
+    await goBack(router);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Send application' }),
+    );
+    await screen.findByRole('alert');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Owner profile' }));
+    await screen.findByRole('heading', { name: 'Owner page' });
+    await goBack(router);
+
+    expect(await fieldValue(miloLabel)).toBe('I have a big garden.');
+  });
+
+  it('still validates a restored, emptied message', async () => {
+    const router = renderWithProfile();
+
+    await typeAndLeave(miloLabel, 'I have a big garden.');
+    await goBack(router);
+
+    fireEvent.change(await screen.findByLabelText(miloLabel), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send application' }));
+
+    expect(
+      await screen.findByText('Please write a short message.'),
+    ).toBeTruthy();
+    expect(submitApplication).not.toHaveBeenCalled();
   });
 });

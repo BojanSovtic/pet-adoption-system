@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { APPLICATION_MESSAGE_MAX_LENGTH, type Pet } from '@pet-adoption/models';
@@ -31,6 +31,30 @@ const applicationFormSchema = z.object({
     .max(APPLICATION_MESSAGE_MAX_LENGTH, 'form.messageTooLong'),
 });
 
+type HistoryState = Record<string, unknown>;
+
+const toHistoryState = (state: unknown): HistoryState =>
+  typeof state === 'object' && state !== null ? (state as HistoryState) : {};
+
+/**
+ * The unsent message, kept in this history entry's router state (next to the
+ * pet list return state). Back to this entry restores it; a new visit to the
+ * pet is a new entry and starts empty. It lives only in this tab's session
+ * history, never in local or session storage.
+ */
+const readDraft = (state: unknown, petId: string): string => {
+  const draft = toHistoryState(state).applicationDraft;
+
+  return typeof draft === 'object' &&
+    draft !== null &&
+    'petId' in draft &&
+    draft.petId === petId &&
+    'message' in draft &&
+    typeof draft.message === 'string'
+    ? draft.message
+    : '';
+};
+
 type PetApplicationSectionProps = {
   pet: Pet;
 };
@@ -42,11 +66,34 @@ type PetApplicationSectionProps = {
 const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
   const { t } = useTranslation('applications');
   const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: currentUser, isPending: isUserPending } = useCurrentUser();
   const isOwner = isPetOwner(pet, currentUser);
 
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(() =>
+    readDraft(location.state, pet._id),
+  );
+
+  // Saved on blur rather than on every keystroke: Safari throttles history
+  // updates. Leaving through a link always blurs the field first.
+  const saveDraft = (text: string) => {
+    const state = { ...toHistoryState(location.state) };
+    delete state.applicationDraft;
+
+    if (text) {
+      state.applicationDraft = { petId: pet._id, message: text };
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: location.search,
+        hash: location.hash,
+      },
+      { replace: true, state, preventScrollReset: true },
+    );
+  };
 
   // Only the newest application for this pet matters: while one is pending,
   // accepted or rejected, the API allows no newer one, so if the newest is
@@ -166,7 +213,10 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
     const data = validation.validateForSubmit();
 
     if (data) {
-      mutation.mutate(data.message);
+      // Cleared before sending so a sent message never comes back on Back;
+      // restored if sending fails (per-call callbacks skip unmounted forms).
+      saveDraft('');
+      mutation.mutate(data.message, { onError: () => saveDraft(message) });
     }
   };
 
@@ -203,7 +253,12 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
             // Clears the form-level error; field errors are kept per field.
             mutation.reset();
           }}
-          onBlur={() => validation.fieldBlurred('message')}
+          onBlur={() => {
+            validation.fieldBlurred('message');
+            if (message !== readDraft(location.state, pet._id)) {
+              saveDraft(message);
+            }
+          }}
           maxLength={APPLICATION_MESSAGE_MAX_LENGTH}
           rows={5}
           required

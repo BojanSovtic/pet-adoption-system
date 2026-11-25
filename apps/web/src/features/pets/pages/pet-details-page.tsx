@@ -220,7 +220,8 @@ const PetDetailsPage = () => {
           )}
 
           <div className="border-t pt-6">
-            <PetApplicationSection pet={pet} />
+            {/* Keyed so another pet never shows this pet's typed message. */}
+            <PetApplicationSection key={pet._id} pet={pet} />
           </div>
 
           {currentUser && !isOwner && pet.owner && (
