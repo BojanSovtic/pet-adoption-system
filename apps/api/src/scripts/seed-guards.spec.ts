@@ -7,6 +7,7 @@ import type {
 import {
   findSeedPet,
   isAllowedSeedRequest,
+  isRepeatSafeRequest,
   pendingApplicationsOutsideSeed,
 } from './seed-guards';
 
@@ -90,6 +91,34 @@ describe('findSeedPet', () => {
     expect(() =>
       findSeedPet([pet('Max', ANA), pet('Max', ANA, OTHER_PET_ID)], 'Max', ANA),
     ).toThrow("can't tell which one");
+  });
+});
+
+// The only requests a dry run sends and the only ones retried after a lost
+// response.
+describe('isRepeatSafeRequest', () => {
+  it.each([
+    ['GET', '/pets/mine?page=1&pageSize=50'],
+    ['GET', '/ready'],
+    ['GET', '/applications/received'],
+    ['POST', '/auth/login'],
+  ])('treats %s %s as repeat-safe', (method, apiPath) => {
+    expect(isRepeatSafeRequest(method, apiPath)).toBe(true);
+  });
+
+  it.each([
+    ['POST', '/auth/register'],
+    ['POST', '/pets'],
+    ['POST', `/pets/${PET_ID}/images`],
+    ['POST', `/pets/${PET_ID}/applications`],
+    ['POST', `/applications/${APPLICATION_ID}/accept`],
+    ['POST', `/applications/${APPLICATION_ID}/reject`],
+    ['POST', `/applications/${APPLICATION_ID}/withdraw`],
+    ['POST', '/auth/login/extra'],
+    ['PUT', `/pets/${PET_ID}`],
+    ['DELETE', `/pets/${PET_ID}`],
+  ])('treats %s %s as a change', (method, apiPath) => {
+    expect(isRepeatSafeRequest(method, apiPath)).toBe(false);
   });
 });
 

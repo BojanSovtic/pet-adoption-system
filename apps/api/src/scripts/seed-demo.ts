@@ -9,7 +9,7 @@ import type {
   User,
 } from '@pet-adoption/models';
 
-import { resolveDemoPassword, resolveSeedTarget } from './demo-config';
+import { resolveSeedRun, type SeedTarget } from './demo-config';
 import {
   APPLICATIONS,
   applicationMessage,
@@ -30,15 +30,18 @@ import { QA_API_URL } from './qa-config';
 import {
   findSeedPet,
   isAllowedSeedRequest,
+  isRepeatSafeRequest,
   pendingApplicationsOutsideSeed,
 } from './seed-guards';
+import { sendWithRetry, waitUntilReady } from './seed-retry';
 
 /**
  * Creates the portfolio demo data through the HTTP API, so it passes the same
  * validation, hashing, transactions and state machines as real use. Safe to
  * run again: each step first checks what already exists. It never deletes
  * anything (QA has pnpm qa:reset; development data is never reset by script).
- * Targets: pnpm dev:seed (--dev) or pnpm qa:seed (--qa), see demo-config.ts.
+ * Targets: pnpm dev:seed (--dev), pnpm qa:seed (--qa) or
+ * pnpm prod:seed:dry-run (--prod --dry-run), see demo-config.ts.
  *
  * Photos: up to 5 per pet from apps/api/src/scripts/demo-images/, named
  * `max.jpg`, `max-2.webp` … (see demo-images.ts and pnpm demo:images).
@@ -48,31 +51,55 @@ import {
  * The seed only sends the requests it needs (never deletes or edits), finds
  * pets among each owner's own pets, and doesn't accept an application if
  * that would auto-reject one from an account outside the demo data.
+ *
+ * Dry run (--dry-run): the same steps, but every change is listed instead of
+ * sent; only reads and sign-ins go out. Transient failures are retried within
+ * limits (seed-retry.ts); a change whose outcome is unknown stops the run.
  */
 
-/** The demo accounts' password (dev and QA: the public one in the README). */
-const DEMO_PASSWORD = resolveDemoPassword(process.env, {
-  publicDefaultAllowed: true,
-});
+/** Set once at the start of main (see resolveSeedRun). */
+let target: SeedTarget;
+let demoPassword = '';
+let dryRun = false;
 
-/** The API this run seeds; set once at the start (see resolveSeedTarget). */
-let apiUrl = '';
+/** A dry run's findings: changes it would make, and problems it found. */
+const planned: string[] = [];
+const conflicts: string[] = [];
+
+/** One try may take this long; a timed-out change counts as uncertain. */
+const REQUEST_TIMEOUT_MS = 60_000;
+const READY_CHECK_INTERVAL_MS = 5_000;
 
 // The development database has no reset command on purpose: it may hold
-// the developer's own data.
+// the developer's own data. Production has none either.
 const resetCommand = () =>
-  apiUrl === QA_API_URL
+  target.name === 'qa'
     ? 'pnpm qa:reset --yes'
-    : 'remove the conflicting data by hand; the development database has no reset command';
+    : target.name === 'prod'
+      ? 'fix it by hand as that account; production has no reset'
+      : 'remove the conflicting data by hand; the development database has no reset command';
 
-const restartCommand = () =>
-  apiUrl === QA_API_URL
-    ? 'pnpm qa:down, then pnpm qa:up'
-    : 'restart pnpm nx serve @pet-adoption/api';
+const rateLimitHint = () =>
+  'Sign-in and registration are limited to 20 attempts per 15 minutes. ' +
+  (target.name === 'prod'
+    ? 'Wait 15 minutes and run it again.'
+    : `Wait, or restart the API (${
+        target.name === 'qa'
+          ? 'pnpm qa:down, then pnpm qa:up'
+          : 'restart pnpm nx serve @pet-adoption/api'
+      }); the counters are kept in memory and the data stays.`);
 
 type Session = { user: User; cookie: string };
 
 type ApiResult<T> = { status: number; data: T; cookies: string[] };
+
+/** A read the API answers without a session (probes before signing in). */
+const probe = (apiPath: string) =>
+  sendWithRetry('GET', apiPath, () =>
+    fetch(`${target.apiUrl}${apiPath}`, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }),
+  );
 
 const call = async <T = unknown>(
   apiPath: string,
@@ -89,6 +116,14 @@ const call = async <T = unknown>(
     throw new Error(`The seed never sends ${method} ${apiPath.split('?')[0]}.`);
   }
 
+  // The last line of defence for a dry run: a change that slipped past the
+  // dry-run branches below is refused here.
+  if (dryRun && !isRepeatSafeRequest(method, apiPath)) {
+    throw new Error(
+      `A dry run never sends ${method} ${apiPath.split('?')[0]}.`,
+    );
+  }
+
   const headers: Record<string, string> = {};
   let body: string | FormData | undefined;
 
@@ -103,18 +138,30 @@ const call = async <T = unknown>(
     body = options.form;
   }
 
-  const response = await fetch(`${apiUrl}${apiPath}`, {
-    method,
-    headers,
-    body,
-  });
+  const response = await sendWithRetry(method, apiPath, () =>
+    fetch(`${target.apiUrl}${apiPath}`, {
+      method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }),
+  );
   const text = await response.text();
 
   return {
     status: response.status,
-    data: (text ? JSON.parse(text) : null) as T,
+    data: parseJson(text) as T,
     cookies: response.headers.getSetCookie(),
   };
+};
+
+/** The body as JSON; `null` if it is empty or not JSON (e.g. a proxy's HTML error page). */
+const parseJson = (text: string): unknown => {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
 };
 
 const expectStatus = <T>(
@@ -141,9 +188,11 @@ const sessionCookie = (cookies: string[]): string => {
   return sid.split(';')[0];
 };
 
-const rateLimitHint = () =>
-  'Sign-in and registration are limited to 20 attempts per 15 minutes. ' +
-  `Wait, or restart the API (${restartCommand()}); the counters are kept in memory and the data stays.`;
+/** A dry run lists the change instead of making it. */
+const plan = (change: string) => {
+  planned.push(change);
+  console.log(`  ~ would ${change}`);
+};
 
 /**
  * Signs in, or registers the account if it doesn't exist yet. Signing in
@@ -154,12 +203,16 @@ const rateLimitHint = () =>
  * addresses are public, so an address registered with another password may
  * belong to someone else: the seed stops then, before it creates or decides
  * anything, and never changes that account.
+ *
+ * In a dry run, an account the password doesn't open is `null`: the API
+ * answers a free address and one registered with another password the same
+ * way, so only the real run can tell them apart.
  */
-const signIn = async (key: UserKey): Promise<Session> => {
+const signIn = async (key: UserKey): Promise<Session | null> => {
   const { name, email } = USERS[key];
   const loggedIn = await call<User>('/auth/login', {
     method: 'POST',
-    json: { email, password: DEMO_PASSWORD },
+    json: { email, password: demoPassword },
   });
 
   if (loggedIn.status === 429) {
@@ -181,9 +234,16 @@ const signIn = async (key: UserKey): Promise<Session> => {
 
   expectStatus(loggedIn, [401], `Signing in ${email}`);
 
+  if (dryRun) {
+    plan(
+      `register ${email} (if the address is free; if it is taken, the real run stops here)`,
+    );
+    return null;
+  }
+
   const registered = await call<User & { code?: string }>('/auth/register', {
     method: 'POST',
-    json: { name, email, password: DEMO_PASSWORD },
+    json: { name, email, password: demoPassword },
   });
 
   if (registered.status === 429) {
@@ -231,16 +291,28 @@ const listAll = async <T>(apiPath: string, session: Session, what: string) => {
 const ownPets = (owner: Session) =>
   listAll<Pet>('/pets/mine', owner, `Listing the pets of ${owner.user.email}`);
 
-/** Finds the owner's pet by exact name, or creates it; adds its demo photos. */
+const photoNote = (files: string[]) =>
+  files.length > 0 ? ` with ${files.length} photo(s)` : '';
+
+/**
+ * Finds the owner's pet by exact name, or creates it; adds its demo photos.
+ * `null` only in a dry run, for a pet that doesn't exist yet.
+ */
 const ensurePet = async (
   spec: PetSpec,
-  owner: Session,
+  owner: Session | null,
   existing: readonly Pet[],
-): Promise<Pet> => {
-  let pet = findSeedPet(existing, spec.name, owner.user._id);
+): Promise<Pet | null> => {
+  let pet = owner
+    ? findSeedPet(existing, spec.name, owner.user._id)
+    : undefined;
+  const photos = findDemoImages(DEMO_IMAGE_DIR, spec.name);
 
   if (pet) {
     console.log(`  = pet ${spec.name}`);
+  } else if (dryRun || !owner) {
+    plan(`create pet ${spec.name}${photoNote(photos)}`);
+    return null;
   } else {
     pet = expectStatus(
       await call<Pet>('/pets', {
@@ -265,12 +337,11 @@ const ensurePet = async (
 
   // All of a pet's photos in one request: they are stored all together or
   // not at all. Pets that already have photos are left alone.
-  const imageFiles = demoImagesToUpload(
-    pet,
-    findDemoImages(DEMO_IMAGE_DIR, spec.name),
-  );
+  const imageFiles = demoImagesToUpload(pet, photos);
 
-  if (imageFiles.length > 0) {
+  if (imageFiles.length > 0 && dryRun) {
+    plan(`upload ${imageFiles.length} photo(s) to ${spec.name}`);
+  } else if (imageFiles.length > 0 && owner) {
     const form = new FormData();
 
     for (const fileName of imageFiles) {
@@ -315,6 +386,20 @@ const newestApplication = async (
 const expectedStatus = (outcome: Outcome): ApplicationStatus =>
   outcome === 'autoRejected' ? 'rejected' : outcome;
 
+const decisionFor = (outcome: Outcome) =>
+  outcome === 'accepted'
+    ? 'accept'
+    : outcome === 'rejected'
+      ? 'reject'
+      : outcome === 'withdrawn'
+        ? 'withdraw'
+        : undefined;
+
+const labelOf = (spec: ApplicationSpec) => `${spec.applicant} → ${spec.pet}`;
+
+/** Dry run: applications pass 1 would submit (pass 2 then plans the decision). */
+const plannedSubmissions = new Set<string>();
+
 /**
  * Pass 1: makes sure the application exists. All applications are submitted
  * before any decision, because accepting one adopts the pet, after which
@@ -322,17 +407,24 @@ const expectedStatus = (outcome: Outcome): ApplicationStatus =>
  */
 const ensureSubmitted = async (
   spec: ApplicationSpec,
-  pet: Pet,
-  applicant: Session,
+  pet: Pet | null,
+  applicant: Session | null,
 ): Promise<void> => {
-  const label = `${spec.applicant} → ${spec.pet}`;
-  const application = await newestApplication(applicant, pet._id);
+  const label = labelOf(spec);
+  const application =
+    pet && applicant ? await newestApplication(applicant, pet._id) : undefined;
 
   // None yet, or only a withdrawn one that isn't the intended end state.
   if (
     !application ||
     (application.status === 'withdrawn' && spec.outcome !== 'withdrawn')
   ) {
+    if (dryRun || !pet || !applicant) {
+      plan(`submit application ${label}`);
+      plannedSubmissions.add(label);
+      return;
+    }
+
     const result = await call<{ code?: string }>(
       `/pets/${pet._id}/applications`,
       {
@@ -366,12 +458,22 @@ const ensureSubmitted = async (
  */
 const ensureDecided = async (
   spec: ApplicationSpec,
-  pet: Pet,
-  applicant: Session,
-  owner: Session,
+  pet: Pet | null,
+  applicant: Session | null,
+  owner: Session | null,
   seedUserIds: ReadonlySet<string>,
 ): Promise<void> => {
-  const label = `${spec.applicant} → ${spec.pet}`;
+  const label = labelOf(spec);
+  const action = decisionFor(spec.outcome);
+
+  // Dry run: the application doesn't exist yet. Whether an accept would be
+  // skipped can only be checked once it does.
+  if (plannedSubmissions.has(label) || !pet || !applicant || !owner) {
+    if (action) {
+      plan(`${action} application ${label}`);
+    }
+    return;
+  }
 
   if (pet.owner !== owner.user._id) {
     throw new Error(`${spec.pet} is not owned by ${owner.user.email}.`);
@@ -397,24 +499,18 @@ const ensureDecided = async (
 
     // Only a count: the other applicants' names and emails stay out of logs.
     if (outside.length > 0) {
-      console.warn(
-        `  ! accept ${label} skipped: it would auto-reject ${outside.length} pending application(s) ` +
-          'from accounts outside the demo data.',
-      );
+      const message =
+        `accept ${label} skipped: it would auto-reject ${outside.length} pending application(s) ` +
+        'from accounts outside the demo data.';
+      console.warn(`  ! ${message}`);
+      conflicts.push(message);
       return;
     }
   }
 
-  const action =
-    spec.outcome === 'accepted'
-      ? 'accept'
-      : spec.outcome === 'rejected'
-        ? 'reject'
-        : spec.outcome === 'withdrawn'
-          ? 'withdraw'
-          : undefined;
-
-  if (action) {
+  if (action && dryRun) {
+    plan(`${action} application ${label}`);
+  } else if (action) {
     expectStatus(
       await call(`/applications/${application._id}/${action}`, {
         method: 'POST',
@@ -433,70 +529,95 @@ const ensureDecided = async (
  * port 3333 that usually means the Docker app stack, built from an older
  * commit, is answering instead of the development API.
  */
-const checkApiSupportsDemoData = async (isDev: boolean) => {
-  const fix = isDev
-    ? 'Restart "pnpm nx serve @pet-adoption/api" with the current code.'
-    : 'Rebuild it with "pnpm qa:up".';
+const checkApiSupportsDemoData = async () => {
+  const fix =
+    target.name === 'dev'
+      ? 'Restart "pnpm nx serve @pet-adoption/api" with the current code.'
+      : target.name === 'qa'
+        ? 'Rebuild it with "pnpm qa:up".'
+        : 'Deploy the current code first.';
   const species = [...new Set(PETS.map((pet) => pet.species))];
 
   for (const value of species) {
-    const response = await fetch(`${apiUrl}/pets?species=${value}&pageSize=1`);
+    const response = await probe(`/pets?species=${value}&pageSize=1`);
 
     if (response.status === 400) {
       throw new Error(
-        `The API at ${apiUrl} rejects the species "${value}", so it runs older code than this seed. ${fix}`,
+        `The API at ${target.apiUrl} rejects the species "${value}", so it runs older code than this seed. ${fix}`,
       );
     }
   }
 
   // Signed out, /pets/mine answers 401. Older code reads "mine" as a pet id.
-  const mine = await fetch(`${apiUrl}/pets/mine`);
+  const mine = await probe('/pets/mine');
 
   if (mine.status !== 401) {
     throw new Error(
-      `The API at ${apiUrl} has no /pets/mine (HTTP ${mine.status}), so it runs older code than this seed. ${fix}`,
+      `The API at ${target.apiUrl} has no /pets/mine (HTTP ${mine.status}), so it runs older code than this seed. ${fix}`,
     );
   }
 };
 
+const LABELS: Record<SeedTarget['name'], string> = {
+  dev: 'development API: the database in apps/api/.env',
+  qa: 'Docker QA stack',
+  prod: 'live demo',
+};
+
+const START_HINTS: Record<SeedTarget['name'], string> = {
+  dev: 'Start it with "pnpm nx serve @pet-adoption/api".',
+  qa: 'Start it with "pnpm qa:up".',
+  prod: 'It may still be waking up (Render Free) or down; check the site and try again later.',
+};
+
 const main = async () => {
-  const isQa = process.argv.includes('--qa');
-  const isDev = process.argv.includes('--dev');
-  apiUrl = resolveSeedTarget(process.argv, process.env, QA_API_URL);
+  ({
+    target,
+    dryRun,
+    password: demoPassword,
+  } = resolveSeedRun(process.argv, process.env, QA_API_URL));
 
-  const label = isQa
-    ? ' (Docker QA stack)'
-    : ' (development API: the database in apps/api/.env)';
-  console.log(`Seeding demo data through ${apiUrl}${label}`);
-
-  const startCommand = isQa ? 'pnpm qa:up' : 'pnpm nx serve @pet-adoption/api';
+  console.log(
+    `${dryRun ? 'Dry run (nothing is changed)' : 'Seeding demo data'} through ${target.apiUrl} (${LABELS[target.name]})`,
+  );
 
   try {
-    await fetch(`${apiUrl}/health`);
-  } catch {
+    const checks = await waitUntilReady(
+      async () => (await probe('/ready')).status === 200,
+      {
+        timeoutMs: target.startupTimeoutMs,
+        intervalMs: READY_CHECK_INTERVAL_MS,
+      },
+    );
+    console.log(`  API ready (${checks} check(s))`);
+  } catch (error) {
     throw new Error(
-      `The API at ${apiUrl} is not reachable. Start it with "${startCommand}".`,
+      `The API at ${target.apiUrl} is not reachable or not ready. ${START_HINTS[target.name]} ` +
+        `(${error instanceof Error ? error.message : error})`,
     );
   }
 
-  await checkApiSupportsDemoData(isDev);
+  await checkApiSupportsDemoData();
+  console.log('  API supports the demo data and /pets/mine');
 
-  const sessions = {} as Record<UserKey, Session>;
+  const sessions = {} as Record<UserKey, Session | null>;
 
   for (const key of Object.keys(USERS) as UserKey[]) {
     sessions[key] = await signIn(key);
   }
 
   const seedUserIds = new Set(
-    Object.values(sessions).map((session) => session.user._id),
+    Object.values(sessions).flatMap((session) =>
+      session ? [session.user._id] : [],
+    ),
   );
   const existingPets = new Map<UserKey, Pet[]>();
-  const pets = new Map<string, Pet>();
+  const pets = new Map<string, Pet | null>();
 
   for (const spec of PETS) {
     const owner = sessions[spec.owner];
 
-    if (!existingPets.has(spec.owner)) {
+    if (owner && !existingPets.has(spec.owner)) {
       existingPets.set(spec.owner, await ownPets(owner));
     }
 
@@ -509,10 +630,10 @@ const main = async () => {
   const ownerOf = (petName: string) =>
     sessions[PETS.find((pet) => pet.name === petName)?.owner ?? 'ana'];
 
-  const petFor = (spec: ApplicationSpec): Pet => {
+  const petFor = (spec: ApplicationSpec): Pet | null => {
     const pet = pets.get(spec.pet);
 
-    if (!pet) {
+    if (pet === undefined) {
       throw new Error(`Unknown demo pet ${spec.pet}`);
     }
 
@@ -534,20 +655,51 @@ const main = async () => {
   }
 
   // Decisions are final, so data changed by hand can't be repaired; report it.
+  // A dry run leaves out what the planned changes would still settle.
   const mismatches: string[] = [];
 
   for (const spec of APPLICATIONS) {
     const pet = pets.get(spec.pet);
-    const application = pet
-      ? await newestApplication(sessions[spec.applicant], pet._id)
-      : undefined;
+    const applicant = sessions[spec.applicant];
+    const label = labelOf(spec);
+
+    if (dryRun && (!pet || !applicant || plannedSubmissions.has(label))) {
+      continue;
+    }
+
+    const application =
+      pet && applicant
+        ? await newestApplication(applicant, pet._id)
+        : undefined;
     const expected = expectedStatus(spec.outcome);
+
+    if (dryRun && application?.status === 'pending') {
+      continue;
+    }
 
     if (application?.status !== expected) {
       mismatches.push(
-        `${spec.applicant} → ${spec.pet}: expected ${expected}, found ${application?.status ?? 'none'}`,
+        `${label}: expected ${expected}, found ${application?.status ?? 'none'}`,
       );
     }
+  }
+
+  if (dryRun) {
+    const problems = [...conflicts, ...mismatches];
+
+    console.log(
+      `\nDry run finished: nothing was changed on ${target.apiUrl}.\n` +
+        `Changes a real run would make (${planned.length}):` +
+        (planned.length > 0 ? `\n  ${planned.join('\n  ')}` : ' none') +
+        `\nProblems (${problems.length}):` +
+        (problems.length > 0 ? `\n  ${problems.join('\n  ')}` : ' none'),
+    );
+
+    if (problems.length > 0) {
+      process.exitCode = 1;
+    }
+
+    return;
   }
 
   if (mismatches.length > 0) {

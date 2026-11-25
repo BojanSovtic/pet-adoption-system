@@ -151,6 +151,8 @@ Sign in as `ana@demo.example.com` (owner with the most pets and applications), `
 - **Changed by hand?** The seed reports differences instead of guessing (decisions are final). In QA, start over with `pnpm qa:reset --yes` and seed again. The development database has no reset command on purpose.
 - **Photos:** up to 5 per pet from [apps/api/src/scripts/demo-images/](apps/api/src/scripts/demo-images/README.md) (`max.jpg`, `max-2.jpg`, …). `pnpm demo:images` copies downloaded images to those names as listed in `mapping.json`. The seed adds photos only to pets that have none yet.
 - **Rate limits:** sign-in and registration allow 20 attempts per 15 minutes from one IP. A first seed uses 8 and a rerun 4. If the seed reports the limit, wait or restart the API.
+- **Dry run:** add `--dry-run` (for example `pnpm qa:seed --dry-run`) to list what a run would change without changing anything; only reads and sign-ins are sent.
+- **Live demo:** `pnpm prod:seed:dry-run` checks the live site the same way (dry run only; nothing can be written there yet). It needs a private `DEMO_PASSWORD` (at least 16 characters, never `demo-password`), waits up to 3 minutes for the API to wake up, and retries only reads and sign-ins. The demo password above never works on the live site.
 
 ## Docker QA environment
 

@@ -44,6 +44,15 @@ export const isAllowedSeedRequest = (
 };
 
 /**
+ * Requests that change no data, so sending one twice does no harm: reads,
+ * and signing in (it only starts a session). These are the only requests a
+ * dry run sends, and the only ones retried after a lost response.
+ */
+export const isRepeatSafeRequest = (method: string, apiPath: string): boolean =>
+  method === 'GET' ||
+  (method === 'POST' && apiPath.split('?')[0] === '/auth/login');
+
+/**
  * The owner's existing pet for a demo pet, from the owner's own pets
  * (`GET /pets/mine`, which includes hidden ones). Matching by exact name and
  * owner id; two matches mean the seed can't tell which one it manages, so it
