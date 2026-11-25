@@ -1,10 +1,12 @@
 # Architecture
 
-Diagrams of the **current** implementation (last reviewed against the code on 2026-11-16). For user-facing rules, see [requirements.md](requirements.md); for status and open issues, see [progress.md](progress.md); for the planned production setup, see [deployment.md](deployment.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
+Diagrams of the **current** implementation (last reviewed against the code on 2026-11-16). For user-facing rules, see [requirements.md](requirements.md); for status and open issues, see [progress.md](progress.md); for the hosted demo, see §6 "Hosted demo"; for the self-hosted alternative, see [deployment.md](deployment.md); for conventions, see [../CLAUDE.md](../CLAUDE.md).
 
 Legend: every diagram shows implemented behavior. Dashed arrows in §1 are build-time type imports; in §2b they are error paths.
 
 ## 1. System architecture
+
+The diagram shows local development. The hosted demo uses the same apps with a proxy in front of the API, a hosted database and Cloudinary for photos (§6, "Hosted demo").
 
 ```mermaid
 flowchart LR
@@ -28,17 +30,19 @@ flowchart LR
   api -- "connect-mongo<br/>(sessions, same client)" --> mongo
   operator -- "runs" --> cli
   cli -- "changeUserRole / verifyAuditChain<br/>(only MONGODB_URI + optional<br/>AUDIT_HMAC_KEY)" --> mongo
-  uploads[("Uploaded pet photos (re-encoded)<br/>local disk (UPLOADS_DIR)<br/>dev: apps/api/uploads<br/>Docker QA: pet-adoption-qa_uploads_data<br/>(FileStorage interface)")]
+  uploads[("Uploaded pet photos (re-encoded)<br/>STORAGE_DRIVER=local: disk (UPLOADS_DIR)<br/>dev: apps/api/uploads<br/>Docker QA: pet-adoption-qa_uploads_data<br/>(FileStorage interface)")]
   api -- "save / delete files" --> uploads
   browser -- "img src: /uploads/pets/…" --> api
 ```
 
-- **Two separate apps.** The frontend calls the API directly at `VITE_API_URL` (read at build time); there is no Vite or nginx proxy. Section 6 shows how they run in Docker and in E2E tests. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
+- **Two separate apps.** Locally, the frontend calls the API directly at `VITE_API_URL` (read at build time); there is no Vite or nginx proxy. Section 6 shows how they run in Docker QA, in E2E tests and in the hosted demo, where `VITE_API_URL=/api` goes through a proxy on the same origin. Ports 4200 and 3333 are different *origins* but the same *site*, so the API enables CORS with `credentials: true` and the `SameSite=Lax` session cookie still flows.
 - **The shared library has no runtime dependencies.** It holds the API contract (`Pet`, `User`, `ApiErrorResponse`, input types, allowed values, length limits). Each app keeps its own zod schemas; the API's are checked against the shared types with `satisfies`.
 - **One database connection.** The session store reuses Mongoose's MongoDB client instead of opening a second one (`auth/session.ts`).
 - **Admins are created outside the API.** `pnpm admin:grant <email>` connects to the database directly and uses the same `changeUserRole` service as the admin area (§3c, §5b). No HTTP route can create the first admin. The command-line tools load only `config/env-file.ts` (`MONGODB_URI`, optional `AUDIT_HMAC_KEY`), not the web server's `config/env.ts`, so they don't need `SESSION_SECRET` or `CORS_ORIGIN`.
 - **Photos are files, not database data.** A pet stores up to 5 storage keys in `images`; the API returns `images: [{ _id, url }]` and `imageUrl` (the first photo) built by the storage.
-  - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`) with a local-disk implementation, served at `/uploads` with `nosniff` and long-term caching. Object storage (S3, R2) would be a second implementation; nothing else changes.
+  - **Storage:** `storage/` defines a small `FileStorage` interface (`save`, `delete`, `publicUrl`). `STORAGE_DRIVER` (`config/storage-config.ts`) picks the implementation at startup:
+    - `local` (the default; development, Docker QA, E2E): files on disk under `UPLOADS_DIR`, served by the API at `/uploads` with `nosniff` and long-term caching.
+    - `cloudinary` (the hosted demo, whose disk is wiped on restart): signed uploads and deletes through Cloudinary's REST API (`cloudinary-file-storage.ts`, no SDK); `publicUrl` points to Cloudinary's CDN, so browsers load photos from there and the API doesn't mount `/uploads`. The three `CLOUDINARY_*` values are checked at startup, and the API secret never leaves the server.
   - **Upload:** `POST /api/pets/:id/images` checks sign-in, the per-user upload rate limit, ownership and free photo slots first, then parses multipart with `multer` (in memory, at most 5 files of 5 MB in the field "images"). Each file must be JPEG, PNG or WebP by its bytes; `processPetImage` (sharp) then checks the header (≤ 40 MP, not animated), decodes it and re-encodes it in the same format without metadata (EXIF/GPS, XMP, ICC), with EXIF rotation applied and at most 2000 px. At most 2 images are processed at once per process. Only the re-encoded files are stored, under random names (written as a hidden temp file, then renamed): all of them or none.
   - **The 5-photo limit is part of the update query** (`$expr` on the array size), so simultaneous uploads can't exceed it.
   - **New files are written first;** files are deleted only after the database no longer points to them. A failed database write removes the new files. Keys are never reused, so a file belongs to exactly one photo.
@@ -524,7 +528,40 @@ sequenceDiagram
 
 ## 6. Runtime environments
 
-Three environments, each with its own data: **local development** (MongoDB in Docker, API and web with Nx; ports 27018/3333/4200), **Docker QA** (built images, own MongoDB server and volumes; 127.0.0.1:4203/3336/27019) and **E2E** (own servers and an in-memory database per run; 4201/3334). There is no separate demo stack: Docker QA is used to show the app.
+Three environments, each with its own data: **local development** (MongoDB in Docker, API and web with Nx; ports 27018/3333/4200), **Docker QA** (built images, own MongoDB server and volumes; 127.0.0.1:4203/3336/27019) and **E2E** (own servers and an in-memory database per run; 4201/3334). The **hosted demo** (below) runs the same code on managed services.
+
+### Hosted demo
+
+The live demo (`https://pet-adoption-26o.pages.dev`) runs on managed free tiers. The settings, without real values, are in [`.env.render.example`](../.env.render.example).
+
+```mermaid
+flowchart LR
+  browser(["Browser"])
+
+  subgraph pages["Cloudflare Pages (one origin)"]
+    spa["Static Vite build<br/>dist/apps/web<br/>VITE_API_URL=/api"]
+    fn["Pages Function /api/*<br/>functions/api/[[path]].ts<br/>→ apps/web/src/edge/api-proxy.ts"]
+  end
+
+  api["API Docker image<br/>(apps/api/Dockerfile)<br/>Render"]
+  atlas[("MongoDB Atlas<br/>replica set")]
+  cdn[("Cloudinary<br/>pet photos + CDN")]
+
+  browser -- "loads SPA" --> spa
+  browser -- "/api/* + sid cookie<br/>(same origin)" --> fn
+  fn -- "forwards to API_ORIGIN<br/>+ X-Proxy-Secret, X-Proxy-Client-Ip" --> api
+  api -- "Mongoose, sessions,<br/>transactions (TLS)" --> atlas
+  api -- "signed upload / destroy<br/>(STORAGE_DRIVER=cloudinary)" --> cdn
+  browser -- "img src: res.cloudinary.com/…" --> cdn
+```
+
+- **One origin.** The browser sends API requests to `/api` on the Pages site, so the `SameSite=Lax` session cookie stays first-party and the API's `Origin` check compares against the Pages origin (`CORS_ORIGIN`). Platform domains such as `pages.dev` and `onrender.com` are on the Public Suffix List, so calling the Render host directly from the browser would make the cookie cross-site (deployment.md, §11 "Same-site cookies").
+- **The proxy** (`proxyApiRequest`) forwards method, path, query, headers and a streamed body to `API_ORIGIN` and returns the API's response unchanged (including `Set-Cookie`; redirects are not followed). It removes client-supplied forwarding and client-IP headers, adds the `PROXY_SECRET` and the client IP Cloudflare saw (`CF-Connecting-IP`), and fails closed (500) if its bindings are missing or malformed. Both bindings exist only in the Pages project settings.
+- **The API checks the secret first** (`middleware/require-proxy-secret.ts`, mounted right after the request logger): with `PROXY_SECRET` set, every request without the matching `X-Proxy-Secret` gets 403 `PROXY_REQUIRED`, except `GET`/`HEAD /api/health` for Render's health check. Only with a valid secret does the forwarded client IP replace `req.ip` for the per-IP rate limits. `TRUST_PROXY=1` still decides HTTPS detection for the `Secure` cookie. Without `PROXY_SECRET` (development, QA, E2E) the check is off.
+- **Photos** use `STORAGE_DRIVER=cloudinary` (§1): the API uploads re-encoded files to Cloudinary and stores only the keys; browsers load the photos from Cloudinary's CDN, not through the proxy.
+- **Database:** MongoDB Atlas, which is a replica set, so transactions work as locally.
+
+The self-hosted alternative (the same images behind Caddy on one VM, local photo storage) is prepared but not used; see [deployment.md](deployment.md).
 
 ### Docker Compose
 
