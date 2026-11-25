@@ -18,7 +18,7 @@
             "cjs"
           ],
           "bundle": true,
-          "skipTypeCheck": true,
+          "skipTypeCheck": false,
           "main": "apps/api/src/main.ts",
           "tsConfig": "apps/api/tsconfig.app.json",
           "assets": [
