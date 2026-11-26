@@ -68,7 +68,7 @@ Not blockers, but cheap and worth doing early:
 - Email notifications for new applications and decisions (needs D2).
 - Error tracking (Sentry or similar, D3); central log storage.
 - React Router 7 (two moderate advisories in 6.30.6: one is SSR-only and doesn't apply; the other, a backslash open redirect in `<Link>`/`navigate`, is already guarded for the only user-controlled path, `getReturnPath` in `login-page.tsx`).
-- Code splitting (one 716 kB / 218 kB gzipped chunk as of 2026-11-16), automated accessibility checks (`@axe-core/playwright`).
+- Code splitting (one 716 kB / 218 kB gzipped chunk as of 2026-11-16). Automated accessibility checks exist (`accessibility.spec.ts`, axe, architecture.md §6 "E2E tests"); a manual keyboard and screen-reader review doesn't yet.
 - User reports of listings/accounts; blocking in messaging.
 - A shared rate-limit store and object storage for photos: only needed for several API instances or a host without persistent disk.
 - Scheduled `audit:verify` with the chain head stored outside the database.

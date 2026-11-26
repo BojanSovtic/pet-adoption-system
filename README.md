@@ -222,7 +222,7 @@ Because each environment uses different ports and data, they can run at the same
 | ----------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit / component  | Vitest, Testing Library                  | Web components, hooks and form validation, with the HTTP layer replaced by a mock adapter, and the Pages proxy logic                           |
 | API / integration | Vitest, Supertest, mongodb-memory-server | HTTP endpoints against a real in-memory MongoDB replica set: authorization, validation, rate limits, transactions and concurrency, and uploads |
-| End-to-end        | Playwright                               | Key user journeys in a browser against a production build of the web app, with its own API and a throwaway database                            |
+| End-to-end        | Playwright, axe                          | Key user journeys in a browser against a production build of the web app, with its own API and a throwaway database; automated WCAG A/AA scans |
 
 ```sh
 pnpm nx run-many -t lint typecheck test build   # all lint, typecheck, unit/API test and build targets

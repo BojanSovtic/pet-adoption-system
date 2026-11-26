@@ -34,7 +34,7 @@ Rules are in [requirements.md](requirements.md); structure and flows in [archite
 - **Administration:** admin role (first admin via `pnpm admin:grant`), user suspension, hiding listings, read-only application oversight, statistics, and a hash-chained audit log checked by `pnpm audit:verify`.
 - **Cross-cutting:** English and Serbian UI; stable API error codes translated in the web app; route error boundaries; structured JSON logs with request ids; `/api/health` and `/api/ready`; security headers; per-user and per-IP write limits.
 - **Environments:** local development, Docker QA (`pnpm qa:*`) and E2E (README, "Running the app").
-- **Tests:** API (Vitest + Supertest, in-memory replica set), web (Vitest + Testing Library), E2E (Playwright against a production build); CI runs a production dependency audit, lint, typecheck, tests, builds and E2E.
+- **Tests:** API (Vitest + Supertest, in-memory replica set), web (Vitest + Testing Library), E2E (Playwright against a production build, including axe WCAG A/AA scans of representative pages, added 2026-11-26); CI runs a production dependency audit, lint, typecheck, tests, builds and E2E.
 
 ## Open issues
 
@@ -48,6 +48,7 @@ Deployment and launch blockers, recommendations and decisions D1–D6 are in [pr
 - **Privacy by design:** applicants' emails are visible to the owners of pets they applied for; member names are visible to signed-in users.
 - **Code health** (see the audit notes in "Architecture notes" below): mixed `@/…` and relative imports in the web app; React Router v6 future-flag warnings.
 - **Not verified by hand:** the account menu with a screen reader and on a touch device; forms on a phone.
+- **Accessibility coverage is automated only** (2026-11-26): the axe scans found no WCAG A/AA violations on the covered states, which is not conformance. Not scanned: the pet form with photos, conversations with messages, owner application decisions, profiles, the other admin pages and the Serbian UI. axe left two items for manual review (colour contrast behind the open account menu; Radix focus guards in dialogs), and keyboard, screen-reader, zoom/reflow and focus-order checks are still manual.
 
 ## Architecture notes (2026-11-16 audit)
 

@@ -18,4 +18,8 @@ export const E2E_API_ENV = {
   MONGODB_URI: E2E_MONGODB_URI,
   CORS_ORIGIN: E2E_WEB_URL,
   SESSION_SECRET: 'e2e-session-secret-at-least-32-characters-long',
+  // Every test registers or signs in through this one API process from one
+  // address, so the production limit (20 per 15 minutes) would cap the size
+  // of the suite. Refused by the API when NODE_ENV=production.
+  AUTH_ATTEMPTS_PER_IP: '200',
 };

@@ -1,12 +1,19 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ipKeyGenerator, MemoryStore, rateLimit } from 'express-rate-limit';
 
+import { readAuthAttemptsPerIpOverride } from '../config/auth-rate-limit';
+import { loadEnvFile } from '../config/env-file';
 import { TooManyRequestsError } from '../errors/app-error';
+
+// Not `env` from config/env.ts: importing it here would compute the whole
+// configuration before the API test setup sets UPLOADS_DIR.
+loadEnvFile();
 
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
 const WINDOW_MS = 15 * MINUTE;
-const AUTH_ATTEMPTS_PER_IP = 20;
+// The override (E2E only) fails at startup if malformed or set in production.
+const AUTH_ATTEMPTS_PER_IP = readAuthAttemptsPerIpOverride() ?? 20;
 const FAILED_LOGINS_PER_ACCOUNT_AND_IP = 5;
 
 /**
