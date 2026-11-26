@@ -22,6 +22,12 @@ export default defineConfig({
   // Login and register share a per-IP rate limit (20 per 15 minutes); retries
   // would add attempts against the same API process.
   retries: 0,
+  // One API process serves every worker, and registrations hash with the
+  // production Argon2 parameters, so a loaded machine slows API responses:
+  // single requests took up to 8 s and chained page loads went just past
+  // Playwright's default 5 s. The waits themselves are correct; this only
+  // allows for slow responses. Long journeys also use `test.slow()`.
+  expect: { timeout: 10_000 },
   // On failure: a trace and a screenshot per failed test in test-results/,
   // and in CI an HTML report in playwright-report/ (both uploaded by CI).
   // Passing tests leave nothing behind.

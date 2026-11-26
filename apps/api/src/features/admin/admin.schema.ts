@@ -88,11 +88,14 @@ export const adminAuditListQuerySchema = z.object({
   ...paging,
 }) satisfies z.ZodType<AdminAuditListQuery>;
 
-// Suspend and hide: an optional note, kept in the audit log. Trimmed; an
-// empty note counts as none.
+// Suspend and hide: an optional note, kept in the audit log. The check for an
+// empty note runs after trimming, so a note of only spaces also counts as none
+// (the same rule as the admin form).
 export const moderationSchema = z.object({
-  reason: z.preprocess(
-    emptyToUndefined,
-    z.string().trim().max(MODERATION_REASON_MAX_LENGTH).optional(),
-  ),
+  reason: z
+    .string()
+    .trim()
+    .max(MODERATION_REASON_MAX_LENGTH)
+    .optional()
+    .transform((reason) => (reason === '' ? undefined : reason)),
 }) satisfies z.ZodType<ModerationInput>;

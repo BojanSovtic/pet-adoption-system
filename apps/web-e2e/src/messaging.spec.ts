@@ -7,6 +7,12 @@ test('an adopter and an owner exchange messages about a pet', async ({
   browser,
   page,
 }) => {
+  // Two users, two registrations (production Argon2 parameters) and about 25
+  // synchronized steps: about 13 s on an idle machine, but more than the default
+  // 30 s when the parallel suite loads the CPU. Every step already waits for
+  // visible state, so this only gives the whole journey more time.
+  test.slow();
+
   // The owner has their own browser context (separate session cookie).
   const ownerContext = await browser.newContext({ baseURL: E2E_WEB_URL });
   const ownerPage = await ownerContext.newPage();

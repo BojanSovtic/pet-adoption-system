@@ -8,6 +8,12 @@ test('an admin suspends a user and hides their listing', async ({
   page,
   browser,
 }) => {
+  // A long admin journey (a blocking admin:grant run, two registrations and
+  // several audited admin requests): about 18 s on an idle machine, more than
+  // the default 30 s when the parallel suite loads the CPU. The steps already
+  // wait for visible state, so this only gives the whole journey more time.
+  test.slow();
+
   const admin = makeUser('Moderator');
   await registerUser(page.request, admin);
   grantAdmin(admin.email);

@@ -8,6 +8,12 @@ test('an admin reviews the platform and makes another user an admin', async ({
   page,
   request,
 }) => {
+  // A long admin journey (a blocking admin:grant run, two registrations and
+  // several audited admin requests): about 18 s on an idle machine, more than
+  // the default 30 s when the parallel suite loads the CPU. The steps already
+  // wait for visible state, so this only gives the whole journey more time.
+  test.slow();
+
   // The admin registers like anyone else and is promoted by the CLI. The
   // browser is already signed in: the new role applies to the next request.
   const admin = makeUser('Admin');

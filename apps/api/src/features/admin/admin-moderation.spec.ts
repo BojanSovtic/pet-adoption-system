@@ -167,6 +167,29 @@ describe('admin audit log', () => {
     ]);
   });
 
+  it.each([
+    [
+      'a normal reason, trimmed',
+      '  Spam listings  ',
+      { reason: 'Spam listings' },
+    ],
+    ['no reason for an empty one', '', {}],
+    ['no reason for one of only spaces', '   ', {}],
+  ])('records %s', async (_case, reason, metadata) => {
+    const admin = await createAdmin();
+    const user = await createSignedInAgent('user@example.com');
+
+    const response = await admin.agent
+      .post(`/api/admin/users/${user.userId}/suspend`)
+      .send({ reason });
+
+    expect(response.status).toBe(200);
+    const entry = await AdminAuditModel.findOne({
+      action: 'user.suspended',
+    }).lean();
+    expect(entry?.metadata).toEqual(metadata);
+  });
+
   it('cannot be changed or deleted through the application', async () => {
     const admin = await createAdmin();
     await admin.agent.get('/api/admin/users');
