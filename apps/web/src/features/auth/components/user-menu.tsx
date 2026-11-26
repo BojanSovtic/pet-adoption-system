@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, useState, type FocusEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FocusEvent,
+  type ReactNode,
+} from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useLocation } from 'react-router-dom';
@@ -19,6 +26,8 @@ import type { User } from '@pet-adoption/models';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+import { PendingApplicationsBadge } from '../../applications/components/pending-applications-badge';
+import { usePendingApplicationCount } from '../../applications/hooks/use-pending-application-count';
 import { logout } from '../api/logout';
 import { useCurrentUser } from '../hooks/use-current-user';
 import { setCurrentUser } from '../utils/set-current-user';
@@ -26,7 +35,12 @@ import { setCurrentUser } from '../utils/set-current-user';
 const itemClassName =
   'flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm font-medium hover:bg-muted aria-[current=page]:bg-secondary aria-[current=page]:text-secondary-foreground';
 
-type MenuLink = { to: string; label: string; icon: LucideIcon };
+type MenuLink = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: ReactNode;
+};
 
 /**
  * The signed-in user's account menu: a button that shows and hides a list of
@@ -47,6 +61,10 @@ const AccountMenu = ({ user }: { user: User }) => {
   const [openedOn, setOpenedOn] = useState<string | null>(null);
   const isOpen = openedOn === location.pathname;
   const close = () => setOpenedOn(null);
+  // Outstanding work as an owner: shown on the menu button (visible while
+  // the menu is closed) and on the link that leads to it.
+  const pendingCount = usePendingApplicationCount();
+  const pendingBadge = <PendingApplicationsBadge count={pendingCount} />;
 
   // Errors are shown by the global mutation toast.
   const logoutMutation = useMutation({
@@ -93,7 +111,12 @@ const AccountMenu = ({ user }: { user: User }) => {
   const links: MenuLink[] = [
     { to: '/my-pets', label: t('menu.myPets'), icon: PawPrint },
     { to: '/pets/new', label: t('menu.addPet'), icon: Plus },
-    { to: '/applications', label: t('menu.applications'), icon: ClipboardList },
+    {
+      to: '/applications',
+      label: t('menu.applications'),
+      icon: ClipboardList,
+      badge: pendingBadge,
+    },
     { to: '/messages', label: t('menu.messages'), icon: MessagesSquare },
     { to: `/users/${user._id}`, label: t('menu.profile'), icon: UserRound },
     // Shown to admins only for convenience; the API decides access.
@@ -116,6 +139,7 @@ const AccountMenu = ({ user }: { user: User }) => {
         <UserRound aria-hidden="true" />
         <span className="sr-only">{t('menu.label')}: </span>
         <span className="truncate">{user.name}</span>
+        {pendingBadge}
         <ChevronDown
           aria-hidden="true"
           className={cn('transition-transform', isOpen && 'rotate-180')}
@@ -129,11 +153,12 @@ const AccountMenu = ({ user }: { user: User }) => {
       >
         <nav aria-label={t('menu.label')}>
           <ul>
-            {links.map(({ to, label, icon: Icon }) => (
+            {links.map(({ to, label, icon: Icon, badge }) => (
               <li key={to}>
                 <NavLink to={to} end className={itemClassName} onClick={close}>
                   <Icon aria-hidden="true" className="size-4 shrink-0" />
                   {label}
+                  {badge && <span className="ml-auto">{badge}</span>}
                 </NavLink>
               </li>
             ))}

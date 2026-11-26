@@ -24,8 +24,8 @@ import { UserModel } from '../users/user.model';
 import { lockPet, transitionPetStatus } from '../pets/pet.service';
 import { ApplicationModel, type ApplicationRecord } from './application.model';
 import type {
-  ParsedApplicationListQuery,
   ParsedMyApplicationListQuery,
+  ParsedReceivedApplicationListQuery,
 } from './application.schema';
 
 const DUPLICATE_KEY_ERROR = 11000;
@@ -61,12 +61,17 @@ const toApplicantSummary = (
 const toBaseView = (
   application: Pick<
     ApplicationRecord,
-    'message' | 'status' | 'createdAt' | 'updatedAt'
+    'message' | 'status' | 'rejectionReason' | 'createdAt' | 'updatedAt'
   > & { _id: Types.ObjectId },
 ) => ({
   _id: application._id.toString(),
   message: application.message,
   status: application.status,
+  // Both views are scoped to the applicant or the pet's owner, the only two
+  // people who may read the owner's explanation.
+  ...(application.rejectionReason
+    ? { rejectionReason: application.rejectionReason }
+    : {}),
   createdAt: application.createdAt.toISOString(),
   updatedAt: application.updatedAt.toISOString(),
 });
@@ -156,14 +161,20 @@ export const listMyApplications = async (
   return toPage(items, totalItems, paging);
 };
 
-/** One page of the applications for pets the user owns, newest first. */
+/**
+ * One page of the applications for pets the user owns, newest first,
+ * optionally of one status. With `pending`, `totalItems` is the owner's
+ * pending count: always derived from the applications, never stored.
+ */
 export const listReceivedApplications = async (
   ownerId: string,
-  paging: ParsedApplicationListQuery,
+  { status, ...paging }: ParsedReceivedApplicationListQuery,
 ): Promise<Paginated<ReceivedApplication>> => {
+  const filter: QueryFilter<ApplicationRecord> = status ? { status } : {};
+
   const [items, totalItems] = await Promise.all([
-    findOwnerViews(ownerId, {}, paging),
-    ApplicationModel.countDocuments({ petOwner: ownerId }),
+    findOwnerViews(ownerId, filter, paging),
+    ApplicationModel.countDocuments({ ...filter, petOwner: ownerId }),
   ]);
 
   return toPage(items, totalItems, paging);
@@ -316,6 +327,11 @@ const getRole = async (
   throw new NotFoundError('APPLICATION_NOT_FOUND');
 };
 
+/** An API action with its input: rejecting needs the owner's reason. */
+export type ApplicationDecision =
+  | { action: Exclude<ApplicationAction, 'reject'> }
+  | { action: 'reject'; reason: string };
+
 /**
  * Runs an application state-machine action (accept, reject, withdraw) and the
  * resulting pet transition in one transaction. Returns the user's role, so the
@@ -324,8 +340,9 @@ const getRole = async (
 export const transitionApplication = async (
   applicationId: string,
   userId: string,
-  action: ApplicationAction,
+  decision: ApplicationDecision,
 ): Promise<ApplicationRole> => {
+  const { action } = decision;
   const { application, role } = await getRole(applicationId, userId);
   const transition = APPLICATION_TRANSITIONS[action];
 
@@ -372,11 +389,15 @@ export const transitionApplication = async (
         throw new ConflictError('APPLICANT_SUSPENDED');
       }
 
-      // Conditional update: only changes an application still in `from`.
+      // Conditional update: only changes an application still in `from`. The
+      // reason is written in the same update, so it is set exactly once, by
+      // the owner, and nothing can change it afterwards (rejected is final).
       const updated = await ApplicationModel.updateOne(
         { _id: application._id, status: transition.from },
-        { status: target },
-        { session },
+        decision.action === 'reject'
+          ? { status: target, rejectionReason: decision.reason }
+          : { status: target },
+        { session, runValidators: true },
       );
 
       if (updated.matchedCount === 0) {

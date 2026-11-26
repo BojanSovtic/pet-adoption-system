@@ -1,15 +1,19 @@
 import mongoose from 'mongoose';
 import type { Request, Response } from 'express';
-import type { ApplicationAction } from '@pet-adoption/models';
+import type {
+  ApplicationAction,
+  RejectApplicationInput,
+} from '@pet-adoption/models';
 
 import { getAuthenticatedUserId } from '../auth/require-auth';
 import { BadRequestError, NotFoundError } from '../../core/errors/app-error';
 import { parseInput } from '../../core/middleware/validate';
 import {
-  applicationListQuerySchema,
   myApplicationListQuerySchema,
+  receivedApplicationListQuerySchema,
 } from './application.schema';
 import {
+  type ApplicationDecision,
   getApplicationView,
   listMyApplications,
   listReceivedApplications,
@@ -54,7 +58,7 @@ export const listReceivedApplicationsController = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const query = parseInput(applicationListQuerySchema, req.query);
+  const query = parseInput(receivedApplicationListQuerySchema, req.query);
 
   res.json(await listReceivedApplications(getAuthenticatedUserId(req), query));
 };
@@ -65,8 +69,13 @@ export const applicationActionController =
   async (req: Request, res: Response): Promise<void> => {
     const userId = getAuthenticatedUserId(req);
     const applicationId = getObjectIdParam(req, 'id', 'INVALID_APPLICATION_ID');
+    // The reject route validates the body first (rejectApplicationSchema).
+    const decision: ApplicationDecision =
+      action === 'reject'
+        ? { action, reason: (req.body as RejectApplicationInput).reason }
+        : { action };
 
-    const role = await transitionApplication(applicationId, userId, action);
+    const role = await transitionApplication(applicationId, userId, decision);
     const view = await getApplicationView(applicationId, userId, role);
 
     if (!view) {

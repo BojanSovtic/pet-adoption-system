@@ -3,12 +3,14 @@ import {
   useQuery,
   type UseQueryResult,
 } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import type {
   MyApplication,
   Paginated,
   ReceivedApplication,
+  ReceivedApplicationListQuery,
 } from '@pet-adoption/models';
 
 import { Pagination } from '@/components/pagination';
@@ -25,6 +27,8 @@ import {
 import { formatDate } from '../../../lib/format-date';
 import { ApplicationActions } from '../components/application-actions';
 import { ApplicationStatusBadge } from '../components/application-status-badge';
+import { RejectionNote } from '../components/rejection-note';
+import { usePendingApplicationCount } from '../hooks/use-pending-application-count';
 
 type ApplicationCardProps = {
   application: MyApplication | ReceivedApplication;
@@ -67,6 +71,8 @@ const ApplicationCard = ({ application, actor }: ApplicationCardProps) => {
           {application.message}
         </p>
 
+        <RejectionNote application={application} actor={actor} />
+
         <ApplicationActions
           applicationId={application._id}
           status={application.status}
@@ -79,6 +85,8 @@ const ApplicationCard = ({ application, actor }: ApplicationCardProps) => {
 
 type ApplicationListProps = {
   title: string;
+  /** Shown below the title, e.g. the pending notice and filter. */
+  notice?: ReactNode;
   emptyText: string;
   paginationLabel: string;
   actor: 'owner' | 'applicant';
@@ -89,6 +97,7 @@ type ApplicationListProps = {
 
 const ApplicationList = ({
   title,
+  notice,
   emptyText,
   paginationLabel,
   actor,
@@ -101,6 +110,8 @@ const ApplicationList = ({
   return (
     <section className="space-y-4">
       <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+
+      {notice}
 
       {query.isPending ? (
         <p>{t('loading')}</p>
@@ -147,6 +158,8 @@ const ApplicationList = ({
 
 /** Page numbers live in the URL; anything invalid falls back to page 1. */
 const PAGE_PARAMS = { received: 'receivedPage', mine: 'minePage' } as const;
+/** `?receivedStatus=pending` shows only applications awaiting a decision. */
+const RECEIVED_STATUS_PARAM = 'receivedStatus';
 
 const readPage = (searchParams: URLSearchParams, name: string): number => {
   const page = Number(searchParams.get(name));
@@ -181,7 +194,31 @@ const ApplicationsPage = () => {
     );
   };
 
-  const receivedQuery = { page: receivedPage };
+  const pendingOnly = searchParams.get(RECEIVED_STATUS_PARAM) === 'pending';
+  const pendingCount = usePendingApplicationCount();
+
+  const showPendingOnly = (next: boolean) => {
+    setSearchParams(
+      (current) => {
+        const params = new URLSearchParams(current);
+
+        if (next) {
+          params.set(RECEIVED_STATUS_PARAM, 'pending');
+        } else {
+          params.delete(RECEIVED_STATUS_PARAM);
+        }
+
+        // The other view has its own pages.
+        params.delete(PAGE_PARAMS.received);
+        return params;
+      },
+      { replace: true },
+    );
+  };
+
+  const receivedQuery: ReceivedApplicationListQuery = pendingOnly
+    ? { page: receivedPage, status: 'pending' }
+    : { page: receivedPage };
   const receivedApplications = useQuery<
     Paginated<MyApplication | ReceivedApplication>
   >({
@@ -215,7 +252,29 @@ const ApplicationsPage = () => {
 
       <ApplicationList
         title={t('received.title')}
-        emptyText={t('received.empty')}
+        notice={
+          pendingCount || pendingOnly ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-warning-subtle px-4 py-3">
+              <p className="text-sm font-medium text-warning">
+                {pendingCount
+                  ? t('received.pendingCount', { count: pendingCount })
+                  : t('received.pendingEmpty')}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => showPendingOnly(!pendingOnly)}
+              >
+                {pendingOnly
+                  ? t('received.showAll')
+                  : t('received.showPending')}
+              </Button>
+            </div>
+          ) : null
+        }
+        emptyText={
+          pendingOnly ? t('received.pendingEmpty') : t('received.empty')
+        }
         paginationLabel={t('received.pagination')}
         actor="owner"
         query={receivedApplications}

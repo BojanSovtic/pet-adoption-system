@@ -10,14 +10,13 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 
 import { useApplicationAction } from '../hooks/use-application-action';
+import { RejectApplicationDialog } from './reject-application-dialog';
 
 // Accepting and rejecting are final (accepting also rejects every other
-// pending application), so they ask first. Withdrawing doesn't: the applicant
-// can apply again.
-const ACTIONS_TO_CONFIRM: ReadonlySet<ApplicationAction> = new Set([
-  'accept',
-  'reject',
-]);
+// pending application), so they ask first; rejecting also asks for the
+// reason (RejectApplicationDialog). Withdrawing doesn't: the applicant can
+// apply again.
+const ACTIONS_TO_CONFIRM: ReadonlySet<ApplicationAction> = new Set(['accept']);
 
 type ApplicationActionsProps = {
   applicationId: string;
@@ -41,12 +40,33 @@ const ApplicationActions = ({
     return null;
   }
 
-  const run = (action: ApplicationAction) =>
+  const run = (action: Exclude<ApplicationAction, 'reject'>) =>
     mutation.mutateAsync({ applicationId, action });
 
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((action) => {
+        if (action === 'reject') {
+          // Destructive dialog with the owner's required reason.
+          return (
+            <RejectApplicationDialog
+              key={action}
+              trigger={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={mutation.isPending}
+                >
+                  {t('actions.reject')}
+                </Button>
+              }
+              onReject={(reason) =>
+                mutation.mutateAsync({ applicationId, action, reason })
+              }
+            />
+          );
+        }
+
         const button = (
           <Button
             key={action}
@@ -72,7 +92,7 @@ const ApplicationActions = ({
             confirmLabel={t(`confirm.${action}Button`)}
             cancelLabel={t('confirm.cancel')}
             // Accepting is final but not a loss, so it keeps the main colour.
-            destructive={action === 'reject'}
+            destructive={false}
             onConfirm={() => run(action)}
           />
         ) : (

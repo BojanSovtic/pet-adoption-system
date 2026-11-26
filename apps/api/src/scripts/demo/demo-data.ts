@@ -213,3 +213,7 @@ export const APPLICATIONS: ApplicationSpec[] = [
 /** The message every demo application is sent with. */
 export const applicationMessage = (petName: string): string =>
   `Hello! I would love to give ${petName} a loving home. I have experience with pets and time to care for them.`;
+
+/** The owner's reason for every demo rejection (a reason is required). */
+export const rejectionReason = (petName: string): string =>
+  `Thank you for your interest in ${petName}. We are looking for a home with more experience with this kind of pet.`;

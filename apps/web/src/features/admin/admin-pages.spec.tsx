@@ -56,6 +56,14 @@ vi.mock('./api/admin', async (importOriginal) => ({
   restorePet: vi.fn(),
 }));
 
+// The account menu's pending-application count.
+vi.mock('../applications/api/applications', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../applications/api/applications')
+  >()),
+  getPendingApplicationCount: vi.fn().mockResolvedValue(0),
+}));
+
 vi.mock('../auth/api/get-current-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../auth/api/get-current-user')>()),
   getCurrentUser: vi.fn(),

@@ -35,6 +35,11 @@ type ConfirmDialogProps = {
    * (query-client.ts), so a rejection only closes the dialog.
    */
   onConfirm: () => Promise<unknown>;
+  /**
+   * Checks the extra fields first: returning `false` keeps the dialog open
+   * without running the action (the fields show their own errors).
+   */
+  beforeConfirm?: () => boolean;
   /** Extra fields between the description and the buttons (e.g. a reason). */
   children?: ReactNode;
   /** Called after the dialog closes, e.g. to reset a reason field. */
@@ -55,6 +60,7 @@ const ConfirmDialog = ({
   cancelLabel,
   destructive = true,
   onConfirm,
+  beforeConfirm,
   children,
   onClose,
 }: ConfirmDialogProps) => {
@@ -83,6 +89,11 @@ const ConfirmDialog = ({
   const handleConfirm = async (event: MouseEvent) => {
     // Keep the dialog open until the action has finished.
     event.preventDefault();
+
+    if (beforeConfirm && !beforeConfirm()) {
+      return;
+    }
+
     setIsPending(true);
 
     try {

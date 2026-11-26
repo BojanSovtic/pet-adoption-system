@@ -88,8 +88,10 @@ The same user can be an owner of some pets and an applicant for others.
 ### Reviewing and deciding
 
 - The **Applications** page shows two lists:
-  - **Applications for my pets:** the owner sees each applicant's name, email and message, and can accept or reject pending applications.
-  - **My applications:** the applicant sees the status of each application and can withdraw pending ones.
+  - **Applications for my pets:** the owner sees each applicant's name, email and message, and can accept or reject pending applications. A notice shows how many applications await a decision, with a filter to show only those (part of the page address).
+  - **My applications:** the applicant sees the status of each application and can withdraw pending ones. A rejected application shows the owner's explanation, here and on the pet's page.
+- **Pending applications indicator:** while applications for the user's pets are pending, the account menu button and its "Applications" link show their number. It is counted from the applications themselves and refreshes after every decision and when the window regains focus (no push or real-time updates).
+- **Rejection reason:** rejecting requires a reason for the applicant: 1 to 1,000 characters after trimming, so only spaces don't count. It is saved with the application, can't be changed afterwards, and only the applicant and the pet owner can see it. Applications rejected automatically (another application was accepted) or before reasons were required have none; the applicant is told that no explanation was recorded.
 - Both lists show the newest applications first, 10 per page, and each list pages on its own. The page numbers are part of the page address.
 - Only the pet owner can accept or reject. Only the applicant can withdraw.
 - Applications are private: only the applicant and the pet owner can see an application.

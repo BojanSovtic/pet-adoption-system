@@ -331,9 +331,9 @@ describe('user suspension', () => {
     expect(accept.body).toEqual({ code: 'APPLICANT_SUSPENDED' });
     expect((await PetModel.findById(petId).lean())?.status).toBe('pending');
 
-    const reject = await owner.agent.post(
-      `/api/applications/${application._id}/reject`,
-    );
+    const reject = await owner.agent
+      .post(`/api/applications/${application._id}/reject`)
+      .send({ reason: 'We chose to look for another home.' });
     expect(reject.status).toBe(200);
     expect((await PetModel.findById(petId).lean())?.status).toBe('available');
   });

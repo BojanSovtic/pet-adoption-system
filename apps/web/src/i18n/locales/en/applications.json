@@ -10,7 +10,12 @@
   "received": {
     "title": "Applications for my pets",
     "empty": "No one has applied for your pets yet.",
-    "pagination": "Pages of applications for my pets"
+    "pagination": "Pages of applications for my pets",
+    "pendingCount_one": "{{count}} application is waiting for your decision.",
+    "pendingCount_other": "{{count}} applications are waiting for your decision.",
+    "showPending": "Show only these",
+    "showAll": "Show all applications",
+    "pendingEmpty": "No applications are waiting for your decision."
   },
   "status": {
     "pending": "Pending",
@@ -58,5 +63,19 @@
     "cancel": "Cancel",
     "acceptTitle": "Accept this application?",
     "rejectTitle": "Reject this application?"
+  },
+  "pendingBadge_one": "{{count}} application waiting for your decision",
+  "pendingBadge_other": "{{count}} applications waiting for your decision",
+  "reject": {
+    "reasonLabel": "Reason for the applicant",
+    "reasonHint": "The applicant will see this with their application. Please be kind and specific.",
+    "reasonRequired": "Please explain why you are rejecting this application.",
+    "reasonTooLong": "The reason must be at most 1000 characters."
+  },
+  "rejection": {
+    "ownerReason": "Owner's explanation",
+    "yourReason": "Your explanation to the applicant",
+    "noReason": "No explanation was recorded for this decision.",
+    "noReasonAdopted": "No explanation was recorded for this decision. {{name}} has since been adopted."
   }
 }
