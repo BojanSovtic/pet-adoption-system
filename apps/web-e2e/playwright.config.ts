@@ -30,11 +30,18 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   // On failure: a trace and a screenshot per failed test in test-results/,
   // and in CI an HTML report in playwright-report/ (both uploaded by CI).
-  // Passing tests leave nothing behind.
+  // Passing tests leave nothing behind, except the accessibility report
+  // (test-results/accessibility-report/report.md) whenever @a11y tests ran.
   outputDir: './test-results',
-  reporter: process.env.CI
-    ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
-    : 'list',
+  reporter: [
+    ...(process.env.CI
+      ? ([
+          ['line'],
+          ['html', { outputFolder: 'playwright-report', open: 'never' }],
+        ] as const)
+      : ([['list']] as const)),
+    ['./src/support/accessibility-reporter.ts'],
+  ],
   use: {
     baseURL: E2E_WEB_URL,
     trace: 'retain-on-failure',

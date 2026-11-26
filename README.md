@@ -228,7 +228,10 @@ Because each environment uses different ports and data, they can run at the same
 pnpm nx run-many -t lint typecheck test build   # all lint, typecheck, unit/API test and build targets
 pnpm nx test @pet-adoption/api                  # one project's tests
 pnpm nx e2e @pet-adoption/web-e2e               # Playwright E2E (starts its own servers)
+pnpm nx e2e @pet-adoption/web-e2e -- --grep @a11y   # only the accessibility scans
 ```
+
+Every E2E run that includes the accessibility scans writes a readable report with annotated screenshots to `apps/web-e2e/test-results/accessibility-report/report.md` (open it in a Markdown preview).
 
 None of these need a running MongoDB or `.env` files. On the first run, the API tests download a MongoDB binary.
 

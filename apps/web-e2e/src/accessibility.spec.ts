@@ -12,9 +12,10 @@ import {
 
 // Automated WCAG 2.2 A/AA checks (axe) of representative pages and states.
 // Each check runs after the state is visible; the journeys themselves are
-// covered by the other specs.
+// covered by the other specs. The @a11y tag selects these tests for the
+// Markdown report (support/accessibility-reporter.ts).
 
-test.describe('accessibility (axe, WCAG 2.2 A/AA rules)', () => {
+test.describe('accessibility (axe, WCAG 2.2 A/AA rules) @a11y', () => {
   test('public pages, signed out', async ({ page, request }) => {
     // A registration with the production Argon2 parameters, five page loads
     // and five scans: just past the default 30 s on a loaded machine.

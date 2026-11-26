@@ -34,7 +34,7 @@ Rules are in [requirements.md](requirements.md); structure and flows in [archite
 - **Administration:** admin role (first admin via `pnpm admin:grant`), user suspension, hiding listings, read-only application oversight, statistics, and a hash-chained audit log checked by `pnpm audit:verify`.
 - **Cross-cutting:** English and Serbian UI; stable API error codes translated in the web app; route error boundaries; structured JSON logs with request ids; `/api/health` and `/api/ready`; security headers; per-user and per-IP write limits.
 - **Environments:** local development, Docker QA (`pnpm qa:*`) and E2E (README, "Running the app").
-- **Tests:** API (Vitest + Supertest, in-memory replica set), web (Vitest + Testing Library), E2E (Playwright against a production build, including axe WCAG A/AA scans of representative pages, added 2026-11-26); CI runs a production dependency audit, lint, typecheck, tests, builds and E2E.
+- **Tests:** API (Vitest + Supertest, in-memory replica set), web (Vitest + Testing Library), E2E (Playwright against a production build, including axe WCAG A/AA scans of representative pages with a Markdown report and annotated screenshots, added 2026-11-26); CI runs a production dependency audit, lint, typecheck, tests, builds and E2E.
 
 ## Open issues
 
