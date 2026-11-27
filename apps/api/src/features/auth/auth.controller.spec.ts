@@ -34,6 +34,7 @@ describe('POST /api/auth/register', () => {
       '_id',
       'createdAt',
       'email',
+      'emailVerified',
       'name',
       'role',
       'updatedAt',
@@ -42,8 +43,20 @@ describe('POST /api/auth/register', () => {
       email: validUser.email,
       name: validUser.name,
       role: 'user',
+      emailVerified: false,
     });
     expect(getSessionCookie(response)).toBeDefined();
+  });
+
+  it('stores an explicit null as the email confirmation date', async () => {
+    await request(app).post('/api/auth/register').send(validUser);
+
+    // Read past Mongoose, so the stored document itself is checked.
+    const stored = await UserModel.collection.findOne({
+      email: validUser.email,
+    });
+
+    expect(stored).toHaveProperty('emailVerifiedAt', null);
   });
 
   it('stores an Argon2id hash, not the plaintext password', async () => {
@@ -174,6 +187,29 @@ describe('POST /api/auth/login', () => {
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ code: 'INVALID_CREDENTIALS' });
   });
+
+  it.each([
+    ['unconfirmed (null)', { $set: { emailVerifiedAt: null } }, false],
+    ['confirmed (a date)', { $set: { emailVerifiedAt: new Date() } }, true],
+    [
+      'created before verification (missing)',
+      { $unset: { emailVerifiedAt: '' } },
+      true,
+    ],
+  ])(
+    'signs in an %s account and reports emailVerified',
+    async (_label, update, expected) => {
+      await UserModel.collection.updateOne({ email: validUser.email }, update);
+
+      const response = await request(app).post('/api/auth/login').send({
+        email: validUser.email,
+        password: validUser.password,
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.emailVerified).toBe(expected);
+    },
+  );
 });
 
 describe('GET /api/auth/me', () => {
@@ -194,6 +230,32 @@ describe('GET /api/auth/me', () => {
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ code: 'UNAUTHENTICATED' });
   });
+
+  it.each([
+    ['a new, unconfirmed', undefined, false],
+    ['a confirmed', { $set: { emailVerifiedAt: new Date() } }, true],
+    ['a legacy (field missing)', { $unset: { emailVerifiedAt: '' } }, true],
+  ])(
+    'reports emailVerified for %s account',
+    async (_label, update, expected) => {
+      const agent = request.agent(app);
+      await agent.post('/api/auth/register').send(validUser);
+
+      if (update) {
+        // Writes past Mongoose, as a document from before the field existed
+        // would look in the database.
+        await UserModel.collection.updateOne(
+          { email: validUser.email },
+          update,
+        );
+      }
+
+      const response = await agent.get('/api/auth/me');
+
+      expect(response.status).toBe(200);
+      expect(response.body.emailVerified).toBe(expected);
+    },
+  );
 });
 
 describe('POST /api/auth/logout', () => {

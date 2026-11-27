@@ -316,6 +316,7 @@ erDiagram
     string passwordHash "Argon2id, select false, optional"
     string role "user | admin, default user, indexed; missing = user"
     date suspendedAt "null = active; set by an admin"
+    date emailVerifiedAt "null = unconfirmed (new users); missing = confirmed (older users); no default"
     date createdAt
     date updatedAt
   }

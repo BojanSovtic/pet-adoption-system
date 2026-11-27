@@ -18,6 +18,11 @@ export type User = {
   email: string;
   name: string;
   role: UserRole;
+  /**
+   * Whether the email address is confirmed. New accounts start unconfirmed;
+   * accounts created before verification existed count as confirmed.
+   */
+  emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
 };

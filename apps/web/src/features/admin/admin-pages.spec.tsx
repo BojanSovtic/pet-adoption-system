@@ -66,6 +66,7 @@ const makeUser = (id: string, role: User['role']): User => ({
   email: `${id}@example.com`,
   name: id,
   role,
+  emailVerified: true,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 });

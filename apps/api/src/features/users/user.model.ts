@@ -26,6 +26,20 @@ export type UserRecord = {
    * existing sessions on the next request. Admins are never suspended.
    */
   suspendedAt?: Date | null;
+  /**
+   * When the user confirmed their email address. Three states, read only
+   * through `isEmailVerified`:
+   * - a date: confirmed;
+   * - `null`: not confirmed yet (`createUser` writes it for every new user);
+   * - missing: created before verification existed, treated as confirmed so
+   *   existing accounts are never locked out and need no migration.
+   * Missing and `null` mean opposite things, so the schema must not get a
+   * default: Mongoose applies defaults to documents it loads, which would turn
+   * a missing field into `null`. For the same reason, query unconfirmed users
+   * with `{ $type: 'null' }`, because `{ emailVerifiedAt: null }` also matches
+   * missing fields.
+   */
+  emailVerifiedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -60,6 +74,8 @@ const userSchema = new Schema<UserRecord>(
     },
     // Who suspended the account is in the admin audit log.
     suspendedAt: { type: Date, default: null },
+    // No default; see `emailVerifiedAt` in UserRecord.
+    emailVerifiedAt: { type: Date },
   },
   {
     timestamps: true,

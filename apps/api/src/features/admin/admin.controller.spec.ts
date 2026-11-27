@@ -132,6 +132,7 @@ describe('GET /api/admin/users', () => {
         'applicationCount',
         'createdAt',
         'email',
+        'emailVerified',
         'name',
         'petCount',
         'role',

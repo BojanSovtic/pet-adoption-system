@@ -29,6 +29,7 @@ const user: User = {
   email: 'milo@example.com',
   name: 'Milo Owner',
   role: 'user',
+  emailVerified: true,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

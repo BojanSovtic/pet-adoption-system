@@ -60,6 +60,8 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 ## Next steps
 
+**In progress (2026-11-27): email confirmation, phase 1 of 7 done (data only).** Users have `emailVerifiedAt` (new: `null`; older users without the field count as confirmed, so no migration), and the auth responses (`register`, `login`, `/auth/me`) and the admin user list include `emailVerified`. Nothing reads it yet: no email is sent, and sign-in and every action work as before. Next phase: the email sender (provider still to confirm: Brevo Free, since Render Free blocks SMTP and `pages.dev` has no DNS for a sending domain).
+
 **Current (2026-11-25): demo data for the live site.** The seed (`apps/api/src/scripts/demo/seed-demo.ts`) can now target the live demo: `pnpm prod:seed` is a dry run; changing it needs `--confirm-prod --confirm-host=<host>`, a private `DEMO_PASSWORD`, and runs a read-only preflight first (`seed-demo.ts`; the public README deliberately doesn't document it). Verified on QA with a copy pointed at QA (confirmed run, rerun, duplicate pet, visitor application, taken address) and by a production dry run (35 planned changes, no problems, nothing changed). **Production has not been seeded.** Before the real run:
 
 1. Replace the demo photos: the current ones (about 500 px, from a Kaggle cats-and-dogs set of unknown licence) are not suitable for the public site.
