@@ -149,7 +149,7 @@ In `apps/api/.env`, set **`SESSION_SECRET`** to at least 32 random characters. T
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-The other defaults already match the local setup: MongoDB on port 27018, the API on 3333 and the web app on 4200. The optional settings are described in [apps/api/.env.example](apps/api/.env.example), including log level, photo storage (`STORAGE_DRIVER`, Cloudinary) and an audit-log signing key (`AUDIT_HMAC_KEY`). None of them are needed for local development.
+The other defaults already match the local setup: MongoDB on port 27018, the API on 3333 and the web app on 4200. The optional settings are described in [apps/api/.env.example](apps/api/.env.example), including log level, photo storage (`STORAGE_DRIVER`, Cloudinary), email (`EMAIL_DRIVER`: by default emails are written as JSON files to `apps/api/outbox/` instead of being sent) and an audit-log signing key (`AUDIT_HMAC_KEY`). None of them are needed for local development.
 
 ### 2. Start MongoDB, the API and the web app
 

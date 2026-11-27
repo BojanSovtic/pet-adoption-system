@@ -8,6 +8,10 @@ import { resetRateLimits } from '../core/middleware/rate-limit';
 // Runs before the test file imports the app, so `env` picks it up.
 process.env.UPLOADS_DIR = inject('uploadsDir');
 
+// Emails stay in memory (test/email-capture.ts). Set explicitly, so an
+// EMAIL_DRIVER in a developer's apps/api/.env can never apply to tests.
+process.env.EMAIL_DRIVER = 'memory';
+
 // No log output during tests (every request logs a line). Tests that check
 // logs capture them with `captureLogs` (test/log-capture.ts). Set LOG_LEVEL
 // when running the tests to see the logs.

@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { configureLogger, readLogLevel } from '../logging/logger';
+import { readEmailConfig } from './email-config';
 import { loadEnvFile, readAuditKey, readMongodbUri } from './env-file';
 import { readProxySecret } from './proxy-secret';
 import { readCloudinaryConfig, readStorageDriver } from './storage-config';
@@ -26,6 +27,10 @@ const proxySecret = readProxySecret();
 const storageDriver = readStorageDriver();
 const cloudinary =
   storageDriver === 'cloudinary' ? readCloudinaryConfig() : null;
+// Fails at startup on an unknown driver, a driver not allowed here (only
+// Brevo in production, memory only in the API tests), or a missing or
+// malformed Brevo setting.
+const email = readEmailConfig();
 // Fails at startup if not a known level; applies to every log line after this.
 const logLevel = readLogLevel();
 configureLogger({ level: logLevel });
@@ -61,6 +66,8 @@ export const env = {
   storageDriver,
   /** Cloudinary account settings when `storageDriver` is `cloudinary`. */
   cloudinary,
+  /** How email is sent; see config/email-config.ts. */
+  email,
   /** Local storage only. */
   uploadsDir: path.resolve(
     process.cwd(),

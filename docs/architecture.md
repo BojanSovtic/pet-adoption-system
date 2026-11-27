@@ -48,6 +48,11 @@ flowchart LR
   - **New files are written first;** files are deleted only after the database no longer points to them. A failed database write removes the new files. Keys are never reused, so a file belongs to exactly one photo.
   - **Deleting:** `DELETE /api/pets/:id/images/:imageId` removes one photo. Deleting the pet removes all its photos too, after the transaction.
   - **Kept for existing clients:** `PUT /api/pets/:id/image` replaces all photos with one; `DELETE /api/pets/:id/image` removes all.
+- **Email goes through one small interface.** `core/email/` defines `EmailSender` (`send({ to, subject, text, html })`, which resolves with a receipt id). Application code uses `emailSender` from `core/email/index.ts`, and `EMAIL_DRIVER` (`core/config/email-config.ts`) picks the implementation at startup:
+  - `brevo` (production, where it is the only driver allowed and is required): Brevo's transactional HTTPS API with the built-in `fetch` (Render's free instances block SMTP), a 10-second timeout, and `BREVO_API_KEY`/`EMAIL_FROM` checked at startup. Failures are `EmailDeliveryError`s that contain only the kind of failure, the HTTP status and Brevo's error code.
+  - `outbox` (the default in development, QA and E2E): one JSON file per email in `EMAIL_OUTBOX_DIR` (default `apps/api/outbox`, git-ignored; E2E uses a temporary directory), written under a temporary name and then renamed. File names are the time plus a UUID.
+  - `memory` (the API tests only; `test/setup.ts` sets it): kept in memory, read with `sentEmails()` from `test/email-capture.ts`, cleared after each test.
+  - Drivers write no logs. Callers log only the receipt id, never recipients, contents or links.
 - **A replica set is required.** Adoption decisions use transactions, which a standalone MongoDB rejects, so `connectDatabase` refuses to start without one.
   - **Development:** `docker-compose.yml` runs a single-node replica set.
   - **Tests:** an in-memory replica set (`mongodb-memory-server`, `test/global-setup.ts`).
@@ -167,7 +172,7 @@ apps/api/src/
     pets/                      listings and photos (pet-image.ts: upload processing; pet-view.ts: response shape)
     users/                     identity (UserModel, toPublicUser) and public profiles
   core/                        infrastructure with no business rules
-    config/ errors/ logging/ middleware/ storage/
+    config/ email/ errors/ logging/ middleware/ storage/
   scripts/                     command-line tools run with tsx, not part of the bundle
     admin/                     admin:grant / admin:revoke, audit:verify
     demo/                      dev:seed / qa:seed / prod:seed, demo photos

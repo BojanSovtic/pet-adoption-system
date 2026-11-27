@@ -60,7 +60,12 @@ Recorded so they aren't rediscovered; none blocks deployment.
 
 ## Next steps
 
-**In progress (2026-11-27): email confirmation, phase 1 of 7 done (data only).** Users have `emailVerifiedAt` (new: `null`; older users without the field count as confirmed, so no migration), and the auth responses (`register`, `login`, `/auth/me`) and the admin user list include `emailVerified`. Nothing reads it yet: no email is sent, and sign-in and every action work as before. Next phase: the email sender (provider still to confirm: Brevo Free, since Render Free blocks SMTP and `pages.dev` has no DNS for a sending domain).
+**In progress (2026-11-27): email confirmation, phases 1–2 of 7 done (no email sent yet).**
+
+- Phase 1: users have `emailVerifiedAt` (new: `null`; older users without the field count as confirmed, so no migration), and the auth responses (`register`, `login`, `/auth/me`) and the admin user list include `emailVerified`. Nothing reads it yet, so sign-in and every action work as before.
+- Phase 2: `core/email/` (`EmailSender`, chosen by `EMAIL_DRIVER`): memory (API tests), outbox files (development, QA, E2E) and Brevo's HTTPS API (provisional provider: Render Free blocks SMTP, and `pages.dev` has no DNS for a sending domain). No code sends email yet, and the Brevo driver has only been tested against a mocked `fetch`; real delivery is unverified.
+- **Before the next API deploy:** production now refuses to start without `EMAIL_DRIVER=brevo`, `BREVO_API_KEY` and `EMAIL_FROM` ([`.env.render.example`](../.env.render.example)), so these must be set on Render first. The self-hosted reference (`docker-compose.prod.yml`, `.env.production.example`) doesn't pass them yet.
+- Next phase: tokens, the confirm and resend endpoints, and the email sent at registration.
 
 **Current (2026-11-25): demo data for the live site.** The seed (`apps/api/src/scripts/demo/seed-demo.ts`) can now target the live demo: `pnpm prod:seed` is a dry run; changing it needs `--confirm-prod --confirm-host=<host>`, a private `DEMO_PASSWORD`, and runs a read-only preflight first (`seed-demo.ts`; the public README deliberately doesn't document it). Verified on QA with a copy pointed at QA (confirmed run, rerun, duplicate pet, visitor application, taken address) and by a production dry run (35 planned changes, no problems, nothing changed). **Production has not been seeded.** Before the real run:
 

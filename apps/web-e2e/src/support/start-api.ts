@@ -33,6 +33,11 @@ const start = async () => {
         PORT: String(E2E_API_PORT),
         HOST: 'localhost',
         UPLOADS_DIR: await mkdtemp(path.join(tmpdir(), 'pet-adoption-e2e-')),
+        // Emails are written there, never sent, whatever apps/api/.env says.
+        EMAIL_DRIVER: 'outbox',
+        EMAIL_OUTBOX_DIR: await mkdtemp(
+          path.join(tmpdir(), 'pet-adoption-e2e-outbox-'),
+        ),
       },
     },
   );

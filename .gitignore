@@ -18,6 +18,9 @@ out-tsc/
 # User-uploaded files (local file storage)
 apps/api/uploads/
 
+# Emails written instead of sent (EMAIL_DRIVER=outbox, the development default)
+apps/api/outbox/
+
 # Database dumps and photo archives. Backups are kept outside the repository
 # (deployment.md §8); these catch one left here by mistake.
 backups/
