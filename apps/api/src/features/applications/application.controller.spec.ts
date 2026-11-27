@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import request from 'supertest';
 
 import { app } from '../../app';
@@ -41,11 +42,19 @@ const applyAndGetId = async (
   petId: string,
 ): Promise<string> => (await apply(applicant, petId)).body._id;
 
+const reason = 'We are looking for a home with a garden.';
+
+/** Rejections send a valid reason unless the test passes its own body. */
 const act = (
   user: SignedInAgent,
   applicationId: string,
   action: 'accept' | 'reject' | 'withdraw',
-) => user.agent.post(`/api/applications/${applicationId}/${action}`);
+  body: object | undefined = action === 'reject' ? { reason } : undefined,
+) => {
+  const call = user.agent.post(`/api/applications/${applicationId}/${action}`);
+
+  return body === undefined ? call : call.send(body);
+};
 
 const petStatus = async (petId: string) =>
   (await PetModel.findById(petId).lean())?.status;
@@ -487,6 +496,220 @@ describe('adoption applications', { timeout: 20_000 }, () => {
 
       expect(acceptAnother.status).toBe(409);
       expect(acceptAnother.body).toEqual({ code: 'PET_NOT_AVAILABLE' });
+    });
+  });
+
+  describe('rejection reasons', () => {
+    const storedReason = async (applicationId: string) =>
+      (await ApplicationModel.findById(applicationId).lean())?.rejectionReason;
+
+    it.each([
+      ['missing', {}, 'invalid_type'],
+      ['empty', { reason: '' }, 'too_small'],
+      ['whitespace only', { reason: ' \n\t ' }, 'too_small'],
+      ['too long', { reason: 'x'.repeat(1001) }, 'too_big'],
+    ])('requires a reason (%s)', async (_label, body, code) => {
+      const { owner, petId } = await createOwnerWithPet();
+      const applicant = await createSignedInAgent('applicant@example.com');
+      const applicationId = await applyAndGetId(applicant, petId);
+
+      const response = await act(owner, applicationId, 'reject', body);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'reason', code }],
+      });
+      expect(await applicationStatus(applicationId)).toBe('pending');
+      expect(await petStatus(petId)).toBe('pending');
+    });
+
+    it('stores the trimmed reason and shows it to the owner and the applicant only', async () => {
+      const { owner, petId } = await createOwnerWithPet();
+      const applicant = await createSignedInAgent('applicant@example.com');
+      const other = await createSignedInAgent('other@example.com');
+      const applicationId = await applyAndGetId(applicant, petId);
+      await apply(other, petId);
+
+      const response = await act(owner, applicationId, 'reject', {
+        reason: `  ${reason}\n`,
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        status: 'rejected',
+        rejectionReason: reason,
+      });
+      expect(await storedReason(applicationId)).toBe(reason);
+
+      const mine = await applicant.agent.get('/api/applications/mine');
+      const received = await owner.agent.get('/api/applications/received');
+      const othersMine = await other.agent.get('/api/applications/mine');
+
+      expect(mine.body.items[0]).toMatchObject({
+        _id: applicationId,
+        status: 'rejected',
+        rejectionReason: reason,
+        pet: { _id: petId },
+      });
+      expect(
+        received.body.items.find(
+          (item: { _id: string }) => item._id === applicationId,
+        ),
+      ).toMatchObject({ rejectionReason: reason });
+      // The other applicant's own application never carries it.
+      expect(othersMine.body.items).toHaveLength(1);
+      expect(othersMine.body.items[0]).not.toHaveProperty('rejectionReason');
+    });
+
+    it('lets nobody but the owner reject, even with a valid reason', async () => {
+      const { petId } = await createOwnerWithPet();
+      const applicant = await createSignedInAgent('applicant@example.com');
+      const stranger = await createSignedInAgent('stranger@example.com');
+      const applicationId = await applyAndGetId(applicant, petId);
+
+      const byApplicant = await act(applicant, applicationId, 'reject');
+      const byStranger = await act(stranger, applicationId, 'reject');
+
+      expect(byApplicant.status).toBe(403);
+      expect(byStranger.status).toBe(404);
+      expect(await applicationStatus(applicationId)).toBe('pending');
+      expect(await storedReason(applicationId)).toBeUndefined();
+    });
+
+    it('never overwrites a reason once the application is rejected', async () => {
+      const { owner, petId } = await createOwnerWithPet();
+      const applicant = await createSignedInAgent('applicant@example.com');
+      const applicationId = await applyAndGetId(applicant, petId);
+      await act(owner, applicationId, 'reject');
+
+      const again = await act(owner, applicationId, 'reject', {
+        reason: 'A different reason.',
+      });
+      const withdraw = await act(applicant, applicationId, 'withdraw', {
+        rejectionReason: 'Changed by the applicant.',
+      });
+
+      expect(again.status).toBe(409);
+      expect(withdraw.status).toBe(409);
+      expect(await storedReason(applicationId)).toBe(reason);
+    });
+
+    it('ignores a reason sent with accept and adds none to auto-rejected applications', async () => {
+      const { owner, petId } = await createOwnerWithPet();
+      const chosen = await createSignedInAgent('chosen@example.com');
+      const other = await createSignedInAgent('other@example.com');
+      const chosenId = await applyAndGetId(chosen, petId);
+      const otherId = await applyAndGetId(other, petId);
+
+      const response = await act(owner, chosenId, 'accept', {
+        reason: 'Not used.',
+        rejectionReason: 'Not used either.',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).not.toHaveProperty('rejectionReason');
+      expect(await storedReason(chosenId)).toBeUndefined();
+      expect(await applicationStatus(otherId)).toBe('rejected');
+      expect(await storedReason(otherId)).toBeUndefined();
+
+      const othersMine = await other.agent.get('/api/applications/mine');
+      expect(othersMine.body.items[0]).toMatchObject({ status: 'rejected' });
+      expect(othersMine.body.items[0]).not.toHaveProperty('rejectionReason');
+    });
+
+    it('returns older rejected applications without a reason unchanged', async () => {
+      const { owner, petId } = await createOwnerWithPet();
+      const applicant = await createSignedInAgent('applicant@example.com');
+      const applicationId = await applyAndGetId(applicant, petId);
+      // As stored before reasons existed: no field at all.
+      await ApplicationModel.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(applicationId) },
+        { $set: { status: 'rejected' } },
+      );
+
+      const mine = await applicant.agent.get('/api/applications/mine');
+      const received = await owner.agent.get('/api/applications/received');
+
+      expect(mine.body.items[0].status).toBe('rejected');
+      expect(mine.body.items[0]).not.toHaveProperty('rejectionReason');
+      expect(received.body.items[0]).not.toHaveProperty('rejectionReason');
+    });
+  });
+
+  describe('pending count (GET /api/applications/received?status=pending)', () => {
+    it("counts only the owner's own pending applications and follows decisions", async () => {
+      const { owner, petId } = await createOwnerWithPet();
+      const otherOwner = await createSignedInAgent('other-owner@example.com');
+      const otherPet = await otherOwner.agent
+        .post('/api/pets')
+        .send({ ...validPet, name: 'Luna' });
+      const first = await createSignedInAgent('first@example.com');
+      const second = await createSignedInAgent('second@example.com');
+      const third = await createSignedInAgent('third@example.com');
+      const firstId = await applyAndGetId(first, petId);
+      const secondId = await applyAndGetId(second, petId);
+      await apply(third, petId);
+      // Pending, but for someone else's pet.
+      await apply(first, otherPet.body._id);
+
+      const pendingCount = async (user: SignedInAgent) => {
+        const response = await user.agent.get(
+          '/api/applications/received?status=pending&pageSize=1',
+        );
+        expect(response.status).toBe(200);
+        return response.body.totalItems;
+      };
+
+      expect(await pendingCount(owner)).toBe(3);
+      expect(await pendingCount(otherOwner)).toBe(1);
+      // An applicant receives nothing.
+      expect(await pendingCount(first)).toBe(0);
+
+      await act(owner, firstId, 'reject');
+      expect(await pendingCount(owner)).toBe(2);
+
+      await act(owner, secondId, 'accept');
+      // The third was auto-rejected.
+      expect(await pendingCount(owner)).toBe(0);
+      expect(await pendingCount(otherOwner)).toBe(1);
+    });
+
+    it('lists only applications of the requested status', async () => {
+      const { owner, petId } = await createOwnerWithPet();
+      const first = await createSignedInAgent('first@example.com');
+      const second = await createSignedInAgent('second@example.com');
+      const firstId = await applyAndGetId(first, petId);
+      const secondId = await applyAndGetId(second, petId);
+      await act(owner, firstId, 'reject');
+
+      const pending = await owner.agent.get(
+        '/api/applications/received?status=pending',
+      );
+      const rejected = await owner.agent.get(
+        '/api/applications/received?status=rejected',
+      );
+
+      expect(
+        pending.body.items.map((item: { _id: string }) => item._id),
+      ).toEqual([secondId]);
+      expect(
+        rejected.body.items.map((item: { _id: string }) => item._id),
+      ).toEqual([firstId]);
+    });
+
+    it('rejects an unknown status', async () => {
+      const owner = await createSignedInAgent('owner@example.com');
+
+      const response = await owner.agent.get(
+        '/api/applications/received?status=open',
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'status' }],
+      });
     });
   });
 

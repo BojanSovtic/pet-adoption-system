@@ -10,7 +10,13 @@
   "received": {
     "title": "Zahtevi za moje ljubimce",
     "empty": "Još nema zahteva za tvoje ljubimce.",
-    "pagination": "Strane zahteva za moje ljubimce"
+    "pagination": "Strane zahteva za moje ljubimce",
+    "pendingCount_one": "{{count}} zahtev čeka tvoju odluku.",
+    "pendingCount_few": "{{count}} zahteva čekaju tvoju odluku.",
+    "pendingCount_other": "{{count}} zahteva čeka tvoju odluku.",
+    "showPending": "Prikaži samo njih",
+    "showAll": "Prikaži sve zahteve",
+    "pendingEmpty": "Nijedan zahtev ne čeka tvoju odluku."
   },
   "status": {
     "pending": "Na čekanju",
@@ -58,5 +64,20 @@
     "cancel": "Otkaži",
     "acceptTitle": "Prihvatiti ovaj zahtev?",
     "rejectTitle": "Odbiti ovaj zahtev?"
+  },
+  "pendingBadge_one": "{{count}} zahtev čeka tvoju odluku",
+  "pendingBadge_few": "{{count}} zahteva čekaju tvoju odluku",
+  "pendingBadge_other": "{{count}} zahteva čeka tvoju odluku",
+  "reject": {
+    "reasonLabel": "Obrazloženje za podnosioca",
+    "reasonHint": "Podnosilac će ovo videti uz svoj zahtev. Budi ljubazan i konkretan.",
+    "reasonRequired": "Objasni zašto odbijaš ovaj zahtev.",
+    "reasonTooLong": "Obrazloženje može imati najviše 1000 karaktera."
+  },
+  "rejection": {
+    "ownerReason": "Obrazloženje vlasnika",
+    "yourReason": "Tvoje obrazloženje podnosiocu",
+    "noReason": "Za ovu odluku nije zabeleženo obrazloženje.",
+    "noReasonAdopted": "Za ovu odluku nije zabeleženo obrazloženje. Ljubimac {{name}} je u međuvremenu udomljen."
   }
 }

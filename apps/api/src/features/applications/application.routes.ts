@@ -7,7 +7,10 @@ import {
   otherWriteRateLimit,
 } from '../../core/middleware/rate-limit';
 import { validateBody } from '../../core/middleware/validate';
-import { createApplicationSchema } from './application.schema';
+import {
+  createApplicationSchema,
+  rejectApplicationSchema,
+} from './application.schema';
 import {
   applicationActionController,
   listMyApplicationsController,
@@ -41,8 +44,9 @@ applicationRouter.get(
 );
 
 // Explicit actions instead of "PATCH status": each maps to one state-machine
-// transition with one allowed actor.
-for (const action of ['accept', 'reject', 'withdraw'] as const) {
+// transition with one allowed actor. Only rejecting takes a body (the
+// owner's required reason).
+for (const action of ['accept', 'withdraw'] as const) {
   applicationRouter.post(
     `/applications/:id/${action}`,
     requireAuth,
@@ -50,3 +54,11 @@ for (const action of ['accept', 'reject', 'withdraw'] as const) {
     asyncHandler(applicationActionController(action)),
   );
 }
+
+applicationRouter.post(
+  '/applications/:id/reject',
+  requireAuth,
+  otherWriteRateLimit,
+  validateBody(rejectApplicationSchema),
+  asyncHandler(applicationActionController('reject')),
+);

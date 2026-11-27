@@ -2,6 +2,7 @@ import type { Pet, PetStatus } from './pet.model.js';
 import type { User } from './user.model.js';
 
 export const APPLICATION_MESSAGE_MAX_LENGTH = 2000;
+export const APPLICATION_REJECTION_REASON_MAX_LENGTH = 1000;
 
 export const APPLICATION_STATUSES = [
   'pending',
@@ -90,6 +91,12 @@ type ApplicationBase = {
   _id: string;
   message: string;
   status: ApplicationStatus;
+  /**
+   * The owner's explanation, set when the owner rejects the application.
+   * Missing on applications rejected automatically (another application for
+   * the pet was accepted) and on those rejected before a reason was required.
+   */
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -109,6 +116,11 @@ export type CreateApplicationInput = {
   message: string;
 };
 
+/** Body of `POST /api/applications/:id/reject`: the reason is required. */
+export type RejectApplicationInput = {
+  reason: string;
+};
+
 export const APPLICATION_LIST_DEFAULT_PAGE_SIZE = 10;
 export const APPLICATION_LIST_MAX_PAGE_SIZE = 50;
 
@@ -119,6 +131,14 @@ export const APPLICATION_LIST_MAX_PAGE_SIZE = 50;
 export type ApplicationListQuery = {
   page?: number;
   pageSize?: number;
+};
+
+/**
+ * `GET /api/applications/received` can also be narrowed to one status; with
+ * `pending`, `totalItems` is the number of applications awaiting a decision.
+ */
+export type ReceivedApplicationListQuery = ApplicationListQuery & {
+  status?: ApplicationStatus;
 };
 
 /** `GET /api/applications/mine` can also be narrowed to one pet. */

@@ -5,22 +5,34 @@ import type { ApplicationAction } from '@pet-adoption/models';
 
 import {
   applicationQueryKeys,
+  rejectApplication,
   runApplicationAction,
 } from '../api/applications';
 
-type ActionVariables = { applicationId: string; action: ApplicationAction };
+type ActionVariables =
+  | {
+      applicationId: string;
+      action: Exclude<ApplicationAction, 'reject'>;
+    }
+  | { applicationId: string; action: 'reject'; reason: string };
 
 /**
- * Accept, reject or withdraw. Errors use the global mutation toast. Pet
- * statuses can change with any action, so pets are refetched too.
+ * Accept, reject (with the owner's reason) or withdraw. Errors use the global
+ * mutation toast. Invalidating every application query also refreshes the
+ * owner's pending count; pet statuses can change with any action, so pets are
+ * refetched too.
  */
 export const useApplicationAction = () => {
   const { t } = useTranslation('applications');
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ applicationId, action }: ActionVariables) =>
-      runApplicationAction(applicationId, action),
+    mutationFn: (variables: ActionVariables) =>
+      variables.action === 'reject'
+        ? rejectApplication(variables.applicationId, {
+            reason: variables.reason,
+          })
+        : runApplicationAction(variables.applicationId, variables.action),
     onSuccess: async (_application, { action }) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: applicationQueryKeys.all }),

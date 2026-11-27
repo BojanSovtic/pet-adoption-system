@@ -287,6 +287,20 @@ describe('PetApplicationSection', () => {
     ).toBeNull();
   });
 
+  it("shows the owner's explanation with a rejected application", async () => {
+    renderSection(visitor, [
+      {
+        ...myApplication('rejected'),
+        rejectionReason: 'We would prefer a home without other cats.',
+      },
+    ]);
+
+    expect(await screen.findByText("Owner's explanation")).toBeTruthy();
+    expect(
+      screen.getByText('We would prefer a home without other cats.'),
+    ).toBeTruthy();
+  });
+
   it('offers a new form after withdrawing', async () => {
     renderSection(visitor, [myApplication('withdrawn')]);
 
