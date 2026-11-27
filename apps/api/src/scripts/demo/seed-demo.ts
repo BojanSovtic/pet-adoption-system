@@ -14,6 +14,7 @@ import {
   APPLICATIONS,
   applicationMessage,
   PETS,
+  rejectionReason,
   USERS,
   type ApplicationSpec,
   type Outcome,
@@ -518,6 +519,9 @@ const ensureDecided = async (
       await call(`/applications/${application._id}/${action}`, {
         method: 'POST',
         session: action === 'withdraw' ? applicant : owner,
+        ...(action === 'reject'
+          ? { json: { reason: rejectionReason(spec.pet) } }
+          : {}),
       }),
       [200],
       `${action} (${label})`,

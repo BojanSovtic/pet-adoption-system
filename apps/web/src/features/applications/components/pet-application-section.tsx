@@ -22,6 +22,7 @@ import {
 } from '../api/applications';
 import { ApplicationActions } from './application-actions';
 import { ApplicationStatusBadge } from './application-status-badge';
+import { RejectionNote } from './rejection-note';
 
 const applicationFormSchema = z.object({
   message: z
@@ -193,6 +194,7 @@ const PetApplicationSection = ({ pet }: PetApplicationSectionProps) => {
           <span className="text-sm font-medium">{t('yourApplication')}</span>
           <ApplicationStatusBadge status={myApplication.status} />
         </div>
+        <RejectionNote application={myApplication} actor="applicant" />
         <ApplicationActions
           applicationId={myApplication._id}
           status={myApplication.status}

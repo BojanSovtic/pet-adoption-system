@@ -1,6 +1,7 @@
 import { Schema, model, type Types } from 'mongoose';
 import {
   APPLICATION_MESSAGE_MAX_LENGTH,
+  APPLICATION_REJECTION_REASON_MAX_LENGTH,
   APPLICATION_STATUSES,
   type ApplicationStatus,
 } from '@pet-adoption/models';
@@ -15,6 +16,11 @@ export type ApplicationRecord = {
   applicant: Types.ObjectId;
   message: string;
   status: ApplicationStatus;
+  /**
+   * Written only by the owner's reject action, together with the status
+   * change. Older and automatically rejected applications have none.
+   */
+  rejectionReason?: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -35,6 +41,11 @@ const applicationSchema = new Schema<ApplicationRecord>(
       enum: [...APPLICATION_STATUSES],
       default: 'pending',
       required: true,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: APPLICATION_REJECTION_REASON_MAX_LENGTH,
     },
   },
   { timestamps: true },

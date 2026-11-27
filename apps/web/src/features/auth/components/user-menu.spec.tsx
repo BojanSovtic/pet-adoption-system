@@ -1,15 +1,29 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '@pet-adoption/models';
 
 import '../../../i18n/config';
+import { getPendingApplicationCount } from '../../applications/api/applications';
 import { getCurrentUser } from '../api/get-current-user';
 import { logout } from '../api/logout';
 import { UserMenu } from './user-menu';
 
 vi.mock('../api/logout', () => ({ logout: vi.fn() }));
+
+vi.mock('../../applications/api/applications', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../applications/api/applications')
+  >()),
+  getPendingApplicationCount: vi.fn(),
+}));
 
 vi.mock('../api/get-current-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/get-current-user')>()),
@@ -72,6 +86,7 @@ const openMenu = async () => {
 describe('UserMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getPendingApplicationCount).mockResolvedValue(0);
   });
 
   it('keeps sign-in and registration for signed-out visitors', async () => {
@@ -111,6 +126,37 @@ describe('UserMenu', () => {
     });
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+  });
+
+  it('shows how many applications await a decision, on the button and the link', async () => {
+    vi.mocked(getPendingApplicationCount).mockResolvedValue(3);
+    renderMenu(user);
+
+    const button = await screen.findByRole('button', {
+      name: /^Account menu: Ana\W+3 applications waiting for your decision$/,
+    });
+    fireEvent.click(button);
+
+    const link = screen.getByRole('link', {
+      name: /^Applications\W+3 applications waiting for your decision$/,
+    });
+    expect(link.getAttribute('href')).toBe('/applications');
+    expect(within(link).getByText('3')).toBeTruthy();
+  });
+
+  it('shows no count when nothing is pending or it cannot be loaded', async () => {
+    vi.mocked(getPendingApplicationCount).mockRejectedValue(
+      new Error('offline'),
+    );
+    renderMenu(user);
+
+    const button = await screen.findByRole('button', {
+      name: 'Account menu: Ana',
+    });
+    await waitFor(() => {
+      expect(getPendingApplicationCount).toHaveBeenCalled();
+    });
+    expect(button.textContent).toBe('Account menu: Ana');
   });
 
   it.each([

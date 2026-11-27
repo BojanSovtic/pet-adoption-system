@@ -19,7 +19,9 @@ import { pageOf } from '../../../lib/testing/page-of';
 import { getCurrentUser } from '../../auth/api/get-current-user';
 import {
   getMyApplications,
+  getPendingApplicationCount,
   getReceivedApplications,
+  rejectApplication,
   runApplicationAction,
 } from '../api/applications';
 import { ApplicationsPage } from './applications-page';
@@ -28,6 +30,8 @@ vi.mock('../api/applications', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/applications')>()),
   getMyApplications: vi.fn(),
   getReceivedApplications: vi.fn(),
+  getPendingApplicationCount: vi.fn(),
+  rejectApplication: vi.fn(),
   runApplicationAction: vi.fn(),
 }));
 
@@ -101,6 +105,8 @@ const renderPage = (currentUser: User | null, path = '/applications') => {
 describe('ApplicationsPage', () => {
   beforeEach(() => {
     vi.mocked(runApplicationAction).mockClear();
+    vi.mocked(rejectApplication).mockClear();
+    vi.mocked(getPendingApplicationCount).mockReset().mockResolvedValue(0);
   });
 
   it('sends signed-out visitors to the login page', async () => {
@@ -264,5 +270,234 @@ describe('ApplicationsPage', () => {
     expect(
       screen.getByText("You haven't applied to adopt any pets yet."),
     ).toBeTruthy();
+  });
+
+  describe('rejecting with a reason', () => {
+    const openRejectDialog = async () => {
+      vi.mocked(getReceivedApplications).mockResolvedValue(
+        pageOf([received('received-1', 'pending')]),
+      );
+      vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+      renderPage(user);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Reject' }));
+      return screen.getByRole('textbox', { name: /Reason for the applicant/ });
+    };
+
+    it.each([
+      ['empty', ''],
+      ['whitespace only', '   \n  '],
+    ])('does not reject with a %s reason', async (_label, value) => {
+      const field = await openRejectDialog();
+      fireEvent.change(field, { target: { value } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, reject' }));
+
+      expect(
+        await screen.findByText(
+          'Please explain why you are rejecting this application.',
+        ),
+      ).toBeTruthy();
+      // The dialog stays open, with focus on the invalid field.
+      expect(field.getAttribute('aria-invalid')).toBe('true');
+      await waitFor(() => {
+        expect(document.activeElement).toBe(field);
+      });
+      expect(rejectApplication).not.toHaveBeenCalled();
+    });
+
+    it('sends the trimmed reason and clears the error once it is valid', async () => {
+      vi.mocked(rejectApplication).mockResolvedValue({
+        ...received('received-1', 'rejected'),
+        rejectionReason: 'We chose a family with a garden.',
+      });
+      const field = await openRejectDialog();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, reject' }));
+      expect(
+        await screen.findByText(
+          'Please explain why you are rejecting this application.',
+        ),
+      ).toBeTruthy();
+
+      fireEvent.change(field, {
+        target: { value: '  We chose a family with a garden. ' },
+      });
+      expect(
+        screen.queryByText(
+          'Please explain why you are rejecting this application.',
+        ),
+      ).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, reject' }));
+
+      await waitFor(() => {
+        expect(rejectApplication).toHaveBeenCalledWith('received-1', {
+          reason: 'We chose a family with a garden.',
+        });
+      });
+      expect(runApplicationAction).not.toHaveBeenCalled();
+    });
+
+    it('starts empty again after cancelling', async () => {
+      const field = await openRejectDialog();
+      fireEvent.change(field, { target: { value: 'Draft reason' } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+
+      expect(
+        (
+          screen.getByRole('textbox', {
+            name: /Reason for the applicant/,
+          }) as HTMLTextAreaElement
+        ).value,
+      ).toBe('');
+    });
+  });
+
+  describe("the owner's explanation", () => {
+    const rejectedMine = (
+      rejectionReason?: string,
+      petStatus: MyApplication['pet']['status'] = 'available',
+    ): MyApplication => ({
+      ...mine,
+      status: 'rejected',
+      ...(rejectionReason ? { rejectionReason } : {}),
+      pet: { ...mine.pet, status: petStatus },
+    });
+
+    it('shows the applicant the reason with their rejected application', async () => {
+      vi.mocked(getReceivedApplications).mockResolvedValue(pageOf([]));
+      vi.mocked(getMyApplications).mockResolvedValue(
+        pageOf([rejectedMine('We are looking for a home with a garden.')]),
+      );
+      renderPage(user);
+
+      const caption = await screen.findByText("Owner's explanation");
+      const note = caption.closest('figure') as HTMLElement;
+      expect(
+        within(note).getByText('We are looking for a home with a garden.'),
+      ).toBeTruthy();
+      expect(screen.getByText('Rejected')).toBeTruthy();
+    });
+
+    it('says so, without inventing a reason, when none was recorded', async () => {
+      vi.mocked(getReceivedApplications).mockResolvedValue(pageOf([]));
+      vi.mocked(getMyApplications).mockResolvedValue(
+        pageOf([
+          rejectedMine(),
+          { ...rejectedMine(undefined, 'adopted'), _id: 'mine-2' },
+        ]),
+      );
+      renderPage(user);
+
+      expect(
+        await screen.findByText(
+          'No explanation was recorded for this decision.',
+        ),
+      ).toBeTruthy();
+      expect(
+        screen.getByText(
+          'No explanation was recorded for this decision. Luna has since been adopted.',
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByText("Owner's explanation")).toBeNull();
+    });
+
+    it('shows the owner the reason they gave', async () => {
+      vi.mocked(getReceivedApplications).mockResolvedValue(
+        pageOf([
+          {
+            ...received('received-1', 'rejected'),
+            rejectionReason: 'Not a good match for a flat.',
+          },
+        ]),
+      );
+      vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+      renderPage(user);
+
+      expect(
+        await screen.findByText('Your explanation to the applicant'),
+      ).toBeTruthy();
+      expect(screen.getByText('Not a good match for a flat.')).toBeTruthy();
+    });
+  });
+
+  describe('pending applications', () => {
+    it('shows how many await a decision and filters to them', async () => {
+      vi.mocked(getPendingApplicationCount).mockResolvedValue(2);
+      vi.mocked(getReceivedApplications).mockResolvedValue(
+        pageOf([received('received-1', 'pending')]),
+      );
+      vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+      const router = renderPage(user, '/applications?receivedPage=3');
+
+      expect(
+        await screen.findByText(
+          '2 applications are waiting for your decision.',
+        ),
+      ).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show only these' }));
+
+      await waitFor(() => {
+        expect(getReceivedApplications).toHaveBeenLastCalledWith({
+          page: 1,
+          status: 'pending',
+        });
+      });
+      expect(router.state.location.search).toBe('?receivedStatus=pending');
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Show all applications' }),
+      );
+
+      await waitFor(() => {
+        expect(getReceivedApplications).toHaveBeenLastCalledWith({ page: 1 });
+      });
+      expect(router.state.location.search).toBe('');
+    });
+
+    it('shows no notice when nothing is pending', async () => {
+      vi.mocked(getReceivedApplications).mockResolvedValue(
+        pageOf([received('received-1', 'accepted')]),
+      );
+      vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+      renderPage(user);
+
+      expect(await screen.findByText('Accepted')).toBeTruthy();
+      expect(
+        screen.queryByRole('button', { name: 'Show only these' }),
+      ).toBeNull();
+    });
+
+    it('refreshes the count after a decision', async () => {
+      vi.mocked(getPendingApplicationCount)
+        .mockResolvedValueOnce(1)
+        .mockResolvedValue(0);
+      vi.mocked(getReceivedApplications).mockResolvedValue(
+        pageOf([received('received-1', 'pending')]),
+      );
+      vi.mocked(getMyApplications).mockResolvedValue(pageOf([]));
+      vi.mocked(runApplicationAction).mockResolvedValue(
+        received('received-1', 'accepted'),
+      );
+      renderPage(user);
+
+      expect(
+        await screen.findByText('1 application is waiting for your decision.'),
+      ).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, accept' }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('1 application is waiting for your decision.'),
+        ).toBeNull();
+      });
+      expect(getPendingApplicationCount).toHaveBeenCalledTimes(2);
+    });
   });
 });

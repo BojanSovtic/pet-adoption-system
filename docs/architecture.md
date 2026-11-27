@@ -152,7 +152,7 @@ flowchart TB
   - **How the query runs:** filters apply before `skip`/`limit`, and `countDocuments` uses the same filter.
   - **Response:** `{ items, page, pageSize, totalItems, totalPages }`.
 - **`GET /api/pets/mine`** (signed in) returns the session user's pets, every status and hidden ones included, newest first, paged like the profile list (`ownerPetsQuerySchema`: `page`, `pageSize`; any other parameter, such as `owner`, is ignored). It shares `listPetsByOwner` with `GET /api/users/:id/pets` (scope `all` vs. `listed`). The route is registered before `/:id`. Web: `petQueryKeys.minePage(query)` = `['pets', 'list', 'mine', query]`, under `lists()` so the delete button's list update covers it; removed on identity changes.
-- **The application lists are paginated the same way** (`page`, `pageSize` default 10, at most 50; newest first with `_id` as tie-breaker). `/applications/mine` is scoped to the session user as applicant; `/applications/received` to the session user as `petOwner`. `/mine` also takes `pet=<id>`, which the pet page uses to fetch only that pet's newest application.
+- **The application lists are paginated the same way** (`page`, `pageSize` default 10, at most 50; newest first with `_id` as tie-breaker). `/applications/mine` is scoped to the session user as applicant; `/applications/received` to the session user as `petOwner`. `/mine` also takes `pet=<id>`, which the pet page uses to fetch only that pet's newest application. `/received` also takes `status=<status>`: the owner's pending count is `totalItems` of `?status=pending&pageSize=1` (query key `applicationQueryKeys.pendingCount`, refreshed by invalidating `applicationQueryKeys.all` after every action), so no counter is stored. `POST /applications/:id/reject` takes `{ reason }`, written in the same conditional `pending → rejected` update; `accept` and `withdraw` take no body.
 
 ### 2c. API code organisation
 
@@ -372,6 +372,7 @@ erDiagram
     ObjectId applicant FK "ref User, set from the session"
     string message "1-2000 chars"
     string status "pending | accepted | rejected | withdrawn"
+    string rejectionReason "optional, 1-1000 chars, set only by the owner's reject"
     date createdAt
     date updatedAt
   }

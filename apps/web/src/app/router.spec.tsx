@@ -21,6 +21,7 @@ vi.mock(
     >()),
     getMyApplications: vi.fn().mockResolvedValue(pageOf([])),
     getReceivedApplications: vi.fn().mockResolvedValue(pageOf([])),
+    getPendingApplicationCount: vi.fn().mockResolvedValue(0),
   }),
 );
 

@@ -28,7 +28,7 @@ _Last updated: 2026-11-25, after the API reorganisation into `features/` and `co
 Rules are in [requirements.md](requirements.md); structure and flows in [architecture.md](architecture.md).
 
 - **Pets:** public, paginated list with name search, species/status filters and whitelisted sorts (state in the URL); details; create, full-replacement edit and delete for the owner only (delete blocked by pending or accepted applications); profile facts (sex, breed, compatibility, time alone); up to 5 photos per pet with a main photo, re-encoded server-side; "My pets".
-- **Adoption applications:** apply, withdraw, accept and reject through a shared state machine; every change in a transaction that locks the pet; unique indexes as the final guarantee; paginated applicant and owner views.
+- **Adoption applications:** apply, withdraw, accept and reject through a shared state machine; every change in a transaction that locks the pet; unique indexes as the final guarantee; paginated applicant and owner views. Rejecting requires a reason that the applicant sees with the application; owners see a pending-application count on the account menu and can filter to pending applications (2026-11-26).
 - **Accounts:** registration and sign-in with server-side sessions, Argon2id, rate limits; account menu; sign-in redirects that return to the original page.
 - **Messaging and profiles:** one conversation per pet and interested user, visible only to the two participants; public profiles with name, join date and listed pets (signed-in users only).
 - **Administration:** admin role (first admin via `pnpm admin:grant`), user suspension, hiding listings, read-only application oversight, statistics, and a hash-chained audit log checked by `pnpm audit:verify`.
